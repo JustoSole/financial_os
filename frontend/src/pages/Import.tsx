@@ -7,11 +7,11 @@ import {
   Upload, 
   ArrowRight,
   FileUp,
-  Sparkles
+  Info,
+  ExternalLink
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { getImportHistory, importFile, validateFile, trackEvent } from '../api';
-import { OnboardingWizard } from '../components';
 
 type ImportStep = 'upload' | 'validating' | 'importing' | 'complete' | 'error';
 
@@ -24,7 +24,6 @@ export default function Import() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [validationResult, setValidationResult] = useState<any>(null);
   const [importResult, setImportResult] = useState<any>(null);
-  const [showWizard, setShowWizard] = useState(false);
 
   useEffect(() => {
     if (property) {
@@ -118,12 +117,8 @@ export default function Import() {
       <div className="page-header">
         <div>
           <h1 className="page-title">Importar datos</h1>
-          <p className="page-subtitle">Subí tus reportes de Cloudbeds</p>
+          <p className="page-subtitle">Subí tus reportes de Cloudbeds para actualizar tu Dashboard</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowWizard(true)}>
-          <Sparkles size={18} />
-          Usar asistente guiado
-        </button>
       </div>
 
       {showWizard && (
@@ -221,24 +216,53 @@ export default function Import() {
 
       {/* How to export guide */}
       <div className="guide-section">
-        <h3>📋 Cómo exportar desde Cloudbeds</h3>
-        <div className="guide-steps">
-          <div className="guide-step">
-            <span className="step-number">1</span>
-            <span>Abrí el reporte en Cloudbeds</span>
+        <h3>📋 Guía de Exportación desde Cloudbeds</h3>
+        <p className="guide-intro">Para un análisis completo, subí estos 3 reportes (CSV) exportados desde Cloudbeds:</p>
+        
+        <div className="guide-grid">
+          <div className="guide-card">
+            <div className="guide-card-header">
+              <span className="guide-step-number">1</span>
+              <h4>Transacciones Detalladas</h4>
+            </div>
+            <p><strong>Ubicación:</strong> Reportes → Expanded Transaction Report with Details</p>
+            <ul>
+              <li>Seleccioná el período (recomendamos últimos 12 meses).</li>
+              <li>Asegururate que la vista sea "Details Only" o "Table".</li>
+              <li>Hacé clic en <strong>Export → CSV</strong>.</li>
+            </ul>
           </div>
-          <div className="guide-step">
-            <span className="step-number">2</span>
-            <span>Seleccioná el período deseado</span>
+
+          <div className="guide-card">
+            <div className="guide-card-header">
+              <span className="guide-step-number">2</span>
+              <h4>Reservas con Financieros</h4>
+            </div>
+            <p><strong>Ubicación:</strong> Reportes → Reservations with Financials</p>
+            <ul>
+              <li>Seleccioná el mismo período que el reporte anterior.</li>
+              <li>Asegururate que la vista sea "Table" (no Summary).</li>
+              <li>Hacé clic en <strong>Export → CSV</strong>.</li>
+            </ul>
           </div>
-          <div className="guide-step">
-            <span className="step-number">3</span>
-            <span>Click en "Export" → CSV</span>
+
+          <div className="guide-card">
+            <div className="guide-card-header">
+              <span className="guide-step-number">3</span>
+              <h4>Performance de Canales</h4>
+            </div>
+            <p><strong>Ubicación:</strong> Reportes → Channel Performance Summary</p>
+            <ul>
+              <li>Seleccioná el mismo período de análisis.</li>
+              <li>Este reporte es vital para el análisis de comisiones.</li>
+              <li>Hacé clic en <strong>Export → CSV</strong>.</li>
+            </ul>
           </div>
-          <div className="guide-step">
-            <span className="step-number">4</span>
-            <span>Subí el archivo aquí</span>
-          </div>
+        </div>
+
+        <div className="guide-footer">
+          <Info size={16} />
+          <span><strong>Tip:</strong> Podés arrastrar los 3 archivos juntos a la zona de subida superior.</span>
         </div>
       </div>
 
@@ -456,48 +480,79 @@ export default function Import() {
           background: white;
           border: 1px solid var(--color-border);
           border-radius: var(--radius-xl);
-          padding: var(--space-5);
+          padding: var(--space-8);
           margin-bottom: var(--space-8);
           box-shadow: var(--shadow-card);
         }
 
-        .guide-section h3 {
-          font-size: var(--text-base);
-          margin-bottom: var(--space-4);
+        .guide-intro {
+          color: var(--color-text-muted);
+          margin-bottom: var(--space-6);
         }
 
-        .guide-steps {
-          display: flex;
-          gap: var(--space-3);
+        .guide-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+          gap: var(--space-6);
+          margin-bottom: var(--space-6);
         }
 
-        .guide-step {
-          flex: 1;
+        .guide-card {
+          padding: var(--space-5);
+          background: var(--color-bg-hover);
+          border-radius: var(--radius-lg);
+          border: 1px solid var(--color-border);
+        }
+
+        .guide-card-header {
           display: flex;
           align-items: center;
           gap: var(--space-3);
-          padding: var(--space-3);
-          background: var(--color-bg-hover);
-          border-radius: var(--radius-lg);
-          font-size: var(--text-sm);
-          color: var(--color-text-secondary);
+          margin-bottom: var(--space-4);
         }
 
-        .step-number {
-          width: 24px;
-          height: 24px;
+        .guide-step-number {
+          width: 28px;
+          height: 28px;
           background: var(--color-primary);
           color: white;
           border-radius: var(--radius-full);
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: var(--text-xs);
           font-weight: 700;
-          flex-shrink: 0;
+          font-size: var(--text-sm);
         }
 
-        /* History Section */
+        .guide-card h4 {
+          margin: 0;
+          font-size: var(--text-base);
+        }
+
+        .guide-card p {
+          font-size: var(--text-sm);
+          margin-bottom: var(--space-3);
+        }
+
+        .guide-card ul {
+          padding-left: var(--space-5);
+          font-size: var(--text-xs);
+          color: var(--color-text-secondary);
+          display: flex;
+          flex-direction: column;
+          gap: var(--space-2);
+        }
+
+        .guide-footer {
+          display: flex;
+          align-items: center;
+          gap: var(--space-2);
+          padding-top: var(--space-4);
+          border-top: 1px solid var(--color-border);
+          font-size: var(--text-sm);
+          color: var(--color-text-secondary);
+        }
+
         .history-section {
           background: white;
           border: 1px solid var(--color-border);

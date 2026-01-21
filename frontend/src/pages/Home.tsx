@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { getCommandCenter } from '../api';
-import { DateRangePicker, HelpTooltip, OnboardingWizard } from '../components';
+import { DateRangePicker, HelpTooltip } from '../components';
 import { formatCurrency, formatCurrencyShort } from '../utils/formatters';
 import {
   TrendingUp,
@@ -73,7 +73,6 @@ export default function Home() {
   const { property, dateRange, refreshData } = useApp();
   const [data, setData] = useState<CommandCenterData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -110,21 +109,12 @@ export default function Home() {
       <div className={styles.commandCenter}>
         <EmptyState 
           title="Conectá tus datos de Cloudbeds" 
-          description="Para ver tu Command Center, necesitamos los reportes de Cloudbeds. El análisis completo te dará respuestas a las 40 preguntas clave de tu negocio." 
+          description="Para ver tu Dashboard, necesitamos subir tus reportes de Cloudbeds. El proceso toma menos de 2 minutos." 
           action={{ 
-            label: 'Comenzar configuración', 
-            onClick: () => setShowOnboarding(true) 
+            label: 'Ir a Importar datos', 
+            onClick: () => window.location.href = '/importar'
           }}
         />
-        {showOnboarding && (
-          <OnboardingWizard 
-            onComplete={async () => {
-              setShowOnboarding(false);
-              await refreshData();
-            }} 
-            onClose={() => setShowOnboarding(false)} 
-          />
-        )}
       </div>
     );
   }
@@ -145,7 +135,7 @@ export default function Home() {
       {/* Data Confidence Banner */}
       <DataConfidenceBanner 
         confidence={data.dataConfidence} 
-        onAction={() => setShowOnboarding(true)} 
+        onAction={() => window.location.href = '/importar'} 
       />
 
       {/* History Coverage Banner - New */}
@@ -159,23 +149,13 @@ export default function Home() {
             <p>Solo detectamos {data.dataConfidence.monthsCovered === 0 ? 'que no hay' : '1'} mes de datos. Importá meses anteriores para habilitar comparativas MoM y YoY.</p>
           </div>
           <button 
-            onClick={() => setShowOnboarding(true)} 
+            onClick={() => window.location.href = '/importar'} 
             className={styles.historyWarningAction}
             style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, font: 'inherit', color: 'inherit', fontWeight: 600, textDecoration: 'underline' }}
           >
             Importar historia
           </button>
         </div>
-      )}
-
-      {showOnboarding && (
-        <OnboardingWizard 
-          onComplete={async () => {
-            setShowOnboarding(false);
-            await refreshData();
-          }} 
-          onClose={() => setShowOnboarding(false)} 
-        />
       )}
 
       {/* Weekly Action - THE action to take this week */}
@@ -472,5 +452,6 @@ function SectionHeader({
     </div>
   );
 }
+
 
 
