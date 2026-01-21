@@ -23,7 +23,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// API routes
+// API routes - MUST be before static file serving
 app.use('/api', apiRoutes);
 
 // Serve static files (Unified Frontend + Backend)
@@ -32,11 +32,32 @@ const hasFrontendBuild = fs.existsSync(frontendPath);
 
 if (hasFrontendBuild) {
   console.log(`📦 Serving frontend from: ${frontendPath}`);
-  app.use(express.static(frontendPath));
   
-  // Handle React routing
-  app.get(/^(?!\/api).+/, (req, res) => {
-    res.sendFile(path.join(frontendPath, 'index.html'));
+  // Serve static assets (JS, CSS, images, etc.)
+  app.use(express.static(frontendPath, {
+    // Don't serve index.html for static files
+    index: false,
+  }));
+  
+  // Handle React routing - catch all non-API routes and serve index.html
+  app.get('*', (req, res, next) => {
+    // Skip if it's an API route (shouldn't happen, but just in case)
+    if (req.path.startsWith('/api')) {
+      return next();
+    }
+    
+    // Skip if it's a static asset request (has file extension)
+    if (req.path.match(/\.[a-zA-Z0-9]+$/)) {
+      return next();
+    }
+    
+    // Serve index.html for all other routes (React Router)
+    res.sendFile(path.join(frontendPath, 'index.html'), (err) => {
+      if (err) {
+        console.error('Error serving index.html:', err);
+        res.status(404).send('Not found');
+      }
+    });
   });
 } else {
   console.warn('⚠️ Frontend build not found. Running in API-only mode.');
