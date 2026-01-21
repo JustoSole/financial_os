@@ -4,7 +4,6 @@ import {
   Home,
   Zap,
   Target,
-  Wallet,
   Calculator,
   Upload,
   Settings,

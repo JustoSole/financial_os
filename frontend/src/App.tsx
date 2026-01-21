@@ -1,7 +1,7 @@
 import { Routes, Route } from 'react-router-dom';
 import { AppProvider } from './context/AppContext';
 import { Sidebar, MobileHeader } from './components';
-import { Home, Actions, Channels, Cash, Costs, Import, Settings, Profitability } from './pages';
+import { Home, Actions, Channels, Costs, Import, Settings, Profitability } from './pages';
 import styles from './App.module.css';
 
 export default function App() {
