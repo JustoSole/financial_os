@@ -6,10 +6,12 @@ import {
   AlertCircle, 
   Upload, 
   ArrowRight,
-  FileUp
+  FileUp,
+  Sparkles
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { getImportHistory, importFile, validateFile, trackEvent } from '../api';
+import { OnboardingWizard } from '../components';
 
 type ImportStep = 'upload' | 'validating' | 'importing' | 'complete' | 'error';
 
@@ -22,6 +24,7 @@ export default function Import() {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [validationResult, setValidationResult] = useState<any>(null);
   const [importResult, setImportResult] = useState<any>(null);
+  const [showWizard, setShowWizard] = useState(false);
 
   useEffect(() => {
     if (property) {
@@ -117,7 +120,22 @@ export default function Import() {
           <h1 className="page-title">Importar datos</h1>
           <p className="page-subtitle">Subí tus reportes de Cloudbeds</p>
         </div>
+        <button className="btn btn-primary" onClick={() => setShowWizard(true)}>
+          <Sparkles size={18} />
+          Usar asistente guiado
+        </button>
       </div>
+
+      {showWizard && (
+        <OnboardingWizard 
+          onComplete={async () => {
+            setShowWizard(false);
+            refreshData();
+            loadHistory();
+          }}
+          onClose={() => setShowWizard(false)}
+        />
+      )}
 
       {/* Upload Area */}
       <div className="import-section">
