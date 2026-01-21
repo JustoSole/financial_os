@@ -1,0 +1,303 @@
+.cashForecast {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.alert {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border-radius: var(--radius-xl);
+}
+
+.alertDanger {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(239, 68, 68, 0.05) 100%);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  color: var(--color-error);
+}
+
+.alertContent {
+  flex: 1;
+}
+
+.alertContent strong {
+  display: block;
+  margin-bottom: var(--space-1);
+  font-size: var(--text-base);
+}
+
+.alertContent p {
+  margin: 0;
+  font-size: var(--text-sm);
+  opacity: 0.9;
+  line-height: 1.5;
+}
+
+.sectionTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0 0 var(--space-4);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.sectionTitle svg {
+  color: var(--color-primary);
+}
+
+.weeksGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-4);
+}
+
+.week {
+  background: white;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: var(--space-4);
+  transition: all var(--transition-fast);
+}
+
+.week:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.weekCritical {
+  border-color: rgba(239, 68, 68, 0.3);
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.03) 0%, white 100%);
+}
+
+.weekHeader {
+  margin-bottom: var(--space-3);
+}
+
+.weekLabel {
+  display: block;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.weekDates {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.weekFlows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.flow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+  font-family: var(--font-mono);
+}
+
+.flowIn { color: var(--color-success); }
+.flowOut { color: var(--color-error); }
+
+.weekBalance {
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+}
+
+.weekBalance :global(.label) {
+  display: block;
+  font-size: 10px;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.weekBalance :global(.value) {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--color-text);
+}
+
+.negativeEndBalance :global(.value) {
+  color: var(--color-error);
+}
+
+.weekWarning {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+  font-size: 11px;
+  color: var(--color-error);
+  font-weight: 600;
+}
+
+.expensesHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.addBtn {
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+}
+
+.addBtn:hover {
+  background: var(--color-primary-subtle);
+}
+
+.expensesList {
+  background: white;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+}
+
+.expense {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.expense:last-child {
+  border-bottom: none;
+}
+
+.expenseInfo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.expenseCategory {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-hover);
+  color: var(--color-text-muted);
+}
+
+.catSueldos { background: #dbeafe; color: #1d4ed8; }
+.catServicios { background: #fef3c7; color: #b45309; }
+.catImpuestos { background: #fee2e2; color: #b91c1c; }
+.catProveedores { background: #d1fae5; color: #047857; }
+
+.expenseName {
+  font-size: var(--text-sm);
+  color: var(--color-text);
+}
+
+.expenseDetails {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.expenseDate {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.expenseAmount {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--color-text);
+}
+
+.expensesTotal {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-4);
+  background: var(--color-bg-hover);
+  font-weight: 600;
+}
+
+.expensesTotalValue {
+  font-size: var(--text-lg);
+  font-family: var(--font-mono);
+  color: var(--color-text);
+}
+
+.expensesEmpty {
+  padding: var(--space-8);
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.expensesEmpty p {
+  margin-bottom: var(--space-4);
+}
+
+.criticalList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.criticalDay {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background: rgba(239, 68, 68, 0.05);
+  border-radius: var(--radius-lg);
+  font-size: var(--text-sm);
+}
+
+.criticalDay :global(.date) {
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.criticalDay :global(.balance) {
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+
+.criticalDay :global(.balance.negative) { color: var(--color-error); }
+.criticalDay :global(.balance.warning) { color: var(--color-warning); }
+
+.criticalDay :global(.reason) {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+}
+
+@media (max-width: 1024px) {
+  .weeksGrid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .weeksGrid {
+    grid-template-columns: 1fr;
+  }
+}
+

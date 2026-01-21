@@ -1,0 +1,131 @@
+.wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 2px;
+  cursor: help;
+  color: var(--color-text-light);
+  border-radius: 50%;
+  transition: all 0.15s ease;
+}
+
+.trigger:hover {
+  color: var(--color-primary);
+  background: var(--color-primary-subtle);
+}
+
+.sm { margin-left: 4px; }
+.md { margin-left: 6px; }
+.lg { margin-left: 8px; }
+
+.tooltip {
+  position: absolute;
+  z-index: 1000;
+  width: 280px;
+  max-width: 90vw;
+  padding: 12px 14px;
+  background: white;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg), var(--shadow-glow);
+  animation: tooltipFadeIn 0.15s ease;
+}
+
+@keyframes tooltipFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.posTop {
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.posBottom {
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.posLeft {
+  right: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.posRight {
+  left: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--color-text-light);
+  border-radius: 4px;
+  transition: all 0.15s;
+}
+
+.close:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text);
+}
+
+.title {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text);
+  margin-bottom: 6px;
+  padding-right: 20px;
+}
+
+.content {
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+
+.example {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 8px 10px;
+  background: var(--color-warning-bg);
+  border-radius: 8px;
+  font-size: 0.7rem;
+  color: var(--color-warning);
+}
+
+.example svg {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.inlineHelp {
+  display: inline-flex;
+  align-items: center;
+  border-bottom: 1px dashed var(--color-text-light);
+}
+

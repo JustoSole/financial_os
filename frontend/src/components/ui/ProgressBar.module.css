@@ -1,0 +1,99 @@
+.container {
+  position: relative;
+}
+
+.bar {
+  background: var(--color-bg-hover);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+  position: relative;
+}
+
+.fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  transition: width 0.5s ease-out;
+}
+
+.primary { background: var(--color-primary); }
+.success { background: var(--color-success); }
+.warning { background: var(--color-warning); }
+.error { background: var(--color-error); }
+.info { background: var(--color-info); }
+
+.label {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text);
+  z-index: 1;
+}
+
+/* Bar Chart Row */
+.barChartRow {
+  display: grid;
+  grid-template-columns: 140px 1fr auto;
+  gap: var(--space-4);
+  align-items: center;
+}
+
+.rowLabel {
+  display: flex;
+  flex-direction: column;
+}
+
+.rowName {
+  font-size: var(--text-sm);
+  color: var(--color-text);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rowSublabel {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+}
+
+.rowBar {
+  height: 28px;
+  background: var(--color-bg-hover);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.rowFill {
+  height: 100%;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: var(--space-3);
+  transition: width 0.5s ease-out;
+}
+
+.rowFillPrimary { background: linear-gradient(90deg, var(--color-primary), var(--color-primary-light)); }
+.rowFillSuccess { background: linear-gradient(90deg, var(--color-success), #10b981); }
+.rowFillWarning { background: linear-gradient(90deg, var(--color-warning), #f59e0b); }
+.rowFillError { background: linear-gradient(90deg, var(--color-error), #ef4444); }
+
+.barLabel {
+  font-size: 0.75rem;
+  color: white;
+  font-weight: 600;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+}
+
+.rowValue {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  font-family: var(--font-mono);
+  color: var(--color-text);
+  min-width: 80px;
+  text-align: right;
+}
+

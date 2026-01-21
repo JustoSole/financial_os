@@ -1,0 +1,118 @@
+.summarySection {
+  margin-bottom: var(--space-6);
+}
+
+.summaryMain {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--space-4);
+}
+
+.profitDisplay {
+  display: flex;
+  flex-direction: column;
+}
+
+.profitAmount {
+  font-size: 2rem;
+  font-weight: 800;
+  font-family: var(--font-mono);
+  line-height: 1;
+}
+
+.profitLabel {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: 4px;
+}
+
+.summaryBadges {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
+}
+
+.summaryKpis {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.kpi {
+  display: flex;
+  flex-direction: column;
+}
+
+.kpiValue {
+  font-size: var(--text-base);
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+
+.kpiLabel {
+  font-size: 10px;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+}
+
+.whyText {
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+.actionText {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--color-primary);
+  line-height: 1.5;
+}
+
+.confidenceList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.confidenceList li {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  padding-left: var(--space-4);
+  position: relative;
+}
+
+.confidenceList li::before {
+  content: '•';
+  position: absolute;
+  left: 0;
+  color: var(--color-text-light);
+}
+
+.calcNotes {
+  background: var(--color-bg-app);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+}
+
+.calcNote {
+  display: block;
+}
+
+.calcDivider {
+  margin: var(--space-2) 0;
+  color: var(--color-border);
+}
+

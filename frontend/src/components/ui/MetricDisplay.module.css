@@ -1,0 +1,163 @@
+.metricDisplay {
+  background: white;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-2xl);
+  padding: var(--space-6);
+  transition: all var(--transition-fast);
+  box-shadow: var(--shadow-card);
+}
+
+.metricDisplay:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--color-primary-light);
+}
+
+.hero {
+  border-left: 4px solid var(--color-primary);
+  padding: var(--space-8);
+}
+
+.compact {
+  padding: var(--space-4);
+}
+
+.highlight {
+  border-left: 4px solid var(--color-success);
+}
+
+.danger {
+  border-left: 4px solid var(--color-error);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
+}
+
+.label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.icon {
+  display: flex;
+  color: var(--color-primary);
+}
+
+.tooltip {
+  position: relative;
+  cursor: help;
+  color: var(--color-text-light);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.value {
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  font-family: var(--font-mono);
+  color: var(--color-text);
+  letter-spacing: -0.02em;
+}
+
+.hero .value {
+  font-size: 3rem;
+  color: var(--color-primary);
+}
+
+.compact .value {
+  font-size: var(--text-xl);
+}
+
+.changeRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.change {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+}
+
+.positive {
+  background: var(--color-success-bg);
+  color: var(--color-success);
+}
+
+.negative {
+  background: var(--color-error-bg);
+  color: var(--color-error);
+}
+
+.neutral {
+  background: var(--color-bg-hover);
+  color: var(--color-text-muted);
+}
+
+.previous {
+  font-size: 12px;
+  color: var(--color-text-light);
+  font-weight: 500;
+}
+
+.hint {
+  font-size: var(--text-xs);
+  color: var(--color-text-light);
+}
+
+/* Summary Metric */
+.summaryMetric {
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  padding: var(--space-5);
+  text-align: center;
+}
+
+.summaryHighlight {
+  background: linear-gradient(135deg, var(--color-bg), var(--color-bg-hover));
+  border-width: 2px;
+}
+
+.summaryDanger {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.03), transparent);
+  border-color: rgba(239, 68, 68, 0.2);
+}
+
+.summaryValue {
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--color-text);
+}
+
+.valuePositive { color: var(--color-success); }
+.valueNegative { color: var(--color-error); }
+
+.summaryLabel {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-top: var(--space-1);
+}
+

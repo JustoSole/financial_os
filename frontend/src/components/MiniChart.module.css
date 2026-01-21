@@ -1,0 +1,70 @@
+.miniChart {
+  width: 100%;
+  position: relative;
+}
+
+.empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  background: var(--color-bg-hover);
+  border-radius: var(--radius-md);
+}
+
+.miniChart svg {
+  display: block;
+  width: 100%;
+}
+
+.line {
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.primary .line { stroke: var(--color-primary); }
+.success .line { stroke: var(--color-success); }
+.warning .line { stroke: var(--color-warning); }
+.error .line { stroke: var(--color-error); }
+
+.area {
+  opacity: 0.15;
+}
+
+.primary .area { fill: var(--color-primary); }
+.success .area { fill: var(--color-success); }
+.warning .area { fill: var(--color-warning); }
+.error .area { fill: var(--color-error); }
+
+.bar {
+  opacity: 0.8;
+}
+
+.primary .bar { fill: var(--color-primary); }
+.success .bar { fill: var(--color-success); }
+.warning .bar { fill: var(--color-warning); }
+.error .bar { fill: var(--color-error); }
+
+.dot {
+  fill: white;
+  stroke-width: 2;
+}
+
+.primary .dot { stroke: var(--color-primary); }
+.success .dot { stroke: var(--color-success); }
+.warning .dot { stroke: var(--color-warning); }
+.error .dot { stroke: var(--color-error); }
+
+.labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: var(--space-1);
+}
+
+.label {
+  font-size: 9px;
+  color: var(--color-text-muted);
+}
+

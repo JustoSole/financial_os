@@ -1,0 +1,287 @@
+index,Property Name,Reservation Number,Room Numbers,Room Types,Third Party Confirmation Number,Reservation Status,Reservation Source Category,Reservation Source,Group Profile Name,Primary Guest Full Name,Primary Guest Mobile Phone Number,Primary Guest Email,Repeat Guest Flag,Primary Guest Status Level,Booking Date Time - UTC,Rate Plans - Public Names,Hotel Collect Booking Flag,Check-In Date,Check-Out Date,Room Nights,Room Count,Adults,Children,Guest Count,Suggested Deposit,Reservation Paid Amount,Room Revenue Total,Total Reservation Taxes,Estimated Commission,Grand Total,Reservation Balance Due,Active Reservation Notes,Active Guest Notes,Active Group Profile Notes
+0,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/152874952?display=7276374240954&reservation_id=152874952,203,SINGLE/DOBLE STANDARD,,In-House,Agencia de Viajes,Agente de Viajes Predeterminado,-,https://us1.cloudbeds.com/connect/22593#/reservations/152874952?display=LUIS%20ALBERTO%20DALTO&reservation_id=152874952&guest_id=150754917,,CSENSIADRIANA1@GMAIL.COM,No,,2025-09-15 21:47:50,Base Rate,Yes,2026-01-14,2026-01-21,7,1,2,0,2,171000.0,1197000.0,1197000.0,0.0,0.0,1197000.0,0.0,"CENSI ADRIANA MARIA DNI 16814544
+con TRF IN/OUT, DBL MAT, vto 15/10, A ROLAR VIAJES, abonado ok + $72.000 age.
+FC A 1884 (1.269.000)",-,-
+1,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/153076755?display=3916101448677&reservation_id=153076755,107,SINGLE/DOBLE STANDARD,34328409402,Checked Out,OTA,Despegar/Decolar,-,https://us1.cloudbeds.com/connect/22593#/reservations/153076755?display=Lumialys%20Milagros%20Zabala%20Rojas&reservation_id=153076755&guest_id=150976115,1155749693,lumialys@gmail.com,No,,2025-09-18 02:08:42,Base Rate,No,2026-01-04,2026-01-09,5,1,1,0,1,144799.2,723996.0,723996.0,0.0,0.0,723996.0,0.0,SGL MAT,-,-
+2,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/154934243?display=9619264744450&reservation_id=154934243,-,SINGLE/DOBLE STANDARD,34707699202,Cancelled,OTA,Despegar/Decolar,-,https://us1.cloudbeds.com/connect/22593#/reservations/154934243?display=Ana%20María%20Contreras%20Cortesi&reservation_id=154934243&guest_id=153037211,+56 9 953811277,AMACORTESI@GMAIL.COM,Yes,,2025-10-09 00:29:19,Base Rate,No,2026-01-06,2026-01-15,9,1,2,0,2,120764.61,1086881.65,0.0,0.0,0.0,0.0,-1086881.65,TWIN,-,-
+3,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/155148815?display=9097371171913&reservation_id=155148815,103,SINGLE/DOBLE STANDARD,,Checked Out,Agencia de Viajes,Agente de Viajes Predeterminado,-,https://us1.cloudbeds.com/connect/22593#/reservations/155148815?display=kevin%20amadeo%20kevin%20amadeo&reservation_id=155148815&guest_id=153282726,3404527311,kev.villarroel@gmail.com,No,,2025-10-11 15:11:42,Base Rate,Yes,2026-01-04,2026-01-08,4,1,2,0,2,342000.0,689000.0,684000.0,0.0,0.0,689000.0,0.0,"dwl twin
+vto: 5/12
+cuenta bpn
+marbella travel",-,-
+4,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/155152259?display=7534715674047&reservation_id=155152259,105,SINGLE/DOBLE STANDARD,2308931883,Confirmed,OTA,Expedia,-,https://us1.cloudbeds.com/connect/22593#/reservations/155152259?display=Jussara%20Moreira&reservation_id=155152259&guest_id=153286707,,clmkeew90e@m.expediapartnercentral.com,No,,2025-10-11 16:05:00,Base Rate,No,2026-01-19,2026-01-22,3,1,1,0,1,165951.07,497853.23,497853.23,0.0,0.0,497853.23,0.0,DWL MAT,-,-
+5,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/155168768?display=2122711490154&reservation_id=155168768,-,SINGLE/DOBLE STANDARD,,Cancelled,Direct,Walk-In,-,https://us1.cloudbeds.com/connect/22593#/reservations/155168768?display=marcela%20tore&reservation_id=155168768&guest_id=153305959,+54 11 6551- 1825,nifa1503@hotmail.com,No,,2025-10-11 20:38:38,Base Rate,Yes,2026-01-18,2026-01-25,7,1,1,0,1,165000.0,0.0,0.0,0.0,0.0,0.0,0.0,"single mat 
+incluye traslados al aeropuerto
+vto 28/11",-,-
+6,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/155379280?display=2528906138774&reservation_id=155379280,201,SINGLE/DOBLE STANDARD,,Checked Out,Direct,Walk-In,-,https://us1.cloudbeds.com/connect/22593#/reservations/155379280?display=MIRTA%20DAL%20BROLLO&reservation_id=155379280&guest_id=153535692,+54 9 11 5842-1802,dalbrome@gmail.com,No,,2025-10-14 00:43:37,Base Rate,Yes,2026-01-05,2026-01-19,14,1,1,0,1,1015000.0,2035000.0,2030000.0,0.0,0.0,2035000.0,0.0,single mat,-,-
+7,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/155711705?display=8041895610598&reservation_id=155711705,102,DOBLE/TRIPLE STANDARD,,Checked Out,Direct,Walk-In,-,https://us1.cloudbeds.com/connect/22593#/reservations/155711705?display=Mariana%20Benitez&reservation_id=155711705&guest_id=153904860,2215348654,marianabenitez76@hotmail.com,No,,2025-10-17 20:10:54,Base Rate,Yes,2026-01-13,2026-01-17,4,1,3,0,3,276100.0,704000.0,552200.0,0.0,0.0,704000.0,0.0,"aget viajes 
+matrimonio + hija 
+incluye QQ para los 3, VENCIMIENTO 28/11, catalina cuyler 54220122
+maximiliano cuyler 26671318
+
+yaris blanco ah605cw",-,-
+8,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/156335192?display=3060219849639&reservation_id=156335192,-,SINGLE/DOBLE STANDARD,34967733902,Cancelled,OTA,Despegar/Decolar,-,https://us1.cloudbeds.com/connect/22593#/reservations/156335192?display=SUSANA%20BECERRIL%20HERRERA&reservation_id=156335192&guest_id=154593404,,N/A,No,,2025-10-24 19:51:06,Base Rate,No,2026-01-01,2026-01-03,2,1,2,0,2,84600.99,169201.98,0.0,0.0,0.0,0.0,-169201.98,DBL MAT,-,-
+9,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/156335200?display=6480133727225&reservation_id=156335200,-,TRIPLE/CUADRUPLE STANDARD,2317980348,Cancelled,OTA,Expedia,-,https://us1.cloudbeds.com/connect/22593#/reservations/156335200?display=SUSANA%20BECERRIL%20HERRERA&reservation_id=156335200&guest_id=154593414,,b3e62txt2b@m.expediapartnercentral.com,No,,2025-10-24 19:51:13,Base Rate,No,2026-01-01,2026-01-03,2,1,2,0,2,175416.39,0.0,0.0,0.0,0.0,0.0,0.0,-,-,-
+10,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/156335208?display=3173850887176&reservation_id=156335208,-,DOBLE/TRIPLE STANDARD,2317980352,Cancelled,OTA,Expedia,-,https://us1.cloudbeds.com/connect/22593#/reservations/156335208?display=SUSANA%20BECERRIL%20HERRERA&reservation_id=156335208&guest_id=154593422,,ieso2e732q@m.expediapartnercentral.com,No,,2025-10-24 19:51:19,Base Rate,No,2026-01-01,2026-01-03,2,1,2,0,2,157366.06,0.0,0.0,0.0,0.0,0.0,0.0,-,-,-
+11,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/156335213?display=9733337469296&reservation_id=156335213,-,DOBLE/TRIPLE STANDARD,2317980350,Cancelled,OTA,Expedia,-,https://us1.cloudbeds.com/connect/22593#/reservations/156335213?display=SUSANA%20BECERRIL%20HERRERA&reservation_id=156335213&guest_id=154593427,,qmvfkhmfue@m.expediapartnercentral.com,No,,2025-10-24 19:51:21,Base Rate,No,2026-01-01,2026-01-03,2,1,2,0,2,157366.06,0.0,0.0,0.0,0.0,0.0,0.0,-,-,-
+12,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/156413590?display=7595747599284&reservation_id=156413590,104,SINGLE/DOBLE STANDARD,,Confirmed,Direct,Pagina Web,-,https://us1.cloudbeds.com/connect/22593#/reservations/156413590?display=DIEGO%20CARBALLO&reservation_id=156413590&guest_id=154683618,1163707602,pelukero.diego@gmail.com,No,,2025-10-25 22:22:34,Tarifa promoción 20% OFF,Yes,2026-01-19,2026-01-22,3,1,2,0,2,172600.0,260500.0,521000.0,0.0,0.0,521000.0,260500.0,"MAT
+envío por mail pedido de seña.",-,-
+13,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/156990680?display=2071177926694&reservation_id=156990680,TIN(1),TINY HOUSE,2322936682,Checked Out,OTA,Expedia,-,https://us1.cloudbeds.com/connect/22593#/reservations/156990680?display=Cleiton%20Sena&reservation_id=156990680&guest_id=155546021,+5584987059635,vv8yxqup27@m.expediapartnercentral.com,No,,2025-11-01 16:52:15,Base Rate,No,2026-01-02,2026-01-03,1,1,2,0,2,130620.09,130620.09,130620.09,0.0,0.0,130620.09,0.0,"Expedia Collect, PEDI LA FC A EXPEDIA
+DWL MAT, ""Fiat pulse AH507JV""",-,-
+14,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/157296055?display=6391083816832&reservation_id=157296055,105,SINGLE/DOBLE STANDARD,,Checked Out,Direct,Walk-In,-,https://us1.cloudbeds.com/connect/22593#/reservations/157296055?display=enzo%20dilascio&reservation_id=157296055&guest_id=155650937,+54 9 2944 53-7151,reservas@rayantu.com,No,,2025-11-05 00:55:21,Tarifa promoción 20% OFF,Yes,2026-01-02,2026-01-04,2,1,2,0,2,152000.0,304000.0,304000.0,0.0,0.0,304000.0,0.0,"vto 19/12, ajuste se cobro $265.000 de esta rva, mat, mariana rocchio 40437424
+enzo 39141880",-,-
+15,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/157296491?display=8367825001659&reservation_id=157296491,106,SINGLE/DOBLE STANDARD,,Checked Out,Direct,Walk-In,-,https://us1.cloudbeds.com/connect/22593#/reservations/157296491?display=mariana%20raya&reservation_id=157296491&guest_id=155651402,+54 9 3815 58-8299,reservas@rayantu.com,No,,2025-11-05 01:02:27,Tarifa promoción 20% OFF,Yes,2026-01-15,2026-01-17,2,1,2,0,2,152000.0,0.0,304000.0,0.0,0.0,304000.0,304000.0,"lucas villagra 42718161 
+cronos gris oscuro AH068HM",-,-
+16,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/157343545?display=3626617617184&reservation_id=157343545,202,SINGLE/DOBLE STANDARD,35149194602,Checked Out,OTA,Despegar/Decolar,-,https://us1.cloudbeds.com/connect/22593#/reservations/157343545?display=CLAUDIO%20OJEDA&reservation_id=157343545&guest_id=155702587,+598095258245,consultas@hotelantiguos.com.ar,No,,2025-11-05 14:55:12,Base Rate,No,2026-01-07,2026-01-10,3,1,2,0,2,130737.03,392211.07,392211.07,0.0,0.0,392211.07,0.0,"DBL MAT, LUCIA FERNANDEZ 44261585
+OJEDA CLAUDIO 44724654",-,-
+17,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/157359875?display=6261892766211&reservation_id=157359875,-,TINY HOUSE,6731667545,Cancelled,OTA,Booking.com,-,https://us1.cloudbeds.com/connect/22593#/reservations/157359875?display=clive%20shkedy&reservation_id=157359875&guest_id=155720569,,cshked.186334@guest.booking.com,No,,2025-11-05 18:31:22,Base Rate,Yes,2026-01-01,2026-01-02,1,1,2,0,2,126143.54,0.0,0.0,0.0,0.0,0.0,0.0,-,-,-
+18,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/157571857?display=7810771094435&reservation_id=157571857,106,SINGLE/DOBLE STANDARD,35202479402,Checked Out,OTA,Despegar/Decolar,-,https://us1.cloudbeds.com/connect/22593#/reservations/157571857?display=Ana%20María%20Contreras%20Cortesi&reservation_id=157571857&guest_id=153037211,+56 9 953811277,AMACORTESI@GMAIL.COM,Yes,,2025-11-08 00:44:40,Base Rate,No,2026-01-06,2026-01-15,9,1,2,0,2,500371.85,1000743.71,1000743.71,0.0,0.0,1000743.71,0.0,doble TWIN,-,-
+19,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/157578932?display=2686527004292&reservation_id=157578932,106,SINGLE/DOBLE STANDARD,35204674602,In-House,OTA,Despegar/Decolar,-,https://us1.cloudbeds.com/connect/22593#/reservations/157578932?display=Carlos%20Buffalari&reservation_id=157578932&guest_id=155963765,1165594625,cbuffalari@yahoo.com.ar,No,,2025-11-08 03:01:19,Base Rate,No,2026-01-17,2026-01-20,3,1,2,0,2,201694.55,403389.09,403389.09,0.0,0.0,403389.09,0.0,"DOB MAT, chevrolet joy color blanco ac 570lm",-,-
+20,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/157755548?display=1320651147696&reservation_id=157755548,202,SINGLE/DOBLE STANDARD,,Checked Out,Direct,Email,-,https://us1.cloudbeds.com/connect/22593#/reservations/157755548?display=DAN%20TASAT&reservation_id=157755548&guest_id=156161775,1153841618,mariluwolman@hotmail.com,No,,2025-11-10 12:19:47,Tarifa promoción 20% OFF,Yes,2026-01-04,2026-01-07,3,1,2,0,2,258900.0,517800.0,517800.0,0.0,0.0,517800.0,0.0,"DBL MAT
+vto 01/12 seña, cronos blanco ag128rx 
+micaela galetsky 43323700
+dan tasat 43242471",-,-
+21,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/157763612?display=8792221587090&reservation_id=157763612,101,DOBLE/TRIPLE STANDARD,,Confirmed,Agencia de Viajes,AYAX,-,https://us1.cloudbeds.com/connect/22593#/reservations/157763612?display=CHRISTIAN%20GAYOSO&reservation_id=157763612&guest_id=156170548,,operaciones2@ayaxturismo.com.ar,No,,2025-11-10 14:26:40,Base Rate,Yes,2026-01-19,2026-01-21,2,1,2,0,2,152000.0,304000.0,304000.0,0.0,20.0,304000.0,0.0,"DBL MAT
+vto 18/12",-,-
+22,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/157853574?display=1611999044440&reservation_id=157853574,103,SINGLE/DOBLE STANDARD,,In-House,Agencia de Viajes,Agente de Viajes Predeterminado,-,https://us1.cloudbeds.com/connect/22593#/reservations/157853574?display=ANABELLA%20PICCO&reservation_id=157853574&guest_id=156268978,3406418448,RESERVAS@DHARMAVIAJES.TUR.AR,No,,2025-11-11 13:59:03,Base Rate,Yes,2026-01-13,2026-01-20,7,1,2,0,2,532000.0,1064000.0,1064000.0,0.0,0.0,1064000.0,0.0,"DWL MAT
+VTO: 18/12
+DHARMA VIAJES, TIENE TRF IN/OUT
+OK EL CLARO, ariel valinotti 21882855",-,-
+23,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/158142471?display=7350649155454&reservation_id=158142471,205,SINGLE/DOBLE STANDARD,,Checked Out,Direct,Walk-In,-,https://us1.cloudbeds.com/connect/22593#/reservations/158142471?display=hernan%20Sanchez&reservation_id=158142471&guest_id=156581277,3463400227,hernansan97@gmail.com,No,,2025-11-14 01:30:41,Base Rate,Yes,2026-01-06,2026-01-08,2,1,2,0,2,172800.0,345600.0,345600.0,0.0,0.0,345600.0,0.0,"- NOMBRE Y APELLIDO: Hernan Sanchez 
+- CANTIDAD DE PERSONAS: 2 adultos 
+- FECHA DE INGRESO: martes 6 de enero
+- FECHA DE SALIDA:  jueves 8 de enero 
+- TIPO DE ALOJAMIENTO : hotel
+- TIPO DE TARIFA HOTEL promocional)_ : $172.800
+- CAMAS _(matrimonial o twin)_ : matrimonial 
+- CELULAR DE CONTACTO: 3463400227
+- DNI: 40298774
+- FORMA DE PAGO: transferencia, Vehículo: Chevrolet S10 gris 
+Patente: AB542RH, Lara Rodriguez DNI 44275707
+Checrolet  S10 AB542RH",-,-
+24,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/158195873?display=7053079459017&reservation_id=158195873,CUA,TRIPLE/CUADRUPLE STANDARD,35322719402,Checked Out,OTA,Despegar/Decolar,-,https://us1.cloudbeds.com/connect/22593#/reservations/158195873?display=FELIPE%20SUAREZ&reservation_id=158195873&guest_id=156640540,,N/A,No,,2025-11-14 15:58:00,Base Rate,No,2026-01-13,2026-01-17,4,1,4,0,4,419811.6,839623.2,839623.2,0.0,0.0,839623.2,0.0,"felipe suarez 33779804
+agustina saucedo 35216164
+joaquin suarez 57337033
+julieta suarez 59240608",-,-
+25,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/158340955?display=3016892333444&reservation_id=158340955,102,DOBLE/TRIPLE STANDARD,2332756901,Checked Out,OTA,Expedia,-,https://us1.cloudbeds.com/connect/22593#/reservations/158340955?display=natalia%20wax&reservation_id=158340955&guest_id=156807041,,waxnatalia@gmail.com,No,,2025-11-16 15:03:59,Base Rate,No,2026-01-01,2026-01-03,2,1,2,0,2,95546.82,191093.64,191093.64,0.0,0.0,191093.64,0.0,"DWL MAT, PEDI LA FC A EXPEDIA, AE633AF
+PAULO PETRONIS
+DNI 23336439",-,-
+26,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/158381119?display=8851312043046&reservation_id=158381119,101,DOBLE/TRIPLE STANDARD,,Checked Out,Direct,Email,-,https://us1.cloudbeds.com/connect/22593#/reservations/158381119?display=JULIAN%20BELLO&reservation_id=158381119&guest_id=156851472,92984382261,bellojulianandres@gmail.com,No,,2025-11-17 01:51:48,Tarifa promoción 20% OFF,Yes,2026-01-02,2026-01-03,1,1,2,1,3,71800.0,143600.0,143600.0,0.0,0.0,143600.0,0.0,"DBL MAT + CAMA, Bello Julian 
+32902351
+Ford rangel azul AH364OE, natasha mariezcurrena 37173375 
+emma bello 56982993
+juylin bello 32902351
+azul ranger ah364oe",-,-
+27,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/159225509?display=5677447896727&reservation_id=159225509,203,SINGLE/DOBLE STANDARD,,Checked Out,Direct,Email,-,https://us1.cloudbeds.com/connect/22593#/reservations/159225509?display=CAMILA%20BELEN%20GARESIO&reservation_id=159225509&guest_id=157782618,2262568201,camilagaresio27@gmail.com,No,,2025-11-26 12:13:28,Base Rate,Yes,2026-01-06,2026-01-14,8,1,2,0,2,760000.0,1520000.0,1520000.0,0.0,0.0,1520000.0,0.0,"pagado FcB 2081, dwl mat, pablo cerutti 35893731",-,-
+28,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/159387508?display=6703649025766&reservation_id=159387508,101,DOBLE/TRIPLE STANDARD,35591833702,Checked Out,OTA,Despegar/Decolar,-,https://us1.cloudbeds.com/connect/22593#/reservations/159387508?display=GERMAN%20HECTOR%20ROSSETTI&reservation_id=159387508&guest_id=157956318,,GHROSSETTI@HOTMAIL.COM,No,,2025-11-28 02:25:15,Base Rate,No,2026-01-10,2026-01-14,4,1,3,0,3,314348.19,628696.38,628696.38,0.0,0.0,628696.38,0.0,"DWL MAT
+CARGADA 28/11, ROSSETTI MATEO DNI 45509125
+PERIN LORENA DNI 26383428
+AH510BZ HAVAL6",-,-
+29,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/159422936?display=3292704277098&reservation_id=159422936,101,DOBLE/TRIPLE STANDARD,35600803402,Checked Out,OTA,Despegar/Decolar,-,https://us1.cloudbeds.com/connect/22593#/reservations/159422936?display=patricia%20soledad%20eugeni&reservation_id=159422936&guest_id=157995416,,SOLEDADEUGENI@GMAIL.COM,No,,2025-11-28 12:39:25,Base Rate,No,2026-01-03,2026-01-10,7,1,3,0,3,555237.64,1110475.28,1110475.28,0.0,0.0,1110475.28,0.0,"tpl mat, VAZQUEZ JUAN 52780415
+VAZQUEZ MARIA 48585019",-,-
+30,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/159436330?display=6506715140227&reservation_id=159436330,107,SINGLE/DOBLE STANDARD,,In-House,Direct,Email,-,https://us1.cloudbeds.com/connect/22593#/reservations/159436330?display=ALEJANDRO|%20ZUBIAUR&reservation_id=159436330&guest_id=158010117,+54 9 11 6577-6200,ALEJANDRO.ZUBIAUR@GMAIL.COM,No,,2025-11-28 14:55:11,Base Rate,Yes,2026-01-16,2026-01-23,7,1,2,0,2,609200.0,1218200.0,1218200.0,0.0,0.0,1218200.0,0.0,"DWL MAT
+VTO: 16/12, ALEJANDRO zubiaur
+Archivos adjuntos
+15:30 (hace 2 horas)
+para consultas
+
+Buen día,
+le paso los datos solicitados.
+Maria Elena Yazbek, dni 10194580;
+Alejandro Benjamin Zubiaur, dni 14455714;
+cel 01165776200
+Volkswagen, Nivus, color celeste, AH158QF",-,-
+31,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/159475128?display=8985990668335&reservation_id=159475128,"105, 205",SINGLE/DOBLE STANDARD,35626195702,Checked Out,OTA,Despegar/Decolar,-,https://us1.cloudbeds.com/connect/22593#/reservations/159475128?display=Facundo%20emiliano%20Gregorio%20Menendez&reservation_id=159475128&guest_id=158053850,3876859663,mechipuig@gmail.com,No,,2025-11-28 22:26:14,Base Rate,No,2026-01-13,2026-01-16,3,2,4,0,4,403389.09,806778.18,806778.18,0.0,0.0,806778.18,0.0,"HABITACIONES: 
+1 MAT
+1 TW, mercedes puig 31274204
+facundo menendez padre 29688775
+joaquin dakak 50909512
+mateo dakak 53557549
+
+trucker chev negro sdy2943",-,-
+32,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/159485551?display=2156647782552&reservation_id=159485551,106,SINGLE/DOBLE STANDARD,35634199502,Checked Out,OTA,Despegar/Decolar,-,https://us1.cloudbeds.com/connect/22593#/reservations/159485551?display=Gabriel%20Alejandro%20Contreras%20Duran&reservation_id=159485551&guest_id=158065802,,N/A,No,,2025-11-29 01:14:48,Base Rate,No,2026-01-01,2026-01-03,2,1,2,0,2,81458.59,162917.18,162917.18,0.0,0.0,162917.18,0.0,"DOBLE MAT, gabriel 17308362-9
+jose marambio 11743410-9
+jaikoo 5 - VKL46 - BLANCO",-,-
+33,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/159511231?display=9921369979929&reservation_id=159511231,201,SINGLE/DOBLE STANDARD,,Checked Out,Agencia de Viajes,Agente de Viajes Predeterminado,-,https://us1.cloudbeds.com/connect/22593#/reservations/159511231?display=RUBEN%20ORLANDO%20BADIN&reservation_id=159511231&guest_id=158095030,+1150259563,ricci_viajes@yahoo.com,No,,2025-11-29 10:02:40,Base Rate,Yes,2026-01-02,2026-01-05,3,1,1,0,1,256500.0,513000.0,513000.0,0.0,0.0,513000.0,0.0,"SGL MAT
+VTO: 3/12, ricci_viajes@yahoo.com, FIAT MOOBY BLANCO PAT AH217SH",-,-
+34,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/159556189?display=1778688661826&reservation_id=159556189,107,SINGLE/DOBLE STANDARD,35663735802,Checked Out,OTA,Despegar/Decolar,-,https://us1.cloudbeds.com/connect/22593#/reservations/159556189?display=Desiree%20Ayelén%20DAlena&reservation_id=159556189&guest_id=158147570,,DESIRE.DALENA@GMAIL.COM,No,,2025-11-29 22:55:22,Base Rate,No,2026-01-13,2026-01-16,3,1,2,0,2,201694.55,403389.09,403389.09,0.0,0.0,403389.09,0.0,"dwl mat, JEEP COMPASS GRIS AC853VG
+SASHA CRISCOLO 36156586",-,-
+35,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/159614298?display=2531601327660&reservation_id=159614298,104,SINGLE/DOBLE STANDARD,35680556602,Checked Out,OTA,Despegar/Decolar,-,https://us1.cloudbeds.com/connect/22593#/reservations/159614298?display=YAMILA%20GIORGETTI%20ACOSTA&reservation_id=159614298&guest_id=158212546,1140500557,yamigiorgetti@gmail.com,No,,2025-11-30 17:47:22,Base Rate,No,2026-01-11,2026-01-14,3,1,2,0,2,201694.55,403389.09,403389.09,0.0,0.0,403389.09,0.0,DBL MAT,-,-
+36,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/159645212?display=9640658744040&reservation_id=159645212,105,SINGLE/DOBLE STANDARD,35696195002,Checked Out,OTA,Despegar/Decolar,-,https://us1.cloudbeds.com/connect/22593#/reservations/159645212?display=Ricardo%20Ruiz%20Quiceno&reservation_id=159645212&guest_id=158246959,1161810738,ricardoruizq2@hotmail.com,No,,2025-12-01 01:44:01,Base Rate,No,2026-01-07,2026-01-11,4,1,2,0,2,272222.83,544445.66,544445.66,0.0,0.0,544445.66,0.0,"DBL MAT, mikhail liunkov 762866999, onix ah946ce blanco",-,-
+37,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/159679651?display=7251701447314&reservation_id=159679651,104,SINGLE/DOBLE STANDARD,,Checked Out,Direct,Email,-,https://us1.cloudbeds.com/connect/22593#/reservations/159679651?display=JULIETA%20VANESA%20MEDINAS&reservation_id=159679651&guest_id=158285018,1157646303/ 1165985900,julietamedinas@hotmail.com,No,,2025-12-01 12:46:52,Tarifa promoción 20% OFF,Yes,2026-01-05,2026-01-08,3,1,2,0,2,285000.0,570000.0,570000.0,0.0,0.0,570000.0,0.0,dbl mat,-,-
+38,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/159881142?display=7092386754833&reservation_id=159881142,102,DOBLE/TRIPLE STANDARD,2344761957,Confirmed,OTA,Expedia,-,https://us1.cloudbeds.com/connect/22593#/reservations/159881142?display=EUGENIO%20DELIPETAR&reservation_id=159881142&guest_id=158508142,,os9thclceq@m.expediapartnercentral.com,No,,2025-12-03 15:15:28,Base Rate,No,2026-01-19,2026-01-22,3,1,2,0,2,261516.51,523033.01,523033.01,0.0,0.0,523033.01,0.0,"dwl mat, pedir la fc",-,-
+39,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/159891369?display=8770419443029&reservation_id=159891369,106,SINGLE/DOBLE STANDARD,2344825470,Checked Out,OTA,Expedia,-,https://us1.cloudbeds.com/connect/22593#/reservations/159891369?display=PIERRO%20DE%20FARIA%20MENDES&reservation_id=159891369&guest_id=158519194,,PIEROJURIDICO@YAHOO.COM.BR,No,,2025-12-03 17:01:22,Base Rate,No,2026-01-03,2026-01-06,3,1,2,0,2,229852.55,459705.1,459705.1,0.0,0.0,459705.1,0.0,"dwl mat, pedir la fc a expedia, pedi la fc a expedia 3/1
+comp 29263146, la volvi a pedir rl 6/1","FELIPE CONSEIA BISPO
+AUTO CHEVROLET SPIN AH650TK",-
+40,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/159897217?display=6310226981344&reservation_id=159897217,102,DOBLE/TRIPLE STANDARD,,Checked Out,Agencia de Viajes,Agente de Viajes Predeterminado,-,https://us1.cloudbeds.com/connect/22593#/reservations/159897217?display=MONICA%20MARISA%20FATTORE&reservation_id=159897217&guest_id=158525932,341155215896,viagturismo@gmail.com,No,,2025-12-03 18:23:04,Base Rate,Yes,2026-01-03,2026-01-08,5,1,3,0,3,495000.0,1098000.0,990000.0,0.0,0.0,1098000.0,0.0,"TPL TWINS, Pax Monica Fattore Contacto +54-341-5215896, FALTA PAGAR SÓLO APT",-,-
+41,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/159941832?display=2193242428483&reservation_id=159941832,"202, 203, CUA","SINGLE/DOBLE STANDARD, TRIPLE/CUADRUPLE STANDARD",35769871602,Checked Out,OTA,Despegar/Decolar,-,https://us1.cloudbeds.com/connect/22593#/reservations/159941832?display=araceli%20aranda&reservation_id=159941832&guest_id=158573926,,N/A,No,,2025-12-04 01:18:41,Base Rate,No,2026-01-01,2026-01-03,2,3,6,0,6,363788.1,727576.2,727576.2,0.0,0.0,727576.2,0.0,"3 hab dwl mat, araceli 1166057203  - 35321076
+1153414910 melisa
+1133446043 mabel, kangoo roja / bordo",-,-
+42,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/159995217?display=6254118044862&reservation_id=159995217,-,SINGLE/DOBLE STANDARD,,Cancelled,Agencia de Viajes,ABANICO VIAJES,-,https://us1.cloudbeds.com/connect/22593#/reservations/159995217?display=FORTUNA%20FORTUNA&reservation_id=159995217&guest_id=158634061,,PABLO@ABANICO-VIAJES.COM.AR,No,,2025-12-04 16:55:39,Base Rate,Yes,2026-01-15,2026-01-19,4,1,2,0,2,304000.0,0.0,0.0,0.0,20.0,0.0,0.0,"DWL MAT
+VTO: m15/12 BPN",-,-
+43,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/160078257?display=6229115536371&reservation_id=160078257,204,SINGLE/DOBLE STANDARD,,Checked Out,Agencia de Viajes,RAYANTU,-,https://us1.cloudbeds.com/connect/22593#/reservations/160078257?display=VICTOR%20CINQUEGRANI&reservation_id=160078257&guest_id=158729837,385 4381984,crisvtorres_10@hotmail.com,No,,2025-12-05 17:38:47,Base Rate,Yes,2026-01-13,2026-01-17,4,1,2,0,2,304000.0,0.0,608000.0,0.0,20.0,610500.0,610500.0,"DBL MAT
+vto 11/12, CRISTINA DEL VALLE TORRES 
+DNI : 17169060
+FECHA DE NAC: 11/06/1964
+CEL : 385 5074544, victor 8384635
+cristina del valle torres 17169060",-,-
+44,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/160138470?display=6211533065872&reservation_id=160138470,"104, 107",SINGLE/DOBLE STANDARD,,Checked Out,Agencia de Viajes,Agente de Viajes Predeterminado,-,https://us1.cloudbeds.com/connect/22593#/reservations/160138470?display=DARIO%20ROMERO&reservation_id=160138470&guest_id=158800304,,jdcr340@yahoo.com.ar,No,,2025-12-06 13:47:07,Base Rate,Yes,2026-01-09,2026-01-11,2,2,4,0,4,304000.0,608000.0,608000.0,0.0,0.0,608000.0,0.0,"2 HAB DWL TWIN
+VTO: 6/12, cortes facundo 55.725.284
+cortes sofia 52.735.294
+romero rocio 43774572",-,-
+45,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/160787501?display=4371302831343&reservation_id=160787501,-,SINGLE/DOBLE STANDARD,,Cancelled,Direct,Walk-In,-,https://us1.cloudbeds.com/connect/22593#/reservations/160787501?display=ELENA%20HALTRICH&reservation_id=160787501&guest_id=159524462,,ELENAHALTRICH@YAHOO.COM.AR,No,,2025-12-13 17:30:11,Tarifa promoción 20% OFF,Yes,2026-01-03,2026-01-06,3,1,1,0,1,218400.0,0.0,0.0,0.0,0.0,0.0,0.0,SINGLE MAT,-,-
+46,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/160790681?display=6878915982522&reservation_id=160790681,203,SINGLE/DOBLE STANDARD,,Checked Out,Direct,Walk-In,-,https://us1.cloudbeds.com/connect/22593#/reservations/160790681?display=ELENA%20HALTRICH&reservation_id=160790681&guest_id=159528226,,ELENAHALTRICH@YAHOO.COM.AR,No,,2025-12-13 18:27:05,Base Rate,Yes,2026-01-03,2026-01-05,2,1,1,0,1,165000.0,330000.0,330000.0,0.0,0.0,330000.0,0.0,"single mat 
+dijo que paga el lunes 14/12",-,-
+47,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/160790924?display=6906142090874&reservation_id=160790924,TIN(1),TINY HOUSE,,Checked Out,Direct,Pagina Web,-,https://us1.cloudbeds.com/connect/22593#/reservations/160790924?display=Pablo%20Senmartin&reservation_id=160790924&guest_id=159528526,,senmartinp@gmail.com,No,,2025-12-13 18:31:41,Base Rate,Yes,2026-01-10,2026-01-17,7,1,2,1,3,630000.0,1260000.0,1260000.0,0.0,0.0,1260000.0,0.0,-,-,-
+48,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/161044915?display=2980418938283&reservation_id=161044915,-,DOBLE/TRIPLE STANDARD,,Cancelled,Direct,Teléfono,-,https://us1.cloudbeds.com/connect/22593#/reservations/161044915?display=SERGIO%20KASPRZAK&reservation_id=161044915&guest_id=159812318,,skaspr.434355@guest.booking.com,No,,2025-12-16 22:01:55,Base Rate,Yes,2026-01-10,2026-01-13,3,1,1,0,1,319500.0,0.0,0.0,0.0,0.0,0.0,0.0,2 pax twin,-,-
+49,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/161046182?display=2306642288855&reservation_id=161046182,205,SINGLE/DOBLE STANDARD,,Checked Out,Direct,Teléfono,-,https://us1.cloudbeds.com/connect/22593#/reservations/161046182?display=sergio%20akaspin&reservation_id=161046182&guest_id=159813725,,sakaspin@gmail.com,No,,2025-12-16 22:23:05,Base Rate,Yes,2026-01-09,2026-01-13,4,1,2,0,2,380000.0,760000.0,760000.0,0.0,0.0,760000.0,0.0,"2 pax twin, llamo y agrego 1 noche a la estadia la del 09/01 a $190.000, franco kaspin 45689906
+sergio 22139187
+ad906al citroen c4 blanco",-,-
+50,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/161878960?display=8521616910364&reservation_id=161878960,TIN(1),TINY HOUSE,,In-House,Direct,Pagina Web,-,https://us1.cloudbeds.com/connect/22593#/reservations/161878960?display=Cecilia%20Asis&reservation_id=161878960&guest_id=160760002,,ceciasis@gmail.com,No,,2025-12-27 15:46:43,Base Rate,Yes,2026-01-18,2026-01-21,3,1,2,2,4,270000.0,540000.0,540000.0,0.0,0.0,540000.0,0.0,"CITROEN VASALT GRIS
+GUILLERMO PITCH
+JOAQUINA PITCH
+FRANCISCA PITCH",-,-
+51,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/162037732?display=2735106066203&reservation_id=162037732,101,DOBLE/TRIPLE STANDARD,36160452202,Checked Out,OTA,Despegar/Decolar,-,https://us1.cloudbeds.com/connect/22593#/reservations/162037732?display=Cynthia%20Tamara%20Gerez&reservation_id=162037732&guest_id=160946863,1159777364,cynthiagerez@gmail.com,No,,2025-12-29 18:08:30,Base Rate,No,2026-01-15,2026-01-19,4,1,3,0,3,369821.4,739642.8,739642.8,0.0,0.0,744642.8,5000.0,"TRIPLE TWIN, maria belen martinez 39267355
+agostina arbia 39184308",-,-
+52,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/162064030?display=9035423304499&reservation_id=162064030,CUA,TRIPLE/CUADRUPLE STANDARD,36167947102,Checked Out,OTA,Despegar/Decolar,-,https://us1.cloudbeds.com/connect/22593#/reservations/162064030?display=Marcelo%20Daniel%20Campagna&reservation_id=162064030&guest_id=160977660,,CHELO_DANIEL1978@HOTMAIL.COM,No,,2025-12-30 00:19:14,Base Rate,No,2026-01-03,2026-01-06,3,1,4,0,4,228237.75,456475.5,456475.5,0.0,0.0,456475.5,0.0,cpl clsica,-,-
+53,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/162064655?display=5940868106971&reservation_id=162064655,-,TINY HOUSE,5122331018,Cancelled,OTA,Booking.com,-,https://us1.cloudbeds.com/connect/22593#/reservations/162064655?display=Victor%20Crant&reservation_id=162064655&guest_id=160978326,,crantjp@gmail.com,No,,2025-12-30 00:26:39,Base Rate,Yes,2026-01-03,2026-01-07,4,1,2,0,2,261886.5,0.0,129293.93,0.0,0.0,129293.93,129293.93,"fp US$355,10 sin iva son ext, Víctor Crant 11 2347 3398 Pasaporte EEUU A34798119 Toyota Etios plateado AG360FS, fp usd 355.10 x 1475 = $523773, paga en el out en efvo, ag360fs toyota etios gris claro",-,-
+54,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/162112683?display=9329458114344&reservation_id=162112683,204,SINGLE/DOBLE STANDARD,,Checked Out,Direct,Email,-,https://us1.cloudbeds.com/connect/22593#/reservations/162112683?display=MARIA%20EUGENIA%20SCHRAMM&reservation_id=162112683&guest_id=161033522,,MES_1978@HOTMAIL.COM,No,,2025-12-30 14:51:11,Base Rate,Yes,2026-01-03,2026-01-05,2,1,1,0,1,162000.0,324000.0,324000.0,0.0,0.0,324000.0,0.0,"DWL MAT
+VTO: 31/1
+CUENTA RIOS, SON 2 PAXS, Buenas tardes! Feliz año!
+Les paso los datos
+Schramm Ma. Eugenia
+DNI 26619228
+Tel 011 15 3772 8028/ 03489 15 570020
+
+Vamos en auto,.es un HOnda Civic, patente LAJ 818",-,-
+55,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/162210296?display=1968371153629&reservation_id=162210296,104,SINGLE/DOBLE STANDARD,2360962242,Checked Out,OTA,Expedia,-,https://us1.cloudbeds.com/connect/22593#/reservations/162210296?display=IVANA%20EUGENIAMATILDE%20CABRERA&reservation_id=162210296&guest_id=161148904,2664640530,vdmgmxnrne@m.expediapartnercentral.com,No,,2025-12-31 19:06:26,Base Rate,No,2026-01-15,2026-01-18,3,1,2,0,2,227007.34,456514.69,454014.69,0.0,0.0,456514.69,0.0,"doble mat 
+
+312,79 USD
+Expedia Collect, bartolome verges 11901097
+blanca - ram paige ah521rw, PEDI LA FC A EXPEDIA MELI 18/1",-,-
+56,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/162265060?display=1725401523511&reservation_id=162265060,CUA,TRIPLE/CUADRUPLE STANDARD,,Checked Out,Direct,Pagina Web,-,https://us1.cloudbeds.com/connect/22593#/reservations/162265060?display=María%20Inés%20Patús&reservation_id=162265060&guest_id=161213292,,mines_patus@hotmail.com,No,,2026-01-01 16:57:05,Tarifa promoción 20% OFF,Yes,2026-01-07,2026-01-12,5,1,3,0,3,350000.0,700000.0,700000.0,0.0,0.0,700000.0,0.0,"Le paso los datos.
+María Inés Patús. 
+DNI 25623107
+Cel 2474555708
+
+Auto
+Fiat Uno blanco PHN077.",-,-
+57,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/162346146?display=1717552924840&reservation_id=162346146,104,SINGLE/DOBLE STANDARD,2362039369,Checked Out,OTA,Expedia,-,https://us1.cloudbeds.com/connect/22593#/reservations/162346146?display=Agustin%20Nicolas%20Agosto&reservation_id=162346146&guest_id=161306242,,agustinagosto9@gmail.com,No,,2026-01-02 17:02:51,Base Rate,No,2026-01-03,2026-01-05,2,1,2,0,2,145381.49,290762.98,290762.98,0.0,0.0,290762.98,0.0,"2 pax
+dice double clasic o twin
+expedia collect, pedi la fc a expedia 3/1
+comp 29263134, agosto henry dni 16373723
+c3 blanco AH6491W, la volvi a pedir el 6/1",-,-
+58,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/162347952?display=5589712199119&reservation_id=162347952,103,SINGLE/DOBLE STANDARD,,Checked Out,Direct,Pagina Web,-,https://us1.cloudbeds.com/connect/22593#/reservations/162347952?display=Agustin%20Manuel%20Collado&reservation_id=162347952&guest_id=161308430,,elcolla.agustin@gmail.com,No,,2026-01-02 17:24:10,Tarifa promoción 20% OFF,Yes,2026-01-08,2026-01-11,3,1,1,0,1,180800.0,361600.0,361600.0,0.0,0.0,361600.0,0.0,-,-,-
+59,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/162383508?display=8601225182537&reservation_id=162383508,107,SINGLE/DOBLE STANDARD,,Checked Out,Direct,Walk-In,-,https://us1.cloudbeds.com/connect/22593#/reservations/162383508?display=denis%20tarakanoy&reservation_id=162383508&guest_id=161350050,+79117036911,notiene@hotmail.com,No,,2026-01-03 01:31:07,Base Rate,Yes,2026-01-03,2026-01-04,1,1,2,0,2,75000.0,150000.0,150000.0,0.0,0.0,150000.0,0.0,"vienen con los del depa x3 
+todo pagado 
+depa $140.000 ef
+hab doble $150.000 ef, x2 mat, vinieron con auto",-,-
+60,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/162428416?display=3845907888952&reservation_id=162428416,202,SINGLE/DOBLE STANDARD,,Checked Out,Direct,Email,-,https://us1.cloudbeds.com/connect/22593#/reservations/162428416?display=SUSANA%20MAGLIANO&reservation_id=162428416&guest_id=161401969,098711233,LILISUMAG@GMAIL.COM,No,,2026-01-03 16:14:31,Base Rate,Yes,2026-01-10,2026-01-13,3,1,2,0,2,225000.0,450000.0,450000.0,0.0,0.0,450000.0,0.0,"DWL MAT
+URUGUAYOS
+PRECIO SIN IVA
+GARANTIZAN CON TC Y PAGAN EN EFVO CUANDO LLEGAN
+VTO: 6/1, TC 5255629651276211
+SEG 201
+VTO 11/28, susana magliano  3865991-4
+Henry Rodriguez  36368006
+098711233","rodriguez henru id 3636800-06
+partner v9 gris MAE7405",-
+61,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/162434442?display=7784798054344&reservation_id=162434442,202,SINGLE/DOBLE STANDARD,,Checked Out,Direct,Walk-In,-,https://us1.cloudbeds.com/connect/22593#/reservations/162434442?display=alexander%20tapiero&reservation_id=162434442&guest_id=161408932,+573182542331,alextap07@hotmail.com,No,,2026-01-03 17:38:16,Base Rate,Yes,2026-01-03,2026-01-04,1,1,1,0,1,60000.0,120000.0,120000.0,0.0,0.0,120000.0,0.0,moto pat ofa07e,-,-
+62,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/162462651?display=3165138797729&reservation_id=162462651,204,SINGLE/DOBLE STANDARD,36251620302,Checked Out,OTA,Despegar/Decolar,-,https://us1.cloudbeds.com/connect/22593#/reservations/162462651?display=Emiliano%20Costa&reservation_id=162462651&guest_id=161441980,,N/A,No,,2026-01-04 00:41:39,Base Rate,No,2026-01-05,2026-01-13,8,1,2,0,2,543129.6,1088759.2,1086259.2,0.0,0.0,1088759.2,0.0,"dwl mat, leandro tranchini 33935751
+costa emiliano 36387873",-,-
+63,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/162512496?display=3679486448643&reservation_id=162512496,"202, 204",SINGLE/DOBLE STANDARD,,Confirmed,Direct,Email,-,https://us1.cloudbeds.com/connect/22593#/reservations/162512496?display=DANIELA%20SALDAÑO&reservation_id=162512496&guest_id=161498553,,EVELYNDANIELA.94@GMAIL.COM,No,,2026-01-04 16:52:36,Base Rate,Yes,2026-01-19,2026-01-20,1,2,4,0,4,190000.0,380000.0,380000.0,0.0,0.0,380000.0,0.0,"2 HAB DWLS MAT
+VTO: 6/1
+CUENTA RIOS",-,-
+64,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/162543876?display=1412703989947&reservation_id=162543876,105,SINGLE/DOBLE STANDARD,,Checked Out,Direct,Walk-In,-,https://us1.cloudbeds.com/connect/22593#/reservations/162543876?display=ROBERTO%20RECIO&reservation_id=162543876&guest_id=161534400,1161347198,RORECIO@GMAIL.COM,No,,2026-01-05 00:19:43,Base Rate,Yes,2026-01-05,2026-01-07,2,1,1,0,1,123000.0,246000.0,246000.0,0.0,0.0,246000.0,0.0,single mat,-,-
+65,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/162549385?display=3890044069705&reservation_id=162549385,TIN(1),TINY HOUSE,,Checked Out,Direct,Walk-In,-,https://us1.cloudbeds.com/connect/22593#/reservations/162549385?display=cintia%20Severiens&reservation_id=162549385&guest_id=161540565,2494608429,cseveriens@hotmail.com,No,,2026-01-05 01:50:27,Base Rate,Yes,2026-01-05,2026-01-06,1,1,3,0,3,75000.0,150000.0,150000.0,0.0,0.0,150000.0,0.0,"+54 9 2494 60-8429
+aun no llega el mail con los datos de rva
+$150.000 ef 
+$180.000 credito, toyota hilux gris oscuro",-,-
+66,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/162621423?display=4073715077700&reservation_id=162621423,203,SINGLE/DOBLE STANDARD,36283388502,Checked Out,OTA,Despegar/Decolar,-,https://us1.cloudbeds.com/connect/22593#/reservations/162621423?display=Héctor%20Ariel%20Cousté&reservation_id=162621423&guest_id=161621187,2915040704,hectorcouste@yahoo.com.ar,No,,2026-01-05 20:24:04,Base Rate,No,2026-01-05,2026-01-06,1,1,2,0,2,65736.45,131472.9,131472.9,0.0,0.0,131472.9,0.0,"maria victoria gonzalez 25947811
+hector couste 23776753 
+camioneta chevrolet roja",-,-
+67,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/162631430?display=7522665787744&reservation_id=162631430,205,SINGLE/DOBLE STANDARD,,Checked Out,Direct,Walk-In,-,https://us1.cloudbeds.com/connect/22593#/reservations/162631430?display=francisco%20lima&reservation_id=162631430&guest_id=161632294,+55799981798,chicolimaaju@gmail.com,No,,2026-01-05 21:59:50,Base Rate,Yes,2026-01-05,2026-01-06,1,1,2,0,2,70000.0,140000.0,140000.0,0.0,0.0,140000.0,0.0,"logan gris 
+monica suza, ag248ce",-,-
+68,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/162641252?display=9287477431264&reservation_id=162641252,CUA,TRIPLE/CUADRUPLE STANDARD,,Checked Out,Direct,Walk-In,-,https://us1.cloudbeds.com/connect/22593#/reservations/162641252?display=ROXANA%20ROIS&reservation_id=162641252&guest_id=161643527,+541151555970,roxanarois@hotmail.com,No,,2026-01-06 00:21:40,Base Rate,Yes,2026-01-06,2026-01-07,1,1,1,0,1,75000.0,150000.0,150000.0,0.0,0.0,150000.0,0.0,single mat,-,-
+69,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/162696520?display=5518621748650&reservation_id=162696520,TIN(1),TINY HOUSE,6913057347,Checked Out,OTA,Booking.com,-,https://us1.cloudbeds.com/connect/22593#/reservations/162696520?display=GERALDO%20Abreu%20Lima%20Neto&reservation_id=162696520&guest_id=161705363,,gneto.320779@guest.booking.com,No,,2026-01-06 15:52:32,Base Rate,Yes,2026-01-07,2026-01-08,1,1,2,0,2,65077.5,130155.0,130155.0,0.0,0.0,130155.0,0.0,"USD 87,06 X 1495 = $130155.-, deborah gil fw805108
+triumpf / tiger rhh9h18
+geraldo breu fw919478",-,-
+70,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/162795659?display=2166866871907&reservation_id=162795659,202,SINGLE/DOBLE STANDARD,,Checked Out,Direct,Walk-In,-,https://us1.cloudbeds.com/connect/22593#/reservations/162795659?display=PABLO%20RODRIGUEZ&reservation_id=162795659&guest_id=161813496,1160561484,CONSULTAS@HOTELANTIGUOS.COM.AR,No,,2026-01-07 11:18:28,Base Rate,Yes,2026-01-13,2026-01-14,1,1,1,0,1,66000.0,132000.0,132000.0,0.0,0.0,132000.0,0.0,"SGL MAT
+PAGA CUANDO LLEGA, honda hrv ac541we negro",-,-
+71,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/162943786?display=4610507189345&reservation_id=162943786,102,DOBLE/TRIPLE STANDARD,,Checked Out,Direct,Walk-In,-,https://us1.cloudbeds.com/connect/22593#/reservations/162943786?display=alberto%20elizalde&reservation_id=162943786&guest_id=161978822,221 6788293,elizate@outlook.com,No,,2026-01-08 20:43:44,Base Rate,Yes,2026-01-09,2026-01-12,3,1,2,0,2,235000.0,470000.0,470000.0,0.0,0.0,470000.0,0.0,"doble mat, cordoba maria lujan dni 25554430",-,-
+72,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/162947809?display=1668461464143&reservation_id=162947809,205,SINGLE/DOBLE STANDARD,,Checked Out,Direct,Walk-In,-,https://us1.cloudbeds.com/connect/22593#/reservations/162947809?display=elizabeth%20bertoni&reservation_id=162947809&guest_id=161983300,1165668744,elibertoni9@gmail.com,No,,2026-01-08 21:33:22,Base Rate,Yes,2026-01-08,2026-01-09,1,1,2,0,2,75000.0,150000.0,150000.0,0.0,0.0,150000.0,0.0,"kangoo ag493ac gris claro 
+guillermo barzantti 14857144",-,-
+73,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/163044598?display=2266421546571&reservation_id=163044598,202,SINGLE/DOBLE STANDARD,,Checked Out,Direct,Walk-In,-,https://us1.cloudbeds.com/connect/22593#/reservations/163044598?display=JULIETA%20VANESA%20MEDINAS&reservation_id=163044598&guest_id=162093416,1157646303,julietamedinas@hotmail.com,No,,2026-01-09 22:03:12,Tarifa promoción 20% OFF,Yes,2026-01-15,2026-01-17,2,1,2,0,2,150000.0,300000.0,300000.0,0.0,0.0,300000.0,0.0,doble mat,-,-
+74,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/163198487?display=7197556264857&reservation_id=163198487,107,SINGLE/DOBLE STANDARD,,Checked Out,Direct,Walk-In,-,https://us1.cloudbeds.com/connect/22593#/reservations/163198487?display=CRISTIAN%20GUILLERMO%20HARVEY&reservation_id=163198487&guest_id=162267746,1168574126,LULASERRA2005@YAHOO.COM.AR,No,,2026-01-11 18:15:11,Base Rate,Yes,2026-01-11,2026-01-13,2,1,2,0,2,140000.0,280000.0,280000.0,0.0,0.0,280000.0,0.0,"GABRIELA SERRA VALLE
+DNI 26948266
+
+
+FIAT CHRONOS GRIS PLATA",-,-
+75,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/163228084?display=7714603801586&reservation_id=163228084,"103, 105",SINGLE/DOBLE STANDARD,,Checked Out,Direct,Walk-In,-,https://us1.cloudbeds.com/connect/22593#/reservations/163228084?display=armanda%20cruz&reservation_id=163228084&guest_id=162300973,+5561999977270,consultas@hotelantiguos.com.ar,No,,2026-01-12 01:08:58,Base Rate,Yes,2026-01-11,2026-01-12,1,2,4,0,4,135000.0,270000.0,270000.0,0.0,0.0,270000.0,0.0,"marco tombo0latto gb388675
+mirian dos santos ga128335
+washington da silva ga128334
+DOS MOTOS, FZH9B63 TIGER 1200XCX
+PAD9G04",-,-
+76,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/163288121?display=6024009233176&reservation_id=163288121,103,SINGLE/DOBLE STANDARD,,Checked Out,Direct,Walk-In,-,https://us1.cloudbeds.com/connect/22593#/reservations/163288121?display=MIRTA%20CANDI&reservation_id=163288121&guest_id=162367452,0234615517759,MIRTAACANDI@HOTMAIL.COM,No,,2026-01-12 17:20:59,Base Rate,Yes,2026-01-12,2026-01-13,1,1,2,0,2,76000.0,152000.0,152000.0,0.0,0.0,152000.0,0.0,"JEEP COMPASS COLOR GRIS
+PAT AH546NP",-,-
+77,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/163301515?display=6346525928433&reservation_id=163301515,CUA,TRIPLE/CUADRUPLE STANDARD,,Checked Out,Direct,Walk-In,-,https://us1.cloudbeds.com/connect/22593#/reservations/163301515?display=carlos%20vidal&reservation_id=163301515&guest_id=162382225,+54 9 11 3440-2802,carlosenriquevidal@gmail.com,No,,2026-01-12 19:54:13,Base Rate,Yes,2026-01-12,2026-01-13,1,1,1,3,4,110000.0,220000.0,220000.0,0.0,0.0,220000.0,0.0,"martin gonzañez 14391476
+claudio fierro 12900470 
+MOTODS 
+a201gui a244aqo A118KOD",-,-
+78,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/163303336?display=6654140535285&reservation_id=163303336,105,SINGLE/DOBLE STANDARD,,Checked Out,Direct,Walk-In,-,https://us1.cloudbeds.com/connect/22593#/reservations/163303336?display=lorena%20perez&reservation_id=163303336&guest_id=162384284,+54 9 2216 13-8876,alberto_vitali@hotmail.com,No,,2026-01-12 20:14:47,Base Rate,Yes,2026-01-12,2026-01-13,1,1,2,0,2,76000.0,152000.0,152000.0,0.0,0.0,152000.0,0.0,-,-,-
+79,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/163304752?display=9369058755518&reservation_id=163304752,205,SINGLE/DOBLE STANDARD,,Checked Out,Direct,Walk-In,-,https://us1.cloudbeds.com/connect/22593#/reservations/163304752?display=cecilia%20Hellbusch&reservation_id=163304752&guest_id=162385867,+54 2317 45 6421,ceciHellbusch@gmail.com,No,,2026-01-12 20:31:48,Base Rate,Yes,2026-01-16,2026-01-17,1,1,2,0,2,76000.0,152000.0,152000.0,0.0,0.0,152000.0,0.0,"doble twin 
+vienen de la cabaña y de la tiny",-,-
+80,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/163318098?display=4683320609396&reservation_id=163318098,102,DOBLE/TRIPLE STANDARD,,Checked Out,Direct,Walk-In,-,https://us1.cloudbeds.com/connect/22593#/reservations/163318098?display=Andrea%20meggiolaro&reservation_id=163318098&guest_id=162400796,3446575641,consultas@hotelantiguos.com.ar,No,,2026-01-12 23:18:27,Base Rate,Yes,2026-01-12,2026-01-13,1,1,2,0,2,50000.0,100000.0,100000.0,0.0,0.0,100000.0,0.0,"prima de Fer 
+triple clasica",-,-
+81,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/163521396?display=3937150886658&reservation_id=163521396,104,SINGLE/DOBLE STANDARD,,Checked Out,Direct,Walk-In,-,https://us1.cloudbeds.com/connect/22593#/reservations/163521396?display=Maria%20Delahaye&reservation_id=163521396&guest_id=162624808,,mdelahaye1@hotmail.com.ar,No,,2026-01-14 17:07:11,Base Rate,Yes,2026-01-14,2026-01-15,1,1,1,0,1,95000.0,190000.0,190000.0,0.0,0.0,190000.0,0.0,"2 PAX
+julio ariel palner dni 22697440
+AH123QK RAM, fca 1939",-,-
+82,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/163533413?display=8902241541782&reservation_id=163533413,105,SINGLE/DOBLE STANDARD,,Checked Out,Direct,Walk-In,-,https://us1.cloudbeds.com/connect/22593#/reservations/163533413?display=leonela%20jara&reservation_id=163533413&guest_id=162638152,2942 477541,leonelaja1994@gmail.com,No,,2026-01-14 19:21:48,Tarifa promoción 20% OFF,Yes,2026-01-16,2026-01-18,2,1,2,0,2,151000.0,302000.0,302000.0,0.0,0.0,302000.0,0.0,"doble mat, walter montes 38811274
+honda civic fmb859 gris claro",-,-
+83,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/163555974?display=2359573817648&reservation_id=163555974,-,"DOBLE/TRIPLE STANDARD, SINGLE/DOBLE STANDARD",,Cancelled,Direct,Walk-In,-,https://us1.cloudbeds.com/connect/22593#/reservations/163555974?display=LAUTARO%20GOMEZ&reservation_id=163555974&guest_id=162663357,+54 9 11 3140-6025,LAUTAROGOMEZA01@GMAIL.COM,No,,2026-01-14 23:46:50,Base Rate,Yes,2026-01-14,2026-01-15,1,2,5,0,5,222500.0,0.0,0.0,0.0,0.0,0.0,0.0,"BAUTISTA GOMEZ 50072566
+MIRIAM ARGAÑARAZ 23133122
+RUBEN GOMEZ 20312231
+SANDERO STEPWAY BLANCO ad242hk",-,-
+84,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/163624366?display=4601010812253&reservation_id=163624366,201,SINGLE/DOBLE STANDARD,,Confirmed,Direct,Walk-In,-,https://us1.cloudbeds.com/connect/22593#/reservations/163624366?display=LUCIANO%20AGNOLETTI&reservation_id=163624366&guest_id=162739950,,LUCIANO.AGNOLETTI@KCC.COM,No,,2026-01-15 17:21:41,Base Rate,Yes,2026-01-19,2026-01-20,1,1,1,0,1,72000.0,0.0,144000.0,0.0,0.0,144000.0,144000.0,"SGL MAT
+VTO: 16/1, tc en garantia
+Numero: 4576 6731 1151 2208
+
+Vencimiento: 03/26
+
+Seguridad: 912, Toyota Yaris AC083HH color gris",-,-
+85,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/163693153?display=1895263724171&reservation_id=163693153,TIN(1),TINY HOUSE,237193401,Checked Out,OTA,Expedia,-,https://us1.cloudbeds.com/connect/22593#/reservations/163693153?display=LUIS%20ALBERTO%20SALAS&reservation_id=163693153&guest_id=162817757,,consultas@hotelantiguos.com.ar,No,,2026-01-16 10:02:12,Base Rate,Yes,2026-01-17,2026-01-18,1,1,3,0,3,90000.0,180000.0,180000.0,0.0,0.0,180000.0,0.0,"3 PAXS PGAN CON LA TC VIRTUAL EXPEDIA EN LA FECHA DEL CHECK OUT
+CERRE PORTALES
+TC: 5556570356719749
+VTO 1/31
+SEG 704, clio azul, paga con tc virtual expedia",-,-
+86,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/163821960?display=8370498569937&reservation_id=163821960,202,SINGLE/DOBLE STANDARD,,Checked Out,Direct,Walk-In,-,https://us1.cloudbeds.com/connect/22593#/reservations/163821960?display=Pablo%20Alfieri&reservation_id=163821960&guest_id=162965146,,Alfieripablo@hotmail.com,No,,2026-01-17 18:33:54,Tarifa promoción 20% OFF,Yes,2026-01-17,2026-01-18,1,1,1,0,1,70000.0,140000.0,140000.0,0.0,0.0,140000.0,0.0,"1 pax
+con moto",-,-
+87,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/163824629?display=2994581089112&reservation_id=163824629,102,DOBLE/TRIPLE STANDARD,,In-House,Direct,Walk-In,-,https://us1.cloudbeds.com/connect/22593#/reservations/163824629?display=EREZ%20RONEN&reservation_id=163824629&guest_id=162968204,,AMIRADAGAN@GMAIL.COM,No,,2026-01-17 19:09:38,Tarifa promoción 20% OFF,Yes,2026-01-17,2026-01-19,2,1,3,0,3,160000.0,320000.0,320000.0,0.0,0.0,322500.0,2500.0,"CON 5 PAX DE ISRRAEL (HB 102 Y 204)
+AUTO BLANCO AH157FF
+EREZ RONEN 35416217
+TULCHINKY MENACHEN 40715632
+TULCHINKY YIFT 41418969
+DAGAN TMIR 35440855
+DAGAN AMIRA 37658440",-,-
+88,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/163824730?display=3248207514238&reservation_id=163824730,204,SINGLE/DOBLE STANDARD,,Checked Out,Direct,Walk-In,-,https://us1.cloudbeds.com/connect/22593#/reservations/163824730?display=EREZ%20RONEN&reservation_id=163824730&guest_id=162968322,,AMIRADAGAN@GMAIL.COM,No,,2026-01-17 19:11:05,Base Rate,Yes,2026-01-17,2026-01-19,2,1,2,0,2,140000.0,280000.0,280000.0,0.0,0.0,280000.0,0.0,"5 PAX DE ISRRAEL (HB 102 Y 204)
+AUTO BLANCO AH157FF
+EREZ RONEN 35416217
+TULCHINKY MENACHEN 40715632
+TULCHINKY YIFT 41418969
+DAGAN TMIR 35440855
+DAGAN AMIRA 37658440",-,-
+89,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/163849858?display=5719707699859&reservation_id=163849858,205,SINGLE/DOBLE STANDARD,,Checked Out,Direct,Walk-In,-,https://us1.cloudbeds.com/connect/22593#/reservations/163849858?display=Manuel%20Garcia&reservation_id=163849858&guest_id=162997424,,Manuel.garcia.luq@gmail.com,No,,2026-01-18 01:38:41,Tarifa promoción 20% OFF,Yes,2026-01-17,2026-01-18,1,1,2,0,2,70000.0,140000.0,140000.0,0.0,0.0,140000.0,0.0,"5 pax hab 404 y 205 
+sw 4 AC039FR, PAGO EFECT",-,-
+90,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/163849921?display=6015981913370&reservation_id=163849921,CUA,TRIPLE/CUADRUPLE STANDARD,,Checked Out,Direct,Walk-In,-,https://us1.cloudbeds.com/connect/22593#/reservations/163849921?display=Manuel%20Garcia&reservation_id=163849921&guest_id=162997499,,Manuel.garcia.luq@gmail.com,No,,2026-01-18 01:39:51,Tarifa promoción 20% OFF,Yes,2026-01-17,2026-01-18,1,1,1,0,1,80000.0,160000.0,160000.0,0.0,0.0,160000.0,0.0,"5 pax hab 404 y 205
+sw 4 AC039FR, PAGO EFECT",-,-
+91,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/163881506?display=3159464565845&reservation_id=163881506,205,SINGLE/DOBLE STANDARD,2373571216,In-House,OTA,Expedia,-,https://us1.cloudbeds.com/connect/22593#/reservations/163881506?display=Marcelo%20Sulzbach&reservation_id=163881506&guest_id=163033225,,MMSulzbach@GMAIL.COM,No,,2026-01-18 12:40:38,Base Rate,No,2026-01-18,2026-01-20,2,1,1,0,1,176793.41,353586.83,353586.83,0.0,0.0,353586.83,0.0,"sgl mat
+pedir la fc a expedia en el out 20/1",-,-
+92,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/163901943?display=9568705442028&reservation_id=163901943,CUA,TRIPLE/CUADRUPLE STANDARD,,In-House,Direct,Walk-In,-,https://us1.cloudbeds.com/connect/22593#/reservations/163901943?display=LORENA%20MAYORGA&reservation_id=163901943&guest_id=163055801,2604545177,MAYORGALOPRENAP@GMAIL.COM,No,,2026-01-18 17:23:22,Base Rate,Yes,2026-01-18,2026-01-20,2,1,1,0,1,165000.0,330000.0,330000.0,0.0,0.0,330000.0,0.0,"CHEVROLET ASTRA NEGRO
+CUENTA RIOS PAGADO POR TRF",-,-
+93,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/163906992?display=1121245061051&reservation_id=163906992,-,SINGLE/DOBLE STANDARD,,Cancelled,Direct,Walk-In,-,https://us1.cloudbeds.com/connect/22593#/reservations/163906992?display=Ernesto%20Rolle&reservation_id=163906992&guest_id=163061377,,ernestorolle031@gmail.com,No,,2026-01-18 18:24:47,Tarifa promoción 20% OFF,Yes,2026-01-18,2026-01-19,1,1,1,0,1,56000.0,0.0,0.0,0.0,0.0,0.0,0.0,-,-,-
+94,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/163907100?display=7549892018537&reservation_id=163907100,-,SINGLE/DOBLE STANDARD,,Cancelled,Direct,Teléfono,-,https://us1.cloudbeds.com/connect/22593#/reservations/163907100?display=Ernesto%20Rolle&reservation_id=163907100&guest_id=163061491,,ernestorolle031@gmail.com,No,,2026-01-18 18:26:00,Tarifa promoción 20% OFF,Yes,2026-01-18,2026-01-19,1,1,1,0,1,56000.0,0.0,0.0,0.0,0.0,0.0,0.0,-,-,-
+95,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/163931250?display=9293243605391&reservation_id=163931250,104,SINGLE/DOBLE STANDARD,,Checked Out,Direct,Walk-In,-,https://us1.cloudbeds.com/connect/22593#/reservations/163931250?display=cONSTANZA%20dE%20CERCHIO&reservation_id=163931250&guest_id=163088334,,CONIDECERCHIO@GMAIL.COM,No,,2026-01-18 23:47:17,Tarifa promoción 20% OFF,Yes,2026-01-18,2026-01-19,1,1,2,0,2,70000.0,140000.0,140000.0,0.0,0.0,140000.0,0.0,"EZEQUIEL LUMINI dni 32842288
+AMAROK BLANCA af919ju",-,-
+96,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/163931874?display=3042701611415&reservation_id=163931874,105,SINGLE/DOBLE STANDARD,,Checked Out,Direct,Teléfono,-,https://us1.cloudbeds.com/connect/22593#/reservations/163931874?display=Georgina%20Boladeras&reservation_id=163931874&guest_id=163089039,,georgina.ctdsantafe@gmail.com,No,,2026-01-18 23:57:10,Tarifa promoción 20% OFF,Yes,2026-01-18,2026-01-19,1,1,2,0,2,70000.0,140000.0,140000.0,0.0,0.0,140000.0,0.0,"accendere ezequiel dni 22523919
+AMAROK AH212OQ",-,-
+97,Hotel Antiguos,https://us1.cloudbeds.com/connect/22593#/reservations/163936572?display=2328661882918&reservation_id=163936572,202,SINGLE/DOBLE STANDARD,,Checked Out,Direct,Teléfono,-,https://us1.cloudbeds.com/connect/22593#/reservations/163936572?display=bENJAMIN%20mARDONES&reservation_id=163936572&guest_id=163094308,,BMARDONES79@GMAIL.COM,No,,2026-01-19 01:14:19,Tarifa promoción 20% OFF,Yes,2026-01-18,2026-01-19,1,1,2,0,2,70000.0,140000.0,140000.0,0.0,0.0,140000.0,0.0,"FLORENCIA PROVOSQUE + BB
+VENTO AB815DP GRIS",-,-

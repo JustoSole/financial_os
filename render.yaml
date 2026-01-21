@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: financial-os
+    env: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+    disk:
+      name: financial-os-data
+      mountPath: /opt/render/project/src/backend/data
+      sizeGB: 1
+

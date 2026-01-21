@@ -1,0 +1,654 @@
+import { useState, useEffect, useMemo } from 'react';
+import { useApp } from '../context/AppContext';
+import {
+  getReservationEconomics,
+  getReservationEconomicsList,
+  getReservationEconomicsDetail,
+  getBreakEven,
+  getMinimumPrice,
+} from '../api';
+import {
+  DateRangePicker,
+  ReservationDrawer,
+  Card,
+  LoadingState,
+  TrustBadge,
+  ConfidenceBadge,
+  ChannelBadge,
+  SummaryMetric,
+  HelpTooltip,
+} from '../components';
+import type { ReservationEconomicsData } from '../components';
+import { formatCurrency, formatCurrencyShort, formatPercent } from '../utils/formatters';
+import { Target, Shield, Info } from 'lucide-react';
+import styles from './Profitability.module.css';
+
+
+// =====================================================
+// Types
+// =====================================================
+
+interface Pattern {
+  source: string;
+  nightsBucket: '1' | '2' | '3+';
+  count: number;
+  totalRevenue: number;
+  totalProfit: number;
+  avgProfitPerNight: number;
+  isLossPattern: boolean;
+  lossAmount: number;
+}
+
+interface Summary {
+  totalReservations: number;
+  totalRoomNights: number;
+  totalRevenue: number;
+  totalCommissions: number;
+  totalVariableCosts: number;
+  totalFixedCostsAllocated: number;
+  totalNetProfit: number;
+  avgMarginPercent: number;
+  avgProfitPerNight: number;
+  unprofitableCount: number;
+  unprofitableLoss: number;
+  unprofitableShare: number;
+  patterns: Pattern[];
+  worstReservations: ReservationEconomicsData[];
+  bestReservations: ReservationEconomicsData[];
+  lowConfidenceCount: number;
+  lowConfidenceShare: number;
+  configUsed: {
+    variableCostPerNight: number;
+    cleaningCostPerStay: number;
+    monthlyFixedCosts: number;
+    defaultCommissionRate: number;
+  };
+}
+
+type TabType = 'worst' | 'best' | 'patterns' | 'thresholds' | 'all';
+type NightsBucket = '1' | '2' | '3+' | 'all';
+
+// =====================================================
+// Main Component
+// =====================================================
+
+export default function Profitability() {
+  const { property, dateRange } = useApp();
+  const [summary, setSummary] = useState<Summary | null>(null);
+  const [reservations, setReservations] = useState<ReservationEconomicsData[]>([]);
+  const [breakEven, setBreakEven] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<TabType>('thresholds');
+
+  // Sandbox state
+  const [marginPct, setMarginPct] = useState(20);
+  const [simulation, setSimulation] = useState<any>(null);
+  const [simLoading, setSimLoading] = useState(false);
+
+  // Filters
+  const [sourceFilter, setSourceFilter] = useState<string>('all');
+  const [nightsFilter, setNightsFilter] = useState<NightsBucket>('all');
+
+  // Drawer
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [selectedReservation, setSelectedReservation] =
+    useState<ReservationEconomicsData | null>(null);
+  const [drawerLoading, setDrawerLoading] = useState(false);
+
+  useEffect(() => {
+    async function load() {
+      if (!property?.id) return;
+      setLoading(true);
+
+      const startStr = dateRange.start.toISOString().substring(0, 10);
+      const endStr = dateRange.end.toISOString().substring(0, 10);
+
+      const [summaryRes, listRes, breakEvenRes] = await Promise.all([
+        getReservationEconomics(property.id, startStr, endStr),
+        getReservationEconomicsList(property.id, startStr, endStr),
+        getBreakEven(property.id, startStr, endStr),
+      ]);
+
+      if (summaryRes.success) setSummary(summaryRes.data);
+      if (listRes.success) setReservations(listRes.data || []);
+      if (breakEvenRes.success) setBreakEven(breakEvenRes.data);
+
+      setLoading(false);
+    }
+    load();
+  }, [property?.id, dateRange]);
+
+  useEffect(() => {
+    async function runSim() {
+      if (!property?.id || activeTab !== 'thresholds') return;
+      setSimLoading(true);
+      const res = await getMinimumPrice(property.id, marginPct);
+      if (res.success) setSimulation(res.data);
+      setSimLoading(false);
+    }
+    const timer = setTimeout(runSim, 300);
+    return () => clearTimeout(timer);
+  }, [property?.id, marginPct, activeTab]);
+
+  // Get unique sources for filter
+  const sources = useMemo(() => {
+    const unique = [...new Set(reservations.map((r) => r.source))];
+    return unique.sort();
+  }, [reservations]);
+
+  // Filter reservations
+  const filteredReservations = useMemo(() => {
+    let result = [...reservations];
+
+    if (sourceFilter !== 'all') {
+      result = result.filter((r) => r.source === sourceFilter);
+    }
+
+    if (nightsFilter !== 'all') {
+      result = result.filter((r) => {
+        if (nightsFilter === '1') return r.roomNights === 1;
+        if (nightsFilter === '2') return r.roomNights === 2;
+        return r.roomNights >= 3;
+      });
+    }
+
+    return result;
+  }, [reservations, sourceFilter, nightsFilter]);
+
+  // Get data based on active tab
+  const displayData = useMemo(() => {
+    if (activeTab === 'worst') {
+      return filteredReservations.filter((r) => r.isUnprofitable).slice(0, 20);
+    }
+    if (activeTab === 'best') {
+      return [...filteredReservations]
+        .filter((r) => !r.isUnprofitable)
+        .sort((a, b) => b.profitPerNight - a.profitPerNight)
+        .slice(0, 20);
+    }
+    if (activeTab === 'all') {
+      return filteredReservations;
+    }
+    return [];
+  }, [filteredReservations, activeTab]);
+
+  // Open drawer
+  const openDrawer = async (reservationNumber: string) => {
+    if (!property?.id) return;
+    setDrawerLoading(true);
+    setDrawerOpen(true);
+
+    const res = await getReservationEconomicsDetail(property.id, reservationNumber);
+    if (res.success && res.data) {
+      setSelectedReservation(res.data);
+    }
+    setDrawerLoading(false);
+  };
+
+  const closeDrawer = () => {
+    setDrawerOpen(false);
+    setSelectedReservation(null);
+  };
+
+  if (loading) {
+    return <LoadingState message="Analizando rentabilidad..." />;
+  }
+
+  if (!summary) {
+    return (
+      <div className="page-empty">
+        <p>
+          No hay datos de reservas para analizar. Importá el reporte "Reservations with
+          Financials".
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className={styles.page}>
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">
+            Rentabilidad por Reserva
+            <HelpTooltip termKey="unitEconomics" size="md" />
+          </h1>
+          <p className="page-subtitle">Ganancia o pérdida de cada reserva individual</p>
+        </div>
+        <DateRangePicker />
+      </div>
+
+      {/* Summary Cards */}
+      <div className={styles.summary}>
+        <SummaryMetric value={summary.totalReservations} label="Reservas analizadas" />
+        <SummaryMetric
+          value={formatCurrency(summary.totalNetProfit)}
+          label="Ganancia neta total"
+          variant={summary.totalNetProfit >= 0 ? 'positive' : 'negative'}
+        />
+        <SummaryMetric
+          value={`${summary.avgMarginPercent.toFixed(1)}%`}
+          label="Margen promedio"
+        />
+        <SummaryMetric
+          value={summary.unprofitableCount}
+          label={`Con pérdida (${summary.unprofitableShare.toFixed(1)}%)`}
+          variant="danger"
+        />
+        <SummaryMetric
+          value={`-${formatCurrency(summary.unprofitableLoss)}`}
+          label="Total perdido"
+          variant="danger"
+        />
+      </div>
+
+      {/* Config Used */}
+      <div className={styles.config}>
+        <span className={styles.configLabel}>Costos configurados:</span>
+        <span className={styles.configItem}>
+          Variable: ${summary.configUsed.variableCostPerNight}/noche
+        </span>
+        <span className={styles.configItem}>
+          Fijos: ${summary.configUsed.monthlyFixedCosts.toLocaleString()}/mes
+        </span>
+        <span className={styles.configItem}>
+          Comisión default: {(summary.configUsed.defaultCommissionRate * 100).toFixed(0)}%
+        </span>
+        {summary.lowConfidenceShare > 20 && (
+          <span className={styles.configWarning}>
+            ⚠ {summary.lowConfidenceShare.toFixed(0)}% con baja confianza
+          </span>
+        )}
+      </div>
+
+      {/* Tabs */}
+      <div className={styles.tabsContainer}>
+        <div className={styles.tabs}>
+          <button
+            className={`${styles.tab} ${activeTab === 'thresholds' ? styles.active : ''}`}
+            onClick={() => setActiveTab('thresholds')}
+          >
+            <Shield size={16} /> Umbrales + Simulador
+          </button>
+          <button
+            className={`${styles.tab} ${activeTab === 'worst' ? styles.active : ''}`}
+            onClick={() => setActiveTab('worst')}
+          >
+            🔴 Peores ({filteredReservations.filter((r) => r.isUnprofitable).length})
+          </button>
+          <button
+            className={`${styles.tab} ${activeTab === 'best' ? styles.active : ''}`}
+            onClick={() => setActiveTab('best')}
+          >
+            🟢 Mejores
+          </button>
+          <button
+            className={`${styles.tab} ${activeTab === 'patterns' ? styles.active : ''}`}
+            onClick={() => setActiveTab('patterns')}
+          >
+            📊 Patrones
+          </button>
+          <button
+            className={`${styles.tab} ${activeTab === 'all' ? styles.active : ''}`}
+            onClick={() => setActiveTab('all')}
+          >
+            📋 Todas
+          </button>
+        </div>
+
+        {activeTab !== 'patterns' && activeTab !== 'thresholds' && (
+          <div className={styles.filters}>
+            <select
+              value={sourceFilter}
+              onChange={(e) => setSourceFilter(e.target.value)}
+              className={styles.filterSelect}
+            >
+              <option value="all">Todos los canales</option>
+              {sources.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
+            <select
+              value={nightsFilter}
+              onChange={(e) => setNightsFilter(e.target.value as NightsBucket)}
+              className={styles.filterSelect}
+            >
+              <option value="all">Todas las noches</option>
+              <option value="1">1 noche</option>
+              <option value="2">2 noches</option>
+              <option value="3+">3+ noches</option>
+            </select>
+          </div>
+        )}
+      </div>
+
+      {/* Content based on tab */}
+      {activeTab === 'thresholds' ? (
+        <ThresholdsView
+          breakEven={breakEven}
+          summary={summary}
+          marginPct={marginPct}
+          setMarginPct={setMarginPct}
+          simulation={simulation}
+          loading={simLoading}
+        />
+      ) : activeTab === 'patterns' ? (
+        <PatternsView patterns={summary.patterns} />
+      ) : (
+        <Card padding="none" className={`${styles.tableCard} table-responsive`}>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>Reserva</th>
+                <th>Canal</th>
+                <th className="text-right">Noches</th>
+                <th className="text-right">Ingresos</th>
+                <th className="text-right">Comisión</th>
+                <th className="text-right">Ganancia</th>
+                <th className="text-right">$/Noche</th>
+                <th>Precisión</th>
+              </tr>
+            </thead>
+            <tbody>
+              {displayData.map((r) => (
+                <tr
+                  key={r.reservationNumber}
+                  className={r.isUnprofitable ? styles.unprofitable : ''}
+                  onClick={() => openDrawer(r.reservationNumber)}
+                >
+                  <td data-label="Reserva">
+                    <div className={styles.cellReservation}>
+                      <span className={styles.reservationNumber}>{r.reservationNumber}</span>
+                      <span className={styles.reservationGuest}>{r.guestName}</span>
+                    </div>
+                  </td>
+                  <td data-label="Canal">
+                    <ChannelBadge channel={r.source} category={r.sourceCategory} />
+                  </td>
+                  <td data-label="Noches" className="text-right font-mono">{r.roomNights}</td>
+                  <td data-label="Ingresos" className="text-right font-mono">{formatCurrencyShort(r.revenue)}</td>
+                  <td data-label="Comisión" className="text-right font-mono text-muted">
+                    {(r.commissionRate * 100).toFixed(0)}%
+                  </td>
+                  <td
+                    data-label="Ganancia"
+                    className={`text-right font-mono font-semibold ${r.netProfit >= 0 ? 'text-success' : 'text-error'}`}
+                  >
+                    {formatCurrencyShort(r.netProfit)}
+                  </td>
+                  <td
+                    data-label="$/Noche"
+                    className={`text-right font-mono ${r.profitPerNight >= 0 ? 'text-success' : 'text-error'}`}
+                  >
+                    {formatCurrencyShort(r.profitPerNight)}
+                  </td>
+                  <td data-label="Precisión">
+                    <div className={styles.confidenceCell}>
+                      <TrustBadge trust={r.trust} />
+                      <ConfidenceBadge confidence={r.confidence} />
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+
+          {displayData.length === 0 && (
+            <div className={styles.tableEmpty}>
+              <p>No hay reservas que coincidan con los filtros</p>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* Drawer */}
+      <ReservationDrawer
+        reservation={selectedReservation}
+        loading={drawerLoading}
+        open={drawerOpen}
+        onClose={closeDrawer}
+      />
+    </div>
+  );
+}
+
+// =====================================================
+// Thresholds View Component
+// =====================================================
+
+function ThresholdsView({
+  breakEven,
+  summary,
+  marginPct,
+  setMarginPct,
+  simulation,
+  loading,
+}: {
+  breakEven: any;
+  summary: Summary | null;
+  marginPct: number;
+  setMarginPct: (v: number) => void;
+  simulation: any;
+  loading: boolean;
+}) {
+  if (!breakEven) return null;
+
+  const fixedCosts = summary?.totalFixedCostsAllocated || 0;
+  const variableCosts = summary?.totalVariableCosts || 0;
+
+  return (
+    <div className="thresholds-container">
+      <Card className="thresholds-overview">
+        <div className="thresholds-header">
+          <div>
+            <h3 className="thresholds-title">
+              Punto de Equilibrio
+              <HelpTooltip termKey="breakeven" size="md" />
+            </h3>
+            <p className="thresholds-subtitle">¿Cuánto necesitás vender para no perder plata?</p>
+          </div>
+        </div>
+
+        <div className="thresholds-grid">
+          <div className="threshold-card">
+            <span className="threshold-label">
+              Precio mínimo por noche
+              <HelpTooltip termKey="breakEvenPrice" size="sm" />
+            </span>
+            <span className="threshold-value">{formatCurrency(breakEven.breakEvenPrice)}</span>
+            <p className="threshold-desc">Si vendés más barato que esto, perdés plata en cada noche ocupada.</p>
+          </div>
+
+          <div className="threshold-card">
+            <span className="threshold-label">
+              Noches para cubrir gastos fijos
+              <HelpTooltip termKey="fixedCosts" size="sm" />
+            </span>
+            <span className="threshold-value">{Math.ceil(breakEven.nightsNeededForBreakEven)}</span>
+            <p className="threshold-desc">Noches mensuales que necesitás vender solo para pagar sueldos, alquiler y servicios.</p>
+          </div>
+
+          <div className="threshold-card">
+            <span className="threshold-label">Noches vendidas en el período</span>
+            <span className="threshold-value">{Math.ceil(breakEven.nightsSoldThisPeriod)}</span>
+            <p className="threshold-desc">
+              {breakEven.nightsGap >= 0
+                ? `${Math.round(breakEven.nightsGap)} noches por encima del equilibrio.`
+                : `${Math.round(Math.abs(breakEven.nightsGap))} noches por debajo del equilibrio.`}
+            </p>
+          </div>
+        </div>
+      </Card>
+
+      <div className="thresholds-simulator">
+        <Card className="sandbox-controls">
+          <h3 className="sandbox-title">
+            Simulador de precio mínimo
+            <HelpTooltip
+              title="¿Para qué sirve esto?"
+              content="Te ayuda a estimar el precio mínimo por noche para alcanzar la ganancia que querés. Ajustá el porcentaje y te mostramos el valor sugerido."
+              size="md"
+            />
+          </h3>
+          <p className="sandbox-subtitle">Mové el porcentaje y evaluá el impacto en tu precio objetivo</p>
+
+          <div className="sandbox-field">
+            <div className="field-header">
+              <label>
+                ¿Cuánto querés ganar?
+                <HelpTooltip termKey="margin" size="sm" />
+              </label>
+              <span className="field-value">{marginPct}%</span>
+            </div>
+            <input
+              type="range"
+              min="0"
+              max="50"
+              value={marginPct}
+              onChange={(e) => setMarginPct(parseInt(e.target.value))}
+              className="sandbox-slider"
+            />
+            <div className="slider-labels">
+              <span>0% (solo cubrir costos)</span>
+              <span>25%</span>
+              <span>50%</span>
+            </div>
+          </div>
+
+          <div className="sandbox-info">
+            <Info size={16} />
+            <p>Este cálculo usa tu comisión promedio ({formatPercent((simulation?.avgCommissionRate || 0.15) * 100)}) y tus gastos actuales.</p>
+          </div>
+        </Card>
+
+        <Card className={`sandbox-result ${loading ? 'loading' : ''}`}>
+          <div className="result-header">
+            <Target size={32} className="text-primary" />
+            <div>
+              <span className="result-label">Precio sugerido por noche</span>
+              <h2 className="result-value">
+                {loading ? '...' : formatCurrency(simulation?.minPrice || 0)}
+              </h2>
+            </div>
+          </div>
+
+          <div className="result-details">
+            <div className="result-item">
+              <span>Costo Base (Fijo + Variable)</span>
+              <span>{formatCurrency(simulation?.components.fixedCostPerNight + simulation?.components.variableCostPerNight || 0)}</span>
+            </div>
+            <div className="result-item">
+              <span>Margen Neto ({marginPct}%)</span>
+              <span>+{formatCurrency(simulation?.components.markupAmount || 0)}</span>
+            </div>
+            <div className="result-item">
+              <span>Costo de Comisiones (Est.)</span>
+              <span>+{formatCurrency(simulation?.components.commissionImpact || 0)}</span>
+            </div>
+          </div>
+        </Card>
+      </div>
+
+      <Card className="thresholds-details">
+        <h4>Desglose de Costos del Periodo</h4>
+        <div className="thresholds-list">
+          <div className="threshold-item">
+            <span>Costos Fijos Prorrateados ({breakEven.period.days} días)</span>
+            <span>{formatCurrency(fixedCosts)}</span>
+          </div>
+          <div className="threshold-item">
+            <span>Costos Variables Totales</span>
+            <span>{formatCurrency(variableCosts)}</span>
+          </div>
+          <div className="threshold-item divider">
+            <span>Costo Total a Cubrir</span>
+            <span className="font-bold">{formatCurrency(fixedCosts + variableCosts)}</span>
+          </div>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+// =====================================================
+// Patterns View Component
+// =====================================================
+
+function PatternsView({ patterns }: { patterns: Pattern[] }) {
+  const lossPatterns = patterns.filter((p) => p.isLossPattern).slice(0, 10);
+  const profitPatterns = patterns.filter((p) => !p.isLossPattern).slice(0, 10);
+
+  return (
+    <div className="patterns-container">
+      <Card className="patterns-section">
+        <h3 className="patterns-title">🔴 Patrones de pérdida</h3>
+        <p className="patterns-subtitle">Combinaciones de canal + estadía que generan pérdida</p>
+
+        {lossPatterns.length > 0 ? (
+          <div className="patterns-grid">
+            {lossPatterns.map((p, i) => (
+              <PatternCard key={i} pattern={p} variant="loss" />
+            ))}
+          </div>
+        ) : (
+          <p className="patterns-empty">🎉 ¡No hay patrones de pérdida!</p>
+        )}
+      </Card>
+
+      <Card className="patterns-section">
+        <h3 className="patterns-title">🟢 Patrones rentables</h3>
+        <p className="patterns-subtitle">Tus mejores combinaciones</p>
+
+        {profitPatterns.length > 0 ? (
+          <div className="patterns-grid">
+            {profitPatterns.map((p, i) => (
+              <PatternCard key={i} pattern={p} variant="profit" />
+            ))}
+          </div>
+        ) : (
+          <p className="patterns-empty">No hay patrones rentables aún</p>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function PatternCard({ pattern, variant }: { pattern: Pattern; variant: 'loss' | 'profit' }) {
+  return (
+    <div className={`pattern-card pattern-card--${variant}`}>
+      <div className="pattern-header">
+        <span className="pattern-source">{pattern.source}</span>
+        <span className="pattern-nights">
+          {pattern.nightsBucket} noche{pattern.nightsBucket !== '1' ? 's' : ''}
+        </span>
+      </div>
+      <div className="pattern-stats">
+        <div className="pattern-stat">
+          <span className="pattern-stat-value">{pattern.count}</span>
+          <span className="pattern-stat-label">reservas</span>
+        </div>
+        <div className="pattern-stat">
+          <span
+            className={`pattern-stat-value ${variant === 'loss' ? 'text-error' : 'text-success'}`}
+          >
+            {variant === 'loss' ? '-' : ''}
+            {formatCurrencyShort(variant === 'loss' ? pattern.lossAmount : pattern.totalProfit)}
+          </span>
+          <span className="pattern-stat-label">
+            {variant === 'loss' ? 'pérdida total' : 'profit total'}
+          </span>
+        </div>
+        <div className="pattern-stat">
+          <span
+            className={`pattern-stat-value ${variant === 'loss' ? 'text-error' : 'text-success'}`}
+          >
+            {formatCurrencyShort(pattern.avgProfitPerNight)}
+          </span>
+          <span className="pattern-stat-label">profit/noche</span>
+        </div>
+      </div>
+    </div>
+  );
+}

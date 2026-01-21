@@ -1,0 +1,11 @@
+Reservation Source Category,Reservation Source,Room Count - sum,Room Nights - sum,Room Revenue Total - sum,Total Reservation Taxes - sum,Grand Total - sum,Estimated Commission - sum
+Agencia de Viajes,Agente de Viajes Predeterminado,7,28,5056000.0,0,5169000.0,0
+Agencia de Viajes,AYAX,1,2,304000.0,0,304000.0,20
+Agencia de Viajes,RAYANTU,1,4,608000.0,0,610500.0,20
+Direct,Email,10,33,5663600.0,0,5663600.0,0
+Direct,Pagina Web,7,37,5524000.0,0,5524000.0,0
+Direct,Teléfono,3,6,1040000.0,0,1040000.0,0
+Direct,Walk-In,40,72,11172800.0,0,11332100.0,0
+OTA,Booking.com,2,3,537772.0,0,537772.0,0
+OTA,Despegar/Decolar,24,79,11954096.72,0,11961596.72,0
+OTA,Expedia,9,20,3080669.57,0,3083169.57,0
