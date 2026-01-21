@@ -30,7 +30,6 @@ export { default as MiniChart } from './MiniChart';
 export { default as QuickStat } from './QuickStat';
 export { default as OnboardingChecklist } from './OnboardingChecklist';
 export type { OnboardingStep } from './OnboardingChecklist';
-export { default as OnboardingWizard } from './OnboardingWizard';
 
 // Help & Glossary Components
 export { HelpTooltip, InlineHelp } from './HelpTooltip';

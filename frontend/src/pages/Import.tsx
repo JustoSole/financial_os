@@ -121,17 +121,6 @@ export default function Import() {
         </div>
       </div>
 
-      {showWizard && (
-        <OnboardingWizard 
-          onComplete={async () => {
-            setShowWizard(false);
-            refreshData();
-            loadHistory();
-          }}
-          onClose={() => setShowWizard(false)}
-        />
-      )}
-
       {/* Upload Area */}
       <div className="import-section">
         {step === 'upload' && (
