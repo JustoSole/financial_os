@@ -30,44 +30,29 @@ En **menos de 5 minutos**, un hotelero puede:
 
 ---
 
-## 📊 Command Center - Las 40 preguntas respondidas
+## 📊 Command Center - Centro de Mando
+El **Command Center** es el cerebro de la aplicación, diseñado para la toma de decisiones rápidas en 90 segundos:
 
-El **Command Center** es el cerebro de la aplicación, ahora potenciado con **análisis histórico** y **tendencias**:
-
-### 1. Salud del negocio en 60 segundos
-| Pregunta | Métrica |
-|----------|---------|
-| ¿Estoy ganando o perdiendo? | **Net Profit** del período (hero metric) con tendencia |
-| ¿Cómo vengo respecto al mes pasado? | **Comparativa MoM** (Revenue, Occ, ADR, RevPAR, Profit) |
-| ¿Cómo vengo respecto al año pasado? | **Comparativa YoY** (vs mismo período anterior) |
-| ¿Cuál es la tendencia de fondo? | **Trend Charts** (últimos 6 meses: Revenue, Occ, ADR, RevPAR, Profit) |
-| ¿Rentabilidad sana? | **GOPPAR** (Gross Operating Profit per Available Room) |
-| ¿Cuál fue el driver del cambio? | **Análisis de Impacto** (¿fue por ocupación, precio o costos?) |
-
-### 2. Punto de Equilibrio (Break-even)
+### 1. Estado Actual (Decisión inmediata)
 | Pregunta | Respuesta |
 |----------|-----------|
-| ¿Cuál es mi punto de equilibrio en ocupación? | **% necesario** vs actual |
-| ¿Cuántas noches necesito vender? | **Noches** para cubrir costos fijos |
-| ¿Cuál es mi tarifa mínima? | **Break-even price** (¿cuánto debo cobrar para no perder?) |
-| Si quiero X% margen, ¿cuánto cobro? | **Simulador** dinámico de margen (10%, 20%, 30%) |
-| ¿Qué tan lejos estoy del equilibrio? | **Gap en $ y noches** con status visual |
+| ¿Qué tengo que hacer hoy? | **Acción de la Semana** (priorizada por impacto en $) |
+| ¿Estoy ganando o perdiendo? | **Ganancia Neta** con contexto (vs período anterior y vs break-even) |
+| ¿Mi ocupación es saludable? | **Status Card** de Ocupación con semáforo |
+| ¿Gano por cada noche? | **Status Card** de Margen por Noche |
+| ¿Cubrí mis costos? | **Status Card** de Punto de Equilibrio (Real vs Necesario) |
 
-### 3. Unit Economics (por noche)
-| Pregunta | Métrica |
-|----------|---------|
-| ¿Cuánto gano por noche ocupada? | **Profit per night** |
-| ¿Cuál es mi margen de contribución? | **Contribution margin** (ADR net - Variable) |
-| ¿Cuál es mi costo por habitación (CPOR)? | **CPOR Breakdown**: Fijo vs Variable vs Comisiones |
-| ¿Cómo se calcula mi profit? | **Memoria de Cálculo** detallada por reserva paso a paso |
-
-### 4. Canales - La verdad del margen
+### 2. Canales y Distribución (Resumen)
 | Pregunta | Respuesta |
 |----------|-----------|
-| ¿Cuál canal aporta más profit por noche? | **Ranking** por profit/night (neto de comisiones y costos) |
-| ¿Estoy sobre-dependiente de OTAs? | **OTA vs Direct share** con alerta (>70% OTA) |
-| ¿Cuál es mi comisión promedio efectiva? | **Weighted commission %** real |
-| ¿Hay algún canal "tóxico"? | **Alerta** si tiene alto revenue pero profit negativo |
+| ¿Dependo mucho de OTAs? | **OTA vs Direct share** bar con alerta visual |
+| ¿Cuáles son mis extremos? | **Best vs Worst channel** por profit real por noche |
+
+### 3. Análisis Profundo (Exploración)
+El análisis detallado se distribuye en vistas especializadas para no saturar el mando:
+*   **Rentabilidad**: P&L por reserva, **Tendencias Históricas** (6 meses), **Comparativas MoM/YoY** y simuladores.
+*   **Canales**: Tabla completa de comisiones, ADR neto y mix detallado.
+*   **Caja**: Reconciliación, Runway y Aging de cobranzas.
 
 ### 5. Caja, Cobranzas y Proyección
 | Pregunta | Respuesta |

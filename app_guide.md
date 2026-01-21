@@ -323,22 +323,18 @@ Penalizaciones:
 
 ## 7) UX / Vistas — especificación actualizada
 
-### `/` Home — Command Center (v2.0)
+### `/` Home — Command Center (v2.1)
+
+**Filosofía:** Centro de decisiones rápidas (90 segundos).
 
 **Secciones (orden):**
-
 1.  **Banners:** Confidence y History Coverage.
-2.  **Weekly Action Card** — La única acción más importante de la semana.
-3.  **Sección 1: Salud del negocio en 60 segundos** (Net Profit, KPIs Big 4).
-4.  **Sección 2: Comparativas (MoM / YoY)** — Análisis vs período anterior y año pasado.
-5.  **Sección 3: Tendencias** — Evolución visual de los últimos 6 meses.
-6.  **Sección 4: Punto de Equilibrio** (Gauge + Simulador dinámico).
-7.  **Sección 5: Unit Economics** (Profit por noche, Cost Mix).
-8.  **Sección 6: Canales** (Ranking de profit, OTA dependency).
-9.  **Sección 7: Caja y Cobranzas** (Reconciliación, Aging).
-10. **Quick Actions** — Links rápidos a páginas de detalle.
+2.  **Weekly Action Card (Prominent)** — La única acción más importante de la semana con CTA de "Ver por qué".
+3.  **Sección 1: Estado Actual** (Hero Profit con contexto MoM y Break-even, Status Cards de Ocupación, Margen y Equilibrio).
+4.  **Sección 2: Canales y Distribución (Resumen)** (OTA dependency bar, Best/Worst channel).
+5.  **Sección 3: Análisis Profundo** — Accesos directos a vistas de detalle (Rentabilidad, Canales, Costos).
 
-**No mostrar:** tablas largas por defecto en Home.
+**No mostrar:** Gráficos de tendencia ni tablas detalladas en Home.
 
 ---
 
@@ -372,7 +368,8 @@ Penalizaciones:
 
 ### `/rentabilidad`
 
-*   **Pestañas de análisis:** Peores, Mejores, Patrones, Umbrales, Simulador, Todas.
+*   **Pestañas de análisis:** Umbrales, Análisis (Tendencias + Comparativas), Peores, Mejores, Patrones, Todas.
+*   **Análisis Histórico:** Los gráficos de 6 meses y comparativas MoM/YoY detalladas viven aquí.
 *   **Reservation Drawer:** El "Explain this number" definitivo con desglose P&L y memoria de cálculo detallada.
 
 ---

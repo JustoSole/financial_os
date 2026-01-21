@@ -32,92 +32,49 @@
 
 ## 📊 Vista: Home — Command Center (v2.1)
 
-El Command Center es la vista principal que responde las **40 preguntas clave** de un hotelero en una sola pantalla.
-
-**Selector de período:** 7d / 30d / 90d y **Rango Personalizado** (hasta 365 días).
+El Command Center es la vista principal que responde a las preguntas críticas para la **toma de decisiones** en 90 segundos.
 
 ### Estructura de Secciones
 
 #### 1. Banners de Estado
-*   **Data Confidence Banner:** Muestra score (0-100), nivel (LOW/MEDIUM/HIGH) y qué falta para mejorar.
-*   **History Warning Banner:** Alerta si hay insuficiente cobertura histórica para MoM/YoY.
-*   **Onboarding Checklist:** Guía de pasos iniciales para nuevos usuarios.
+*   **Data Confidence Banner:** Score (0-100) y nivel de confianza.
+*   **History Warning Banner:** Alerta de cobertura histórica insuficiente.
 
-#### 2. Weekly Action Card
-La **única acción más importante** de la semana con impacto estimado en $, prioridad y tipo de acción (Comisiones, ADR, Cobros, etc.).
+#### 2. Weekly Action Card (Prominent)
+La **única acción más importante** de la semana. Ahora con diseño visualmente dominante y CTA de "Ver por qué".
 
-#### 3. Salud del Negocio en 60 Segundos
-*   **Top Alert:** Alerta inteligente priorizada (Riesgo de caja, Cobranza crítica, Reservas a pérdida, Baja ocupación).
-*   **Hero Profit:** Net Profit del período con indicador de tendencia MoM y vs período anterior.
-*   **KPI Grid:** Occupancy, ADR, RevPAR, GOPPAR con benchmarks dinámicos y status visual.
-*   **Change Driver:** Explicación de por qué cambió el profit (¿fue ocupación, ADR, costos o comisiones?).
+#### 3. Estado Actual
+*   **Hero Profit con Contexto:** Net Profit del período comparado visualmente con el período anterior (MoM) y estado frente al Break-even.
+*   **Quick Indicators:** 3 tarjetas de estado compacto con semáforos:
+    *   **Ocupación:** Saludable / Baja.
+    *   **Margen / Noche:** Ganando / Perdiendo.
+    *   **Punto de Equilibrio:** Arriba / Debajo.
 
-#### 4. Comparativas
-*   **MoM (Month over Month):** Período actual vs. período inmediatamente anterior (Revenue, Occ, ADR, RevPAR, Profit).
-*   **YoY (Year over Year):** Período actual vs. mismo período del año anterior (Revenue, Occ, ADR).
+#### 4. Canales y Distribución (Resumen)
+*   **OTA Dependency Bar:** Visualización compacta de Directo vs Portales.
+*   **Highlights:** Identificación directa del Mejor y Peor canal por profit real.
 
-#### 5. Tendencias (Evolución Histórica)
-Gráficos de área (Recharts) de los últimos 6 meses para:
-*   Revenue Mensual
-*   % Ocupación
-*   ADR (Tarifa Promedio)
-*   RevPAR
-*   Profit Neto Operativo (GOP)
-
-#### 6. Punto de Equilibrio (Break-Even)
-*   **Break-even Gauge:** % ocupación necesaria para cubrir todos los costos vs actual.
-*   **Simulador de Margen:** Tarifa sugerida para obtener 10%, 20% y 30% de margen neto real.
-*   **Distancia al Equilibrio:** Gap en $ y noches para alcanzar el break-even.
-
-#### 7. Unit Economics
-*   **Profit per Night:** Cuánto ganás realmente por cada noche ocupada después de todos los gastos.
-*   **Contribution Margin:** Margen después de costos variables y comisiones.
-*   **CPOR (Cost Per Occupied Room):** Desglose detallado de costo Fijo, Variable y Comisión por noche.
-*   **Cost Mix Visual:** Distribución porcentual de los tres tipos de costos.
-
-#### 8. Canales — La Verdad del Margen
-*   Insights de Best/Worst channel por **profit real por noche** (no solo ingresos).
-*   **OTA Dependency Bar:** Porcentaje de dependencia de canales externos (>70% genera alerta).
-*   **Toxic Channel Alert:** Identifica canales con alto volumen pero rentabilidad negativa o muy baja.
-
-#### 9. Caja y Cobranzas
-*   **Reconciliación:** Comparativa Cargado vs Cobrado con explicación de discrepancias.
-*   **A/R Aging visual:** Buckets de deuda (Vencido / 7 días / 30 días / Futuro).
-*   **Cash Runway:** Días de supervivencia operativa basados en saldo actual y burn-rate.
-*   **Proyección OTB:** Ingresos ya reservados (On-the-books) para las próximas 4 semanas.
-
-#### 6. Punto de Equilibrio (Break-Even)
-*   **Break-even Gauge:** % ocupación necesaria vs actual.
-*   **Simulador de Margen:** Cálculo dinámico de tarifa para 10%, 20%, 30% de margen neto.
-*   **Distancia al Equilibrio:** Gap en $ y noches.
-
-#### 7. Unit Economics
-Métricas por noche ocupada y **Cost Mix Visual** (Fijos vs Variables vs Comisiones).
-
-#### 8. Canales — La Verdad del Margen
-*   Insights de Best/Worst channel por profit real.
-*   **OTA Dependency Bar** (>70% genera alerta).
-*   **Toxic Channel Alert** (Alto revenue, profit negativo).
-
-#### 9. Caja y Cobranzas
-Reconciliación (Cargado vs Cobrado), A/R Aging visual y Cash Runway.
+#### 5. Análisis Profundo (Navegación)
+Links directos con descripción a las vistas de detalle:
+*   **Rentabilidad y P&L**
+*   **Canales Detallados**
+*   **Gestión de Costos**
 
 ---
 
 ## 📈 Vista: Rentabilidad
 
 ### Resumen del Período
-* Net Profit Total (Operativo)
-* Margen Promedio (%)
-* # Reservas no rentables y pérdida acumulada en $
+* Net Profit Total, Margen Promedio y alertas de reservas no rentables.
 
 ### Sistema de Navegación por Tabs
 1.  **Umbrales:** Punto de equilibrio detallado y desgloses de costos.
-2.  **Simulador:** Calculadora dinámica de precio sugerido por margen deseado.
-3.  **Peores:** Listado de las 20 reservas con mayor pérdida.
-4.  **Mejores:** Listado de las 20 reservas con mayor profit/noche.
-5.  **Patrones:** Identificación de combinaciones (Canal + Noches) que generan pérdida estructural.
-6.  **Todas:** Listado completo filtrable.
+2.  **Análisis:** 
+    *   **Tendencias Históricas:** Gráficos de área de los últimos 6 meses (Revenue, Profit, Occ, ADR).
+    *   **Comparativas MoM/YoY:** Tablas detalladas de crecimiento respecto al mes y año anterior.
+3.  **Peores/Mejores:** Listado de las 20 reservas extremas.
+4.  **Patrones:** Combinaciones críticas que generan pérdida.
+5.  **Todas:** Listado completo filtrable.
 
 ### Reservation Drawer (Detalle P&L)
 Al hacer clic en una reserva, se abre un drawer con:

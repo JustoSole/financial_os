@@ -6,6 +6,7 @@ import {
   getReservationEconomicsDetail,
   getBreakEven,
   getMinimumPrice,
+  getTrends,
 } from '../api';
 import {
   DateRangePicker,
@@ -17,10 +18,12 @@ import {
   ChannelBadge,
   SummaryMetric,
   HelpTooltip,
+  ComparisonSection,
+  TrendChart,
 } from '../components';
 import type { ReservationEconomicsData } from '../components';
 import { formatCurrency, formatCurrencyShort, formatPercent } from '../utils/formatters';
-import { Target, Shield, Info } from 'lucide-react';
+import { Target, Shield, Info, TrendingUp, BarChart3 } from 'lucide-react';
 import styles from './Profitability.module.css';
 
 
@@ -65,7 +68,7 @@ interface Summary {
   };
 }
 
-type TabType = 'worst' | 'best' | 'patterns' | 'thresholds' | 'all';
+type TabType = 'thresholds' | 'analysis' | 'worst' | 'best' | 'patterns' | 'all';
 type NightsBucket = '1' | '2' | '3+' | 'all';
 
 // =====================================================
@@ -77,6 +80,9 @@ export default function Profitability() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [reservations, setReservations] = useState<ReservationEconomicsData[]>([]);
   const [breakEven, setBreakEven] = useState<any>(null);
+  const [trends, setTrends] = useState<any | null>(null);
+  const [selectedMetric, setSelectedMetric] = useState<'revenue' | 'adr' | 'occupancy' | 'revpar' | 'netProfit'>('revenue');
+  const [comparisons, setComparisons] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabType>('thresholds');
 
@@ -103,15 +109,22 @@ export default function Profitability() {
       const startStr = dateRange.start.toISOString().substring(0, 10);
       const endStr = dateRange.end.toISOString().substring(0, 10);
 
-      const [summaryRes, listRes, breakEvenRes] = await Promise.all([
+      // We use a temporary commandRes to get comparisons data which was in Home but belongs here now
+      const { getCommandCenter } = await import('../api');
+
+      const [summaryRes, listRes, breakEvenRes, trendsRes, commandRes] = await Promise.all([
         getReservationEconomics(property.id, startStr, endStr),
         getReservationEconomicsList(property.id, startStr, endStr),
         getBreakEven(property.id, startStr, endStr),
+        getTrends(property.id, 6),
+        getCommandCenter(property.id, startStr, endStr)
       ]);
 
       if (summaryRes.success) setSummary(summaryRes.data);
       if (listRes.success) setReservations(listRes.data || []);
       if (breakEvenRes.success) setBreakEven(breakEvenRes.data);
+      if (trendsRes.success) setTrends(trendsRes.data);
+      if (commandRes.success) setComparisons(commandRes.data.comparisons);
 
       setLoading(false);
     }
@@ -271,6 +284,12 @@ export default function Profitability() {
             <Shield size={16} /> Umbrales + Simulador
           </button>
           <button
+            className={`${styles.tab} ${activeTab === 'analysis' ? styles.active : ''}`}
+            onClick={() => setActiveTab('analysis')}
+          >
+            <BarChart3 size={16} /> Tendencias y Comparativas
+          </button>
+          <button
             className={`${styles.tab} ${activeTab === 'worst' ? styles.active : ''}`}
             onClick={() => setActiveTab('worst')}
           >
@@ -296,7 +315,7 @@ export default function Profitability() {
           </button>
         </div>
 
-        {activeTab !== 'patterns' && activeTab !== 'thresholds' && (
+        {activeTab !== 'patterns' && activeTab !== 'thresholds' && activeTab !== 'analysis' && (
           <div className={styles.filters}>
             <select
               value={sourceFilter}
@@ -333,6 +352,13 @@ export default function Profitability() {
           setMarginPct={setMarginPct}
           simulation={simulation}
           loading={simLoading}
+        />
+      ) : activeTab === 'analysis' ? (
+        <AnalysisView 
+          trends={trends} 
+          comparisons={comparisons} 
+          selectedMetric={selectedMetric}
+          setSelectedMetric={setSelectedMetric}
         />
       ) : activeTab === 'patterns' ? (
         <PatternsView patterns={summary.patterns} />
@@ -410,6 +436,166 @@ export default function Profitability() {
         open={drawerOpen}
         onClose={closeDrawer}
       />
+    </div>
+  );
+}
+
+// =====================================================
+// Analysis View Component (Trends + Comparisons)
+// =====================================================
+
+function AnalysisView({ 
+  trends, 
+  comparisons, 
+  selectedMetric, 
+  setSelectedMetric 
+}: { 
+  trends: any; 
+  comparisons: any; 
+  selectedMetric: any;
+  setSelectedMetric: any;
+}) {
+  return (
+    <div className={styles.analysisContainer}>
+      {/* Comparisons Row */}
+      <div className={styles.analysisGrid}>
+        <Card className={styles.analysisCard}>
+          <h3 className={styles.analysisTitle}>
+            <TrendingUp size={20} className="text-primary" />
+            Comparativa MoM
+          </h3>
+          {comparisons?.mom ? (
+            <ComparisonSection
+              title="vs Período Anterior"
+              periodLabel={`vs ${comparisons.mom.previousPeriod}`}
+              metrics={[
+                { 
+                  label: 'Revenue', 
+                  current: comparisons.mom.metrics.revenue.current, 
+                  previous: comparisons.mom.metrics.revenue.previous, 
+                  formatter: formatCurrencyShort 
+                },
+                { 
+                  label: 'Profit Neto', 
+                  current: comparisons.mom.metrics.netProfit?.current || 0, 
+                  previous: comparisons.mom.metrics.netProfit?.previous || 0, 
+                  formatter: formatCurrencyShort 
+                },
+                { 
+                  label: 'Ocupación', 
+                  current: comparisons.mom.metrics.occupancy.current, 
+                  previous: comparisons.mom.metrics.occupancy.previous, 
+                  formatter: (v) => `${v.toFixed(0)}%` 
+                },
+                { 
+                  label: 'ADR', 
+                  current: comparisons.mom.metrics.adr.current, 
+                  previous: comparisons.mom.metrics.adr.previous, 
+                  formatter: formatCurrencyShort 
+                },
+              ]}
+            />
+          ) : (
+            <p className="text-muted text-sm">Sin datos suficientes para comparar con el período anterior.</p>
+          )}
+        </Card>
+
+        <Card className={styles.analysisCard}>
+          <h3 className={styles.analysisTitle}>
+            <BarChart3 size={20} className="text-primary" />
+            Comparativa YoY
+          </h3>
+          {comparisons?.yoy ? (
+            <ComparisonSection
+              title="vs Año Anterior"
+              periodLabel={`vs ${comparisons.yoy.previousPeriod}`}
+              metrics={[
+                { 
+                  label: 'Revenue', 
+                  current: comparisons.yoy.metrics.revenue.current, 
+                  previous: comparisons.yoy.metrics.revenue.previous, 
+                  formatter: formatCurrencyShort 
+                },
+                { 
+                  label: 'Ocupación', 
+                  current: comparisons.yoy.metrics.occupancy.current, 
+                  previous: comparisons.yoy.metrics.occupancy.previous, 
+                  formatter: (v) => `${v.toFixed(0)}%` 
+                },
+                { 
+                  label: 'ADR', 
+                  current: comparisons.yoy.metrics.adr.current, 
+                  previous: comparisons.yoy.metrics.adr.previous, 
+                  formatter: formatCurrencyShort 
+                },
+              ]}
+            />
+          ) : (
+            <div className={styles.noDataMessage}>
+              <Info size={16} />
+              <span>Importá datos del año pasado para ver comparativas YoY</span>
+            </div>
+          )}
+        </Card>
+      </div>
+
+      {/* Trends Chart */}
+      {trends && (
+        <Card className={styles.trendCard}>
+          <div className={styles.trendHeader}>
+            <h3 className={styles.analysisTitle}>
+              <TrendingUp size={20} className="text-primary" />
+              Tendencias Históricas
+            </h3>
+            <div className={styles.metricSelector}>
+              <button 
+                className={`${styles.metricBtn} ${selectedMetric === 'revenue' ? styles.active : ''}`}
+                onClick={() => setSelectedMetric('revenue')}
+              >
+                Revenue
+              </button>
+              <button 
+                className={`${styles.metricBtn} ${selectedMetric === 'netProfit' ? styles.active : ''}`}
+                onClick={() => setSelectedMetric('netProfit')}
+              >
+                Profit Neto
+              </button>
+              <button 
+                className={`${styles.metricBtn} ${selectedMetric === 'occupancy' ? styles.active : ''}`}
+                onClick={() => setSelectedMetric('occupancy')}
+              >
+                Ocupación
+              </button>
+              <button 
+                className={`${styles.metricBtn} ${selectedMetric === 'adr' ? styles.active : ''}`}
+                onClick={() => setSelectedMetric('adr')}
+              >
+                ADR
+              </button>
+            </div>
+          </div>
+
+          <TrendChart
+            data={trends[selectedMetric]}
+            title={
+              selectedMetric === 'revenue' ? 'Revenue Mensual' :
+              selectedMetric === 'occupancy' ? '% Ocupación' :
+              selectedMetric === 'adr' ? 'ADR (Tarifa Promedio)' :
+              'Profit Neto Operativo'
+            }
+            valueFormatter={
+              selectedMetric === 'occupancy' 
+                ? (v: number) => `${v.toFixed(1)}%` 
+                : formatCurrencyShort
+            }
+            color={
+              selectedMetric === 'netProfit' 
+                ? 'var(--color-success)' 
+                : 'var(--color-primary)'
+            }
+          />
+        </Card>
+      )}
     </div>
   );
 }
