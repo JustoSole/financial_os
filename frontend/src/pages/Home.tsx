@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { getCommandCenter, getTrends } from '../api';
+import { getCommandCenter } from '../api';
 import { DateRangePicker, HelpTooltip, OnboardingWizard } from '../components';
 import { formatCurrency, formatCurrencyShort } from '../utils/formatters';
 import {
@@ -17,7 +17,6 @@ import {
   Target,
   Percent,
   CreditCard,
-  CheckCircle2,
   Zap,
   ChevronRight,
   Clock,
@@ -201,38 +200,38 @@ export default function Home() {
         <div className={styles.heroProfit}>
           <div className={styles.heroProfitContent}>
             <div className={styles.heroProfitMain}>
-              <div className={styles.heroProfitLabel}>
+          <div className={styles.heroProfitLabel}>
                 ¿Ganancia Neta del período?
-              </div>
-              <div className={`${styles.heroProfitValue} ${data.health.netProfit.isPositive ? styles.positive : styles.negative}`}>
-                {data.health.netProfit.isPositive ? '+' : ''}{formatCurrency(data.health.netProfit.value)}
-                {data.health.netProfit.isPositive ? (
-                  <TrendingUp className={styles.heroProfitIcon} size={32} />
-                ) : (
-                  <TrendingDown className={styles.heroProfitIcon} size={32} />
-                )}
-              </div>
-              <div className={styles.heroProfitSublabel}>
+          </div>
+          <div className={`${styles.heroProfitValue} ${data.health.netProfit.isPositive ? styles.positive : styles.negative}`}>
+            {data.health.netProfit.isPositive ? '+' : ''}{formatCurrency(data.health.netProfit.value)}
+            {data.health.netProfit.isPositive ? (
+              <TrendingUp className={styles.heroProfitIcon} size={32} />
+            ) : (
+              <TrendingDown className={styles.heroProfitIcon} size={32} />
+            )}
+          </div>
+          <div className={styles.heroProfitSublabel}>
                 Profit neto operativo <Badge variant="warning" size="sm">Estimado</Badge>
-              </div>
-            </div>
+          </div>
+        </div>
 
             {/* Context context context */}
             <div className={styles.heroProfitContext}>
-              {data.comparisons.mom && (
+        {data.comparisons.mom && (
                 <div className={styles.contextItem}>
                   <span className={styles.contextLabel}>vs período anterior</span>
                   <div className={`${styles.contextValue} ${data.comparisons.mom.metrics.netProfit?.changePercent && data.comparisons.mom.metrics.netProfit.changePercent >= 0 ? styles.positive : styles.negative}`}>
                     {data.comparisons.mom.metrics.netProfit?.changePercent && data.comparisons.mom.metrics.netProfit.changePercent >= 0 ? '+' : ''}
                     {data.comparisons.mom.metrics.netProfit?.changePercent?.toFixed(1)}%
-                  </div>
-                </div>
+            </div>
+          </div>
               )}
               <div className={styles.contextItem}>
                 <span className={styles.contextLabel}>Punto de equilibrio</span>
                 <div className={`${styles.contextValue} ${data.breakeven.gapToBreakEven >= 0 ? styles.positive : styles.negative}`}>
                   {data.breakeven.gapToBreakEven >= 0 ? 'CUBIERTO' : 'EN RIESGO'}
-                </div>
+              </div>
               </div>
             </div>
           </div>
@@ -258,8 +257,8 @@ export default function Home() {
             status={data.breakeven.gapToBreakEven >= 0 ? 'good' : 'bad'}
             label={data.breakeven.gapToBreakEven >= 0 ? 'Arriba' : 'Debajo'}
           />
-        </div>
-      </section>
+              </div>
+            </section>
 
       {/* Section 2: Canales - Versión Resumida */}
       <section className={styles.commandSection}>
@@ -291,9 +290,9 @@ export default function Home() {
               <span className={styles.highlightLabel}>Peor Canal</span>
               <span className={styles.highlightValue}>{data.channels.worstChannelByProfitPerNight}</span>
             </div>
-          </div>
-        </div>
-      </section>
+                </div>
+              </div>
+            </section>
 
       {/* Quick Links / Navigation */}
       <section className={styles.quickLinksSection}>
@@ -309,26 +308,26 @@ export default function Home() {
               <span>Rentabilidad y P&L</span>
               <p>Analizá reserva por reserva, comparativas MoM/YoY y tendencias.</p>
             </div>
-            <ChevronRight size={20} />
-          </Link>
-          <Link to="/canales" className="quick-action">
-            <BarChart3 size={24} />
+          <ChevronRight size={20} />
+        </Link>
+        <Link to="/canales" className="quick-action">
+          <BarChart3 size={24} />
             <div className="quick-action-content">
               <span>Canales Detallados</span>
               <p>Comisiones reales, ADR neto por canal y mix de distribución.</p>
             </div>
-            <ChevronRight size={20} />
-          </Link>
-          <Link to="/costos" className="quick-action">
-            <Target size={24} />
+          <ChevronRight size={20} />
+        </Link>
+        <Link to="/costos" className="quick-action">
+          <Target size={24} />
             <div className="quick-action-content">
               <span>Gestión de Costos</span>
               <p>Ajustá tus costos fijos y variables para ver el impacto real.</p>
             </div>
-            <ChevronRight size={20} />
-          </Link>
+          <ChevronRight size={20} />
+        </Link>
         </div>
-      </section>
+          </section>
     </div>
   );
 }
