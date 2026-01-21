@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { 
   X, 
   Upload, 
@@ -84,12 +84,11 @@ const STEPS: StepConfig[] = [
 ];
 
 export default function OnboardingWizard({ onComplete, onClose }: OnboardingWizardProps) {
-  const { property, refreshData } = useApp();
+  const { property } = useApp();
   const [currentStep, setCurrentStep] = useState(0);
   const [status, setStatus] = useState<StepStatus>('pending');
   const [error, setError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
-  const [completedSteps, setCompletedSteps] = useState<string[]>([]);
   const [showCelebration, setShowCelebration] = useState(false);
 
   const isIntro = currentStep === 0;
@@ -154,7 +153,6 @@ export default function OnboardingWizard({ onComplete, onClose }: OnboardingWiza
 
       if (impResult.success) {
         setStatus('success');
-        setCompletedSteps(prev => [...prev, step.id]);
         trackEvent(property.id, 'onboarding_file_uploaded', { reportType: step.reportType });
       } else {
         setStatus('error');
@@ -254,7 +252,7 @@ export default function OnboardingWizard({ onComplete, onClose }: OnboardingWiza
 
                     {error && (
                       <div className={styles.errorState}>
-                        <AlertCircle size={16} inline="true" /> {error}
+                        <AlertCircle size={16} /> {error}
                       </div>
                     )}
 
