@@ -9,11 +9,19 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Initialize database
+console.log('🔧 Initializing database...');
 initializeDatabase();
+console.log('✅ Database initialized');
 
 // Middleware
 app.use(cors());
 app.use(express.json());
+
+// Request logging middleware
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.path}`);
+  next();
+});
 
 // API routes
 app.use('/api', apiRoutes);

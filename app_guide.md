@@ -47,47 +47,47 @@ El producto debe responder estas preguntas organizadas en "loops de decisión":
 9. Si apunto a X% margen, ¿cuál es la tarifa mínima?
 10. ¿Qué tan lejos estoy del equilibrio hoy?
 11. ¿Qué pasa si suben costos variables?
-12. ¿Empeorando por precio (ADR) o por ocupación?
+12. ¿Empeorando por precio (ADR) o por ocupación? (Decomposición de RevPAR)
 
 #### Unit economics por noche (Q13-17)
-13. ¿Cuánto gano por noche ocupada?
+13. ¿Cuánto gano por noche ocupada? (Profit per Night)
 14. ¿Cuál es mi margen de contribución por noche?
-15. ¿Cuánto me cuesta operar cada noche (CPOR)?
-16. ¿Qué parte del costo es fijo vs variable?
-17. ¿Qué variable de costo se disparó?
+15. ¿Cuál es mi costo por habitación ocupada (CPOR)?
+16. ¿Qué parte del costo es fijo vs variable vs comisión?
+17. ¿Qué categoría de costo se disparó vs período anterior?
 
 #### Distribución y canales (Q18-24)
 18. ¿Cuál es mi mix de canales por revenue y noches?
 19. ¿Cuál es mi costo de distribución por canal?
 20. ¿Cuál es el ingreso neto por canal?
-21. ¿Cuál canal aporta más profit por noche?
-22. ¿Estoy sobre-dependiente de OTAs?
-23. ¿Cuánto pago en comisión promedio efectiva?
-24. ¿Qué canal "se ve bien" en revenue pero es malo en margen?
+21. ¿Cuál canal aporta más profit por noche real?
+22. ¿Estoy sobre-dependiente de OTAs? (>70% share)
+23. ¿Cuánto pago en comisión promedio efectiva real?
+24. ¿Qué canal es "tóxico" (alto revenue, profit negativo)?
 
-#### Caja y cobranzas (Q25-29)
-25. ¿Cuánto cobré vs cuánto cargué?
+#### Caja, cobranzas y proyección (Q25-29)
+25. ¿Cuánto cobré vs cuánto cargué? (Reconciliación)
 26. ¿Cuánta plata tengo pendiente y de qué reservas?
-27. ¿Qué parte del pending está vencida vs futura?
-28. ¿Mi caja aguanta X días?
-29. ¿Qué eventos me rompen caja?
+27. ¿Qué parte del pending está vencida vs próxima vs futura? (Aging)
+28. ¿Mi caja aguanta X días? (Runway basado en burn-rate)
+29. ¿Qué eventos extraordinarios me rompen caja? (Refunds/Voids)
 
-#### Pace y pickup (Q30-33)
+#### Pace, pickup y OTB (Q30-33)
 30. ¿Cómo viene el pace del mes vs anterior?
 31. ¿Cuánto pick-up tuve en los últimos 7 días?
-32. ¿Qué fechas están flojas y cuáles fuertes?
+32. ¿Cuál es mi ingreso ya reservado (OTB) a 4 semanas?
 33. ¿Mi ADR on-the-books sube o baja?
 
-#### Calidad de datos (Q34-37)
-34. ¿Tengo data suficiente para confiar?
-35. ¿Qué falta para HIGH confidence?
-36. ¿Qué parte es real vs estimada?
-37. ¿Qué reportes faltan importar?
+#### Calidad de datos y Cobertura (Q34-37)
+34. ¿Tengo data suficiente para confiar? (Score 0-100)
+35. ¿Qué falta para HIGH confidence? (Acciones pendientes)
+36. ¿Qué parte es real vs estimada? (Etiquetado visual)
+37. ¿Cuántos meses de historia tengo cubiertos?
 
-#### Acciones (Q38-40)
+#### Acciones y Decision Engine (Q38-40)
 38. ¿Cuál es la 1 acción con más impacto esta semana?
-39. ¿Qué canal empujar para mejorar margen?
-40. ¿Qué ajuste de margen es realista?
+39. ¿Qué canal empujar para mejorar margen basado en Profit/Night?
+40. ¿Qué ajuste de ADR es necesario para el break-even?
 
 ---
 
@@ -238,15 +238,16 @@ Un dueño de hotel siempre se pregunta:
 
 **Incluye TODO de Paid, más:**
 * **Inbox Connect (auto-email ingestion)**
-* **Alertas configurables:**
+* **Alertas configurables (Email/WhatsApp):**
   * "Si runway < 30 días"
   * "Si AR pendiente > X"
   * "Si refunds inusuales"
 * Comparativos avanzados (YTD / MOM / YOY automáticos)
+* **Tendencias visuales completas (6 meses)**
+* **Proyecciones de ingresos (OTB)**
 * Exportes PDF/Excel diseñados para dueños y contadores
 * Todas las acciones disponibles
 * Prioridad en soporte
-* API key (si el plan de Cloudbeds lo permite)
 
 **Precio sugerido:** $79–129 USD/mes
 
@@ -402,55 +403,36 @@ Penalizaciones:
 
 ---
 
-## 8) API Endpoints
+## 8) API Endpoints (v2.1)
 
-### Import
-
-* `POST /api/import/validate` (detecta reportType + columnas + warnings)
-* `POST /api/import` (procesa y guarda)
-* `POST /api/import/batch` (múltiples archivos)
-* `GET /api/import/history/:propertyId`
-
-### Command Center (Nuevo - Unificado)
-
+### Command Center (Unificado)
 * `GET /api/metrics/:propertyId/command-center?days=30`
-  * Retorna: health, breakeven, unitEconomics, channels, cash, dataConfidence, weeklyAction
+  * Retorna: health, breakeven, unitEconomics, channels, cash, dataConfidence, comparisons, weeklyAction.
 
-### Metrics (Legacy + Extended)
-
-* `GET /api/metrics/:propertyId?days=30` — Dashboard básico
-* `GET /api/metrics/:propertyId/cash?days=90` — Runway y flujo
-* `GET /api/metrics/:propertyId/channels?days=90` — Mix con profit per night
-* `GET /api/metrics/:propertyId/collections?days=30` — Cobranzas
-* `GET /api/metrics/:propertyId/structure?days=30` — Occupancy, ADR, RevPAR, GOPPAR
-* `GET /api/metrics/:propertyId/breakeven?days=30` — Break-even analysis
-* `GET /api/metrics/:propertyId/minimum-price?margin=X` — Tarifa para margen objetivo
-* `GET /api/metrics/:propertyId/ar-aging` — Aging de A/R
-* `GET /api/metrics/:propertyId/reconcile?days=30` — Cargado vs Cobrado
-* `GET /api/metrics/:propertyId/projection?weeks=4` — Proyección futura
-* `GET /api/metrics/:propertyId/comparison` — MoM comparison
-* `GET /api/metrics/:propertyId/insights?days=30` — Insights generados
+### Analytics & Intelligence
+* `GET /api/metrics/:propertyId/trends?months=6`
+* `GET /api/metrics/:propertyId/projection` (OTB)
+* `GET /api/metrics/:propertyId/dow` (Day of Week)
+* `GET /api/metrics/:propertyId/insights`
+* `GET /api/metrics/:propertyId/yoy`
+* `GET /api/metrics/:propertyId/comparison` (MoM)
 
 ### Reservation Economics
-
-* `GET /api/metrics/:propertyId/reservation-economics?days=30` — Summary
-* `GET /api/metrics/:propertyId/reservation-economics/list` — Lista filtrable
-* `GET /api/metrics/:propertyId/reservation-economics/:resNumber` — Detalle P&L
+* `GET /api/metrics/:propertyId/reservation-economics/list`
+* `GET /api/metrics/:propertyId/reservation-economics/:resNumber` (Detalle + Memoria de Cálculo)
+* `GET /api/metrics/:propertyId/unprofitable` (Reservas a pérdida)
 
 ### Actions
+* `GET /api/actions/:propertyId`
+* `POST /api/actions/:propertyId/step` (Marcar paso completado)
 
-* `GET /api/actions/:propertyId?days=30&limit=N` (limit por plan)
-* `POST /api/actions/:propertyId/step` (checklist)
-
-### Costs
-
-* `GET /api/costs/:propertyId` — Configuración con calculated values
-* `GET /api/costs/:propertyId/channels` — Canales detectados en PMS
-* `PUT /api/costs/:propertyId` — Actualizar
+### Costs (V4 Flexible)
+* `GET /api/costs/:propertyId` (Configuración + Cálculos automáticos)
+* `GET /api/costs/:propertyId/channels` (Canales detectados en PMS)
+* `PUT /api/costs/:propertyId` (Actualizar categorías, comisiones y fees)
 
 ### Data Health
-
-* `GET /api/data-health/:propertyId` — Score y issues
+* `GET /api/data-health/:propertyId` (Score, issues y cobertura histórica)
 
 ---
 

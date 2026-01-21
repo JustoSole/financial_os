@@ -30,38 +30,61 @@
 
 ---
 
-## 📊 Vista: Home — Command Center (v2.0)
+## 📊 Vista: Home — Command Center (v2.1)
 
-El Command Center es la vista principal que responde las **40 preguntas clave** de un hotelero.
+El Command Center es la vista principal que responde las **40 preguntas clave** de un hotelero en una sola pantalla.
 
 **Selector de período:** 7d / 30d / 90d y **Rango Personalizado** (hasta 365 días).
 
 ### Estructura de Secciones
 
 #### 1. Banners de Estado
-*   **Data Confidence Banner:** Muestra score (0-100) y qué falta para llegar a HIGH.
-*   **History Warning Banner:** Aparece si hay < 1 mes de datos, alertando que las comparativas MoM/YoY no están disponibles.
+*   **Data Confidence Banner:** Muestra score (0-100), nivel (LOW/MEDIUM/HIGH) y qué falta para mejorar.
+*   **History Warning Banner:** Alerta si hay insuficiente cobertura histórica para MoM/YoY.
+*   **Onboarding Checklist:** Guía de pasos iniciales para nuevos usuarios.
 
 #### 2. Weekly Action Card
-La **única acción más importante** de la semana con impacto estimado en $.
+La **única acción más importante** de la semana con impacto estimado en $, prioridad y tipo de acción (Comisiones, ADR, Cobros, etc.).
 
 #### 3. Salud del Negocio en 60 Segundos
-*   **Top Alert:** Riesgo de caja, cobranza urgente, etc.
-*   **Hero Profit:** Net Profit del período con indicador de tendencia.
-*   **KPI Grid:** Occupancy, ADR, RevPAR, GOPPAR con benchmarks.
+*   **Top Alert:** Alerta inteligente priorizada (Riesgo de caja, Cobranza crítica, Reservas a pérdida, Baja ocupación).
+*   **Hero Profit:** Net Profit del período con indicador de tendencia MoM y vs período anterior.
+*   **KPI Grid:** Occupancy, ADR, RevPAR, GOPPAR con benchmarks dinámicos y status visual.
+*   **Change Driver:** Explicación de por qué cambió el profit (¿fue ocupación, ADR, costos o comisiones?).
 
-#### 4. Comparativas (NUEVO)
-*   **MoM (Month over Month):** Período actual vs. período inmediatamente anterior.
-*   **YoY (Year over Year):** Período actual vs. mismo período del año anterior.
-*   Métricas: Revenue, Ocupación, ADR, RevPAR.
+#### 4. Comparativas
+*   **MoM (Month over Month):** Período actual vs. período inmediatamente anterior (Revenue, Occ, ADR, RevPAR, Profit).
+*   **YoY (Year over Year):** Período actual vs. mismo período del año anterior (Revenue, Occ, ADR).
 
-#### 5. Tendencias (NUEVO)
-Gráficos de área (Recharts) con la evolución de los últimos 6 meses para:
+#### 5. Tendencias (Evolución Histórica)
+Gráficos de área (Recharts) de los últimos 6 meses para:
 *   Revenue Mensual
 *   % Ocupación
 *   ADR (Tarifa Promedio)
 *   RevPAR
-*   Profit Neto Operativo
+*   Profit Neto Operativo (GOP)
+
+#### 6. Punto de Equilibrio (Break-Even)
+*   **Break-even Gauge:** % ocupación necesaria para cubrir todos los costos vs actual.
+*   **Simulador de Margen:** Tarifa sugerida para obtener 10%, 20% y 30% de margen neto real.
+*   **Distancia al Equilibrio:** Gap en $ y noches para alcanzar el break-even.
+
+#### 7. Unit Economics
+*   **Profit per Night:** Cuánto ganás realmente por cada noche ocupada después de todos los gastos.
+*   **Contribution Margin:** Margen después de costos variables y comisiones.
+*   **CPOR (Cost Per Occupied Room):** Desglose detallado de costo Fijo, Variable y Comisión por noche.
+*   **Cost Mix Visual:** Distribución porcentual de los tres tipos de costos.
+
+#### 8. Canales — La Verdad del Margen
+*   Insights de Best/Worst channel por **profit real por noche** (no solo ingresos).
+*   **OTA Dependency Bar:** Porcentaje de dependencia de canales externos (>70% genera alerta).
+*   **Toxic Channel Alert:** Identifica canales con alto volumen pero rentabilidad negativa o muy baja.
+
+#### 9. Caja y Cobranzas
+*   **Reconciliación:** Comparativa Cargado vs Cobrado con explicación de discrepancias.
+*   **A/R Aging visual:** Buckets de deuda (Vencido / 7 días / 30 días / Futuro).
+*   **Cash Runway:** Días de supervivencia operativa basados en saldo actual y burn-rate.
+*   **Proyección OTB:** Ingresos ya reservados (On-the-books) para las próximas 4 semanas.
 
 #### 6. Punto de Equilibrio (Break-Even)
 *   **Break-even Gauge:** % ocupación necesaria vs actual.
@@ -281,29 +304,65 @@ Lista de archivos procesados con estado, cantidad de registros, tipo detectado y
 }
 ```
 
-### CostSettings (v2)
+### CostSettings (v4)
 ```typescript
 { 
-  property_id, 
-  room_count,
-  starting_cash_balance,
-  variable_costs: { cleaningPerStay, laundryMonthly, amenitiesMonthly },
-  fixed_costs: { salaries, rent, utilities, other },
-  channel_commissions: { defaultRate, byChannel: Record<string, number> },
-  payment_fees: { enabled, defaultRate, byMethod: Record<string, number> }
+  propertyId: string, 
+  roomCount: number,
+  startingCashBalance: number,
+  // V4 flexible categories
+  variableCategories: Array<{ id: string, name: string, monthlyAmount: number }>,
+  fixedCategories: Array<{ id: string, name: string, monthlyAmount: number }>,
+  extraordinaryCosts: Array<{ id: string, name: string, amount: number, date: string }>,
+  // Commissions & fees
+  channelCommissions: { defaultRate: number, byChannel: Record<string, number> },
+  paymentFees: { enabled: boolean, defaultRate: number, byMethod: Record<string, number> }
 }
 ```
 
-### CommandCenterData (Nuevo)
+### CommandCenterData (v2.1)
 ```typescript
 {
   period: { start, end, days },
-  health: BusinessHealthSnapshot,
-  breakeven: BreakEvenAnalysis,
-  unitEconomics: UnitEconomics,
-  channels: ChannelEconomics,
-  cash: CashReconciliation,
-  dataConfidence: DataConfidence,
+  health: {
+    netProfit: { value, isPositive, trend, vsLastPeriod, vsLastPeriodPercent },
+    kpis: { occupancy, adr, revpar, goppar },
+    changes: { driver, explanation, impact },
+    topAlert: { type, title, description, severity, actionLabel, actionLink }
+  },
+  breakeven: { 
+    breakEvenOccupancy, currentOccupancy, gapToBreakEven, 
+    nightsNeededForBreakEven, nightsSoldThisPeriod, nightsGap,
+    breakEvenPrice, currentAdr, 
+    marginSimulation: { margin10, margin20, margin30 },
+    distanceToBreakEven: { inDollars, inNights, status },
+    revparDecomposition: { occupancyContribution, adrContribution, primaryDriver }
+  },
+  unitEconomics: { 
+    profitPerNight, contributionMargin, contributionMarginPercent,
+    cpor, cporBreakdown: { fixed, variable, commission },
+    costMix: { fixedPercent, variablePercent, commissionPercent },
+    costAlerts: Array<{ category, trend, changePercent }>
+  },
+  channels: { 
+    channels: Array<ChannelDetail>,
+    bestChannelByProfitPerNight, worstChannelByProfitPerNight,
+    otaDependency: { otaShare, directShare, isOverDependent },
+    avgEffectiveCommission, toxicChannel
+  },
+  cash: { 
+    charged, collected, gap, gapExplanation, totalPending, 
+    topPendingReservations, aging, runwayDays, runwayStatus,
+    cashBreakers: { refunds, voids, adjustments, total }
+  },
+  dataConfidence: { 
+    score, level, missingForHighConfidence, realMetrics, estimatedMetrics, 
+    missingReports, monthsCovered, earliestDate 
+  },
+  comparisons: { 
+    mom: { currentPeriod, previousPeriod, metrics },
+    yoy: { currentPeriod, previousPeriod, metrics }
+  },
   weeklyAction: { title, impact, type, priority }
 }
 ```
@@ -312,47 +371,41 @@ Lista de archivos procesados con estado, cantidad de registros, tipo detectado y
 
 ## 🔌 API Endpoints
 
-### Property
-- `GET /api/property` - Obtener/crear propiedad
-- `PUT /api/property/:id` - Actualizar
-
 ### Import
-- `POST /api/import/validate` - Validar CSV sin importar
-- `POST /api/import` - Importar archivo
-- `POST /api/import/batch` - Importar múltiples
-- `GET /api/import/history/:propertyId` - Historial
+- `POST /api/import/validate` - Detecta reportType + columnas + warnings
+- `POST /api/import` - Importa archivo
+- `POST /api/import/batch` - Importa múltiples CSVs simultáneamente
+- `GET /api/import/history/:propertyId` - Historial de archivos
 
-### Command Center (Nuevo - Unificado)
+### Command Center (v2.1 - Unificado)
 - `GET /api/metrics/:propertyId/command-center?days=30` - **Todas las métricas unificadas**
 
-### Metrics & Intelligence
-- `GET /api/metrics/:propertyId?days=30` - Métricas dashboard básico
-- `GET /api/metrics/:propertyId/cash` - Runway, flujo diario y alertas
-- `GET /api/metrics/:propertyId/channels` - Desglose y mix de canales con profit per night
-- `GET /api/metrics/:propertyId/collections` - Cobranzas pendientes
-- `GET /api/metrics/:propertyId/daily-flow` - Datos para gráficos de tendencia
-- `GET /api/metrics/:propertyId/projection` - Proyección de ingresos futura
-- `GET /api/metrics/:propertyId/comparison` - Comparativa MoM
+### Analytics & Intelligence
+- `GET /api/metrics/:propertyId/trends?months=6` - Datos para gráficos de tendencia histórica
+- `GET /api/metrics/:propertyId/projection` - Proyección de ingresos (On-the-books)
+- `GET /api/metrics/:propertyId/dow` - Performance por día de la semana
 - `GET /api/metrics/:propertyId/insights` - Insights generados por motor inteligente
-- `GET /api/metrics/:propertyId/structure` - Occupancy, ADR, RevPAR, GOPPAR
-- `GET /api/metrics/:propertyId/breakeven` - Break-even analysis
-- `GET /api/metrics/:propertyId/minimum-price?margin=X` - Tarifa para margen objetivo
-- `GET /api/metrics/:propertyId/ar-aging` - Aging de A/R
-- `GET /api/metrics/:propertyId/reconcile` - Cargado vs Cobrado
-- `GET /api/metrics/:propertyId/dow` - Day of week performance
-- `GET /api/metrics/:propertyId/yoy` - Year over year comparison
+- `GET /api/metrics/:propertyId/yoy` - Comparativa Year over Year detallada
+- `GET /api/metrics/:propertyId/comparison` - Comparativa MoM detallada
 
-### Reservation Economics
-- `GET /api/metrics/:propertyId/reservation-economics` - Summary de rentabilidad
-- `GET /api/metrics/:propertyId/reservation-economics/list` - Listado filtrable
-- `GET /api/metrics/:propertyId/reservation-economics/:resNumber` - Detalle P&L único
+### Metrics & Structure
+- `GET /api/metrics/:propertyId/cash` - Runway, flujo diario y alertas
+- `GET /api/metrics/:propertyId/channels` - Desglose y mix de canales con profit real
+- `GET /api/metrics/:propertyId/structure` - Occupancy, ADR, RevPAR, GOPPAR
+- `GET /api/metrics/:propertyId/breakeven` - Break-even analysis detallado
+- `GET /api/metrics/:propertyId/ar-aging` - Aging de A/R buckets
+- `GET /api/metrics/:propertyId/reconcile` - Reconciliación Cargado vs Cobrado
+
+### Reservation Economics (P&L por Reserva)
+- `GET /api/metrics/:propertyId/reservation-economics` - Summary de rentabilidad del período
+- `GET /api/metrics/:propertyId/reservation-economics/list` - Listado filtrable (unprofitableOnly, source, nightsBucket)
+- `GET /api/metrics/:propertyId/reservation-economics/:resNumber` - **Detalle P&L único con memoria de cálculo**
 - `GET /api/data-health/:propertyId` - Score y issues de calidad de datos
 
-### Costs & Telemetry
-- `GET /api/costs/:propertyId` - Obtener configuración de costos con calculated values
-- `GET /api/costs/:propertyId/channels` - Canales detectados en PMS para configurar
-- `PUT /api/costs/:propertyId` - Actualizar costos (variable, fijos, comisiones, fees)
-- `POST /api/telemetry` - Registrar eventos de uso
+### Costs & Settings
+- `GET /api/costs/:propertyId` - Configuración de costos con calculated values
+- `GET /api/costs/:propertyId/channels` - Canales detectados en PMS para configuración
+- `PUT /api/costs/:propertyId` - Actualizar configuración V4 (Flexible Categories)
 
 ---
 

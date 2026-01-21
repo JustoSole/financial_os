@@ -32,6 +32,16 @@ import { calculateTrendMetrics } from '../services/trends-service';
 
 const router = Router();
 
+// Health check endpoint
+router.get('/health', (req: Request, res: Response) => {
+  res.json({ 
+    success: true, 
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    service: 'financial-os-backend'
+  });
+});
+
 // Configure multer for file uploads
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -54,9 +64,12 @@ const upload = multer({
 // Get or create default property
 router.get('/property', (req: Request, res: Response) => {
   try {
+    console.log('📋 GET /api/property - Request received');
     let property = database.getProperty();
+    console.log('📋 Property from DB:', property ? 'Found' : 'Not found');
     
     if (!property) {
+      console.log('📋 Creating default property...');
       const id = nanoid();
       property = database.insertProperty({
         id,
@@ -67,13 +80,17 @@ router.get('/property', (req: Request, res: Response) => {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       });
+      console.log('📋 Default property created:', id);
       
       // Create default cost settings
       database.upsertCostSettings(id, {});
+      console.log('📋 Default cost settings created');
     }
     
+    console.log('📋 Returning property:', property.id);
     res.json({ success: true, data: property });
   } catch (error: any) {
+    console.error('❌ Error in /api/property:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });

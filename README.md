@@ -13,9 +13,10 @@ Convertimos tus reportes de Cloudbeds en decisiones de ganancia y caja, sin Exce
 En **menos de 5 minutos**, un hotelero puede:
 
 1. **Subir 3 CSVs** exportados desde Cloudbeds
-2. **Ver su Command Center** con respuestas a las 40 preguntas clave del negocio
-3. **Recibir la acción de la semana** con impacto estimado en $
-4. **Confiar en los datos** — con sellos de `Real` vs `Estimado` e indicadores de confianza `●/◐/○`
+2. **Ver su Command Center** con respuestas a las 40 preguntas clave del negocio en 60 segundos
+3. **Recibir la acción de la semana** con impacto estimado en $ y prioridad visual
+4. **Analizar tendencias** de los últimos 6 meses y proyecciones de ingresos
+5. **Confiar en los datos** — con sellos de `Real` vs `Estimado` e indicadores de confianza `●/◐/○`
 
 ---
 
@@ -25,58 +26,59 @@ En **menos de 5 minutos**, un hotelero puede:
 |---------|-----------|-------------------------|
 | **Dueño/Gerente** | "¿Estoy ganando plata?" | Command Center con profit neto, break-even y KPIs |
 | **Administrador** | Conciliar, ordenar, cobrar | Aging de cobranzas y reconciliación cargado vs cobrado |
-| **Consultor** | Ver varios hoteles | Multi-propiedad y benchmark (Plan Partner) |
+| **Consultor** | Ver varios hoteles | Multi-propiedad, benchmark y análisis DOW (Plan Partner) |
 
 ---
 
 ## 📊 Command Center - Las 40 preguntas respondidas
 
-El nuevo **Command Center** responde las preguntas clave que todo hotelero necesita saber, ahora potenciado con **análisis histórico**:
+El **Command Center** es el cerebro de la aplicación, ahora potenciado con **análisis histórico** y **tendencias**:
 
 ### 1. Salud del negocio en 60 segundos
 | Pregunta | Métrica |
 |----------|---------|
-| ¿Estoy ganando o perdiendo? | **Net Profit** del período (hero metric) |
-| ¿Cómo vengo respecto al mes pasado? | **Comparativa MoM** (Revenue, Occ, ADR) |
-| ¿Cómo vengo respecto al año pasado? | **Comparativa YoY** (vs mismo período '25) |
-| ¿Cuál es la tendencia de fondo? | **Trend Charts** (últimos 6 meses) |
+| ¿Estoy ganando o perdiendo? | **Net Profit** del período (hero metric) con tendencia |
+| ¿Cómo vengo respecto al mes pasado? | **Comparativa MoM** (Revenue, Occ, ADR, RevPAR, Profit) |
+| ¿Cómo vengo respecto al año pasado? | **Comparativa YoY** (vs mismo período anterior) |
+| ¿Cuál es la tendencia de fondo? | **Trend Charts** (últimos 6 meses: Revenue, Occ, ADR, RevPAR, Profit) |
 | ¿Rentabilidad sana? | **GOPPAR** (Gross Operating Profit per Available Room) |
+| ¿Cuál fue el driver del cambio? | **Análisis de Impacto** (¿fue por ocupación, precio o costos?) |
 
 ### 2. Punto de Equilibrio (Break-even)
 | Pregunta | Respuesta |
 |----------|-----------|
 | ¿Cuál es mi punto de equilibrio en ocupación? | **% necesario** vs actual |
 | ¿Cuántas noches necesito vender? | **Noches** para cubrir costos fijos |
-| ¿Cuál es mi tarifa mínima? | **Break-even price** |
-| Si quiero X% margen, ¿cuánto cobro? | **Simulador** dinámico de margen |
-| ¿Qué tan lejos estoy del equilibrio? | **Gap en $ y noches** |
+| ¿Cuál es mi tarifa mínima? | **Break-even price** (¿cuánto debo cobrar para no perder?) |
+| Si quiero X% margen, ¿cuánto cobro? | **Simulador** dinámico de margen (10%, 20%, 30%) |
+| ¿Qué tan lejos estoy del equilibrio? | **Gap en $ y noches** con status visual |
 
 ### 3. Unit Economics (por noche)
 | Pregunta | Métrica |
 |----------|---------|
 | ¿Cuánto gano por noche ocupada? | **Profit per night** |
 | ¿Cuál es mi margen de contribución? | **Contribution margin** (ADR net - Variable) |
-| ¿Cómo se calcula mi profit? | **Memoria de Cálculo** detallada por reserva |
-| ¿Qué parte es fijo vs variable? | **Cost mix** visual |
+| ¿Cuál es mi costo por habitación (CPOR)? | **CPOR Breakdown**: Fijo vs Variable vs Comisiones |
+| ¿Cómo se calcula mi profit? | **Memoria de Cálculo** detallada por reserva paso a paso |
 
 ### 4. Canales - La verdad del margen
 | Pregunta | Respuesta |
 |----------|-----------|
-| ¿Cuál canal aporta más profit por noche? | **Ranking** por profit/night (no solo revenue) |
-| ¿Estoy sobre-dependiente de OTAs? | **OTA vs Direct share** con alerta |
-| ¿Cuál es mi comisión promedio efectiva? | **Weighted commission %** |
-| ¿Hay algún canal "tóxico"? | **Alerta** si alto revenue + bajo margen |
+| ¿Cuál canal aporta más profit por noche? | **Ranking** por profit/night (neto de comisiones y costos) |
+| ¿Estoy sobre-dependiente de OTAs? | **OTA vs Direct share** con alerta (>70% OTA) |
+| ¿Cuál es mi comisión promedio efectiva? | **Weighted commission %** real |
+| ¿Hay algún canal "tóxico"? | **Alerta** si tiene alto revenue pero profit negativo |
 
-### 5. Caja y Cobranzas
+### 5. Caja, Cobranzas y Proyección
 | Pregunta | Respuesta |
 |----------|-----------|
 | ¿Cuánto cobré vs cuánto cargué? | **Reconciliación** con gap explicado |
 | ¿Cuánta plata tengo pendiente? | **Aging**: Vencido / 7 días / 30 días / Futuro |
-| ¿Mi caja aguanta? | **Runway** en días con status |
-| ¿Qué reservas debo cobrar ya? | **Top pendientes** con días al check-in |
+| ¿Mi caja aguanta? | **Runway** en días basado en saldo actual y burn-rate |
+| ¿Cuánta plata va a entrar? | **Proyección de ingresos** a 4 semanas (on-the-books) |
 
 ### 6. Acción de la Semana
-La **única acción más importante** que debés tomar esta semana, con impacto en $ y prioridad visual.
+La **única acción más importante** que debés tomar esta semana, con impacto en $ y prioridad visual generada por el Decision Engine.
 
 ---
 
@@ -185,22 +187,20 @@ financial-os-cloudbeds/
 ### Import & Data
 - `POST /api/import` — Procesar CSV de Cloudbeds
 - `GET /api/import/history/:propertyId` — Historial de carga
-- `GET /api/data-health/:propertyId` — Score de calidad de datos
+- `GET /api/data-health/:propertyId` — Score de calidad de datos y cobertura histórica
 
-### Command Center (Nuevo)
-- `GET /api/metrics/:propertyId/command-center?days=30` — **Todas las métricas unificadas** (responde 40 preguntas)
+### Command Center (Unificado)
+- `GET /api/metrics/:propertyId/command-center` — **Todas las métricas unificadas** (responde 40 preguntas, MoM, YoY, Alertas)
 
-### Business Intelligence
-- `GET /api/metrics/:propertyId` — Dashboard básico (4 tiles)
-- `GET /api/metrics/:propertyId/cash` — Runway y flujo de caja
-- `GET /api/metrics/:propertyId/channels` — Mix de distribución con profit/noche
-- `GET /api/metrics/:propertyId/collections` — Cobranzas pendientes
-- `GET /api/metrics/:propertyId/structure` — Occupancy, ADR, RevPAR, GOPPAR
-- `GET /api/metrics/:propertyId/breakeven` — Punto de equilibrio
-- `GET /api/metrics/:propertyId/minimum-price?margin=X` — Tarifa mínima para margen objetivo
-- `GET /api/metrics/:propertyId/ar-aging` — Aging de cuentas por cobrar
+### Business Intelligence & Analytics
+- `GET /api/metrics/:propertyId/trends?months=6` — Gráficos de evolución histórica
+- `GET /api/metrics/:propertyId/projection` — Proyección de ingresos futura (OTB)
+- `GET /api/metrics/:propertyId/dow` — Performance por día de la semana
+- `GET /api/metrics/:propertyId/channels` — Mix de distribución con profit/noche real
 - `GET /api/metrics/:propertyId/reconcile` — Reconciliación cargado vs cobrado
-- `GET /api/actions/:propertyId` — Decision Engine (acciones)
+- `GET /api/metrics/:propertyId/ar-aging` — Aging de cuentas por cobrar visual
+- `GET /api/metrics/:propertyId/reservation-economics/:resNumber` — Detalle P&L con memoria de cálculo
+- `GET /api/costs/:propertyId` — Configuración de costos V4 (Flexible Categories)
 
 ---
 
@@ -209,23 +209,20 @@ financial-os-cloudbeds/
 | Feature | Free | Pro | Partner |
 |---------|------|-----|---------|
 | Propiedades | 1 | 1 | Ilimitadas |
-| Imports/mes | 1 | ∞ | ∞ |
+| Historial | 30 días | 365 días | 365 días |
 | Command Center | ✅ Básico | ✅ Completo | ✅ Completo |
-| Break-even Analysis | ✅ | ✅ | ✅ |
-| Channel Profit/Night | ✅ | ✅ | ✅ |
-| Rentabilidad por Reserva | Básica | Detallada | Avanzada |
-| Inbox Connect | ❌ | ✅ | ✅ |
-| Portfolio view | ❌ | ❌ | ✅ |
-| White-label export | ❌ | ❌ | ✅ |
+| Comparativas | ❌ | ✅ MoM / YoY | ✅ MoM / YoY |
+| Rentabilidad por Reserva | Básica | Detallada (Memory) | Avanzada |
+| Inbox Connect (Auto) | ❌ | ✅ | ✅ |
+| Análisis DOW | ❌ | ❌ | ✅ |
 
 ---
 
 ## 🛡️ Seguridad y privacidad
 
-- Los archivos CSV se procesan en memoria y los datos se guardan localmente.
-- **Trust Layer**: Cada número indica si es `Real`, `Estimado` o `Incompleto`.
-- Trazabilidad total: los insights se basan directamente en tus reportes.
-- Sin envío de datos financieros a servidores externos de terceros.
+- Los archivos CSV se procesan en memoria y los datos se guardan localmente en un archivo JSON encriptable.
+- **Trust Layer**: Cada número indica si es `Real`, `Estimado` o `Incompleto` mediante badges visuales.
+- Trazabilidad total: los insights se basan directamente en tus reportes mediante la Memoria de Cálculo.
 
 ---
 
@@ -233,11 +230,11 @@ financial-os-cloudbeds/
 
 - [x] **v1.0** — Command Center con 40 preguntas respondidas
 - [x] **v1.1** — Break-even analysis y simulador de margen
-- [x] **v1.2** — Channel profit per night (no solo revenue)
 - [x] **v2.0** — Análisis Histórico (MoM, YoY) y Gráficos de Tendencia
-- [x] **v2.1** — P&L Detallado por Reserva con Memoria de Cálculo
+- [x] **v2.1** — P&L Detallado por Reserva con Memoria de Cálculo y Categorías V4
+- [ ] **v2.2** — Análisis de Día de Semana (DOW) y Proyecciones OTB
 - [ ] **v3.0** — Inbox Connect (auto-ingesta por email)
-- [ ] **v3.1** — Integración API Cloudbeds
+- [ ] **v3.1** — Integración API Cloudbeds Directa
 - [ ] **v3.2** — Multi-propiedad y portfolio
 
 ---
