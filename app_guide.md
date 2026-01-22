@@ -323,18 +323,21 @@ Penalizaciones:
 
 ## 7) UX / Vistas — especificación actualizada
 
-### `/` Home — Command Center (v2.1)
+### `/` Home — Command Center (v2.2)
 
-**Filosofía:** Centro de decisiones rápidas (90 segundos).
+**Filosofía:** Centro de decisiones rápidas (90 segundos). Información clara y contextualizada.
 
 **Secciones (orden):**
-1.  **Banners:** Confidence y History Coverage.
-2.  **Weekly Action Card (Prominent)** — La única acción más importante de la semana con CTA de "Ver por qué".
-3.  **Sección 1: Estado Actual** (Hero Profit con contexto MoM y Break-even, Status Cards de Ocupación, Margen y Equilibrio).
-4.  **Sección 2: Canales y Distribución (Resumen)** (OTA dependency bar, Best/Worst channel).
-5.  **Sección 3: Análisis Profundo** — Accesos directos a vistas de detalle (Rentabilidad, Canales, Costos).
+1.  **Banners:** Confidence, History Coverage, Demo Mode y Costs Not Configured.
+2.  **Sección 1: Estado Actual**
+    *   Hero Profit con comparación inteligente vs período anterior
+    *   Status Cards mejoradas con subtítulos explicativos y comparativas
+    *   Period Summary Stats (Revenue, ADR, Noches, Reservas con comparativas)
+3.  **Sección 2: Cobranzas Pendientes** — Solo aparece si hay +$10K pendiente.
+4.  **Sección 3: Canales y Distribución** — Mix visual Directo/OTAs con leyenda y alerta de dependencia.
+5.  **Sección 4: Análisis Profundo** — Accesos directos a vistas de detalle.
 
-**No mostrar:** Gráficos de tendencia ni tablas detalladas en Home.
+**No mostrar:** Gráficos de tendencia, tablas detalladas ni acciones semanales en Home.
 
 ---
 

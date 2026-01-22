@@ -37,17 +37,32 @@ El **Command Center** es el cerebro de la aplicación, diseñado para la toma de
 ### 1. Estado Actual (Decisión inmediata)
 | Pregunta | Respuesta |
 |----------|-----------|
-| ¿Qué tengo que hacer hoy? | **Acción de la Semana** (priorizada por impacto en $) |
 | ¿Estoy ganando o perdiendo? | **Ganancia Neta** con contexto (vs período anterior y vs break-even) |
-| ¿Mi ocupación es saludable? | **Status Card** de Ocupación con semáforo |
-| ¿Gano por cada noche? | **Status Card** de Margen por Noche |
-| ¿Cubrí mis costos? | **Status Card** de Punto de Equilibrio (Real vs Necesario) |
+| ¿Mi ocupación es saludable? | **Status Card** de Ocupación con semáforo y comparativa vs anterior |
+| ¿Gano por cada noche? | **Status Card** de Ganancia por Noche con contexto |
+| ¿Cubrí mis costos? | **Status Card** de Punto de Equilibrio (con pp sobre/bajo el mínimo) |
 
-### 2. Canales y Distribución (Resumen)
+### 2. Resumen del Período
+| Métrica | Descripción |
+|---------|-------------|
+| Revenue | Ingresos totales con comparativa vs anterior |
+| ADR | Tarifa promedio con comparativa vs anterior |
+| Noches vendidas | Total de room nights del período |
+| Reservas | Cantidad estimada de reservas |
+
+### 3. Cobranzas Pendientes (Alerta contextual)
+Solo aparece si hay más de $10K pendiente:
+- Total pendiente por cobrar
+- Monto vencido (si hay)
+- Próximos 7 días
+- Acceso directo a gestión de cobranzas
+
+### 4. Canales y Distribución (Resumen)
 | Pregunta | Respuesta |
 |----------|-----------|
-| ¿Dependo mucho de OTAs? | **OTA vs Direct share** bar con alerta visual |
-| ¿Cuáles son mis extremos? | **Best vs Worst channel** por profit real por noche |
+| ¿Cuál es mi mix de canales? | **Barra visual Directo vs OTAs** con leyenda clara |
+| ¿Dependo mucho de OTAs? | Alerta visual si dependencia > 70% |
+| ¿Cuáles son mis extremos? | **Best vs Worst channel** por rentabilidad/noche |
 
 ### 3. Análisis Profundo (Exploración)
 El análisis detallado se distribuye en vistas especializadas para no saturar el mando:
@@ -64,8 +79,11 @@ El análisis detallado se distribuye en vistas especializadas para no saturar el
 | ¿Mi caja aguanta? | **Runway** en días basado en saldo actual y burn-rate |
 | ¿Cuánta plata va a entrar? | **Proyección de ingresos** a 4 semanas (on-the-books) |
 
-### 5. Acción de la Semana
-La **única acción más importante** que debés tomar esta semana, con impacto en $ y prioridad visual generada por el Decision Engine.
+### 5. Análisis Profundo
+Accesos directos a vistas especializadas:
+*   **Rentabilidad y P&L** — Análisis por reserva con memoria de cálculo
+*   **Canales Detallados** — Comisiones y ADR neto por canal
+*   **Gestión de Costos** — Configuración de costos fijos y variables
 
 ---
 

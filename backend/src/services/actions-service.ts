@@ -25,39 +25,39 @@ import {
 // 6. data_quality: score < 70
 // =====================================================
 
-export function generateActions(propertyId: string): RecommendedAction[] {
+export function generateActions(propertyId: string, startDateOrDays: string | number = 30, endDate?: string): RecommendedAction[] {
   const actions: RecommendedAction[] = [];
   
   // Check all triggers
-  const cashRisk = checkCashRisk(propertyId);
+  const cashRisk = checkCashRisk(propertyId, startDateOrDays, endDate);
   if (cashRisk) actions.push(cashRisk);
   
-  const collections = checkCollections(propertyId);
+  const collections = checkCollections(propertyId); // Collections is usually global/current state, but we could filter if needed. Keeping as is for now unless specified.
   if (collections) actions.push(collections);
   
-  const depositGap = checkDepositGap(propertyId);
+  const depositGap = checkDepositGap(propertyId); // Same for deposit gaps
   if (depositGap) actions.push(depositGap);
   
-  const otaDependency = checkOtaDependency(propertyId);
+  const otaDependency = checkOtaDependency(propertyId, startDateOrDays, endDate);
   if (otaDependency) actions.push(otaDependency);
   
-  const channelCost = checkChannelCost(propertyId);
+  const channelCost = checkChannelCost(propertyId, startDateOrDays, endDate);
   if (channelCost) actions.push(channelCost);
   
   const dataQuality = checkDataQuality(propertyId);
   if (dataQuality) actions.push(dataQuality);
   
   // NEW: Reservation Economics actions
-  const unprofitableReservations = checkUnprofitableReservations(propertyId);
+  const unprofitableReservations = checkUnprofitableReservations(propertyId, startDateOrDays, endDate);
   if (unprofitableReservations) actions.push(unprofitableReservations);
   
-  const oneNightLossPattern = checkOneNightLossPattern(propertyId);
+  const oneNightLossPattern = checkOneNightLossPattern(propertyId, startDateOrDays, endDate);
   if (oneNightLossPattern) actions.push(oneNightLossPattern);
   
-  const commissionOverrideNeeded = checkCommissionOverrideNeeded(propertyId);
+  const commissionOverrideNeeded = checkCommissionOverrideNeeded(propertyId, startDateOrDays, endDate);
   if (commissionOverrideNeeded) actions.push(commissionOverrideNeeded);
   
-  const costsDataGap = checkCostsDataGap(propertyId);
+  const costsDataGap = checkCostsDataGap(propertyId, startDateOrDays, endDate);
   if (costsDataGap) actions.push(costsDataGap);
   
   // Sort by priority (1=highest) and then by impact value desc
@@ -73,8 +73,8 @@ export function generateActions(propertyId: string): RecommendedAction[] {
 // 1. Cash Risk - runway < 30 días
 // =====================================================
 
-function checkCashRisk(propertyId: string): RecommendedAction | null {
-  const cashMetrics = calculateCashMetrics(propertyId);
+function checkCashRisk(propertyId: string, startDateOrDays: string | number = 90, endDate?: string): RecommendedAction | null {
+  const cashMetrics = calculateCashMetrics(propertyId, startDateOrDays, endDate);
   
   // Only trigger if we have starting balance and runway is concerning
   if (cashMetrics.runway.startingBalance === 0) {
@@ -207,8 +207,8 @@ function checkDepositGap(propertyId: string): RecommendedAction | null {
 // 4. OTA Dependency - share > 70%
 // =====================================================
 
-function checkOtaDependency(propertyId: string): RecommendedAction | null {
-  const channelMetrics = calculateChannelMetrics(propertyId);
+function checkOtaDependency(propertyId: string, startDateOrDays: string | number = 30, endDate?: string): RecommendedAction | null {
+  const channelMetrics = calculateChannelMetrics(propertyId, startDateOrDays, endDate);
   
   // Check OTA share
   const otaChannels = channelMetrics.channels.filter(c => 
@@ -260,8 +260,8 @@ function checkOtaDependency(propertyId: string): RecommendedAction | null {
 // 5. Channel Cost - canal dominante con comisión alta
 // =====================================================
 
-function checkChannelCost(propertyId: string): RecommendedAction | null {
-  const channelMetrics = calculateChannelMetrics(propertyId);
+function checkChannelCost(propertyId: string, startDateOrDays: string | number = 30, endDate?: string): RecommendedAction | null {
+  const channelMetrics = calculateChannelMetrics(propertyId, startDateOrDays, endDate);
   
   if (channelMetrics.channels.length === 0) {
     return null;
@@ -355,9 +355,9 @@ function checkDataQuality(propertyId: string): RecommendedAction | null {
 // Trigger: count_unprofitable >= max(3, 5% of total)
 // =====================================================
 
-function checkUnprofitableReservations(propertyId: string): RecommendedAction | null {
+function checkUnprofitableReservations(propertyId: string, startDateOrDays: string | number = 30, endDate?: string): RecommendedAction | null {
   try {
-    const economics = calculateReservationEconomicsSummary(propertyId, 30);
+    const economics = calculateReservationEconomicsSummary(propertyId, startDateOrDays, endDate);
     
     // Trigger threshold: at least 3 or 5% of total
     const threshold = Math.max(3, economics.totalReservations * 0.05);
@@ -382,7 +382,7 @@ function checkUnprofitableReservations(propertyId: string): RecommendedAction | 
       id: nanoid(),
       type: 'unprofitable_reservations',
       title: UI_COPY.actions.unprofitable_reservations.title,
-      description: `${economics.unprofitableCount} reservas te hicieron perder $${Math.round(economics.unprofitableLoss).toLocaleString()} este mes. Principal causa: ${mainCause}.`,
+      description: `${economics.unprofitableCount} reservas te hicieron perder $${Math.round(economics.unprofitableLoss).toLocaleString()} en este periodo. Principal causa: ${mainCause}.`,
       impact: {
         value: monthlyLoss,
         unit: '$/mes',
@@ -416,9 +416,9 @@ function checkUnprofitableReservations(propertyId: string): RecommendedAction | 
 // Trigger: avg_profit_per_night < 0 for 1-night bucket and count >= 5
 // =====================================================
 
-function checkOneNightLossPattern(propertyId: string): RecommendedAction | null {
+function checkOneNightLossPattern(propertyId: string, startDateOrDays: string | number = 30, endDate?: string): RecommendedAction | null {
   try {
-    const lossPatterns = getChannelLossPatterns(propertyId, 30);
+    const lossPatterns = getChannelLossPatterns(propertyId, startDateOrDays, endDate);
     
     // Find 1-night loss patterns with significant count
     const oneNightLosses = lossPatterns.filter(p => 
@@ -472,9 +472,9 @@ function checkOneNightLossPattern(propertyId: string): RecommendedAction | null 
 // Trigger: canal con >10% revenue usa comisión default
 // =====================================================
 
-function checkCommissionOverrideNeeded(propertyId: string): RecommendedAction | null {
+function checkCommissionOverrideNeeded(propertyId: string, startDateOrDays: string | number = 30, endDate?: string): RecommendedAction | null {
   try {
-    const channelMetrics = calculateChannelMetrics(propertyId, 30);
+    const channelMetrics = calculateChannelMetrics(propertyId, startDateOrDays, endDate);
     const costSettings = database.getCostSettings(propertyId);
     const overrides = costSettings?.channel_commission_overrides || {};
     
@@ -529,7 +529,7 @@ function checkCommissionOverrideNeeded(propertyId: string): RecommendedAction | 
 // Trigger: low_confidence_ratio > 20% por falta de costos
 // =====================================================
 
-function checkCostsDataGap(propertyId: string): RecommendedAction | null {
+function checkCostsDataGap(propertyId: string, startDateOrDays: string | number = 30, endDate?: string): RecommendedAction | null {
   try {
     const costCheck = checkCostsConfigured(propertyId);
     
@@ -537,7 +537,7 @@ function checkCostsDataGap(propertyId: string): RecommendedAction | null {
       return null;
     }
     
-    const economics = calculateReservationEconomicsSummary(propertyId, 30);
+    const economics = calculateReservationEconomicsSummary(propertyId, startDateOrDays, endDate);
     
     // Only trigger if we have enough data
     if (economics.totalReservations < 5) {

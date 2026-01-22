@@ -466,9 +466,11 @@ export default function Costs() {
     return directKeywords.some(k => name.toLowerCase().includes(k));
   };
 
+  const currentCurrency = property?.currency || 'ARS';
+  
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('es-AR', {
-      style: 'currency', currency: property?.currency || 'ARS', maximumFractionDigits: 0,
+    return new Intl.NumberFormat(currentCurrency === 'USD' ? 'en-US' : 'es-AR', {
+      style: 'currency', currency: currentCurrency, maximumFractionDigits: 0,
     }).format(value);
   };
 
@@ -491,14 +493,20 @@ export default function Costs() {
           <h1>Configuración de Costos</h1>
           <p>Ingresá tus gastos mensuales totales — calculamos el costo por noche automáticamente</p>
         </div>
-        <button 
-          className={`${styles.btnSave} ${saved ? styles.saved : ''}`}
-          onClick={handleSave}
-          disabled={saving}
-        >
-          {saved ? <><CheckCircle size={18} /> Guardado</> : 
-           saving ? 'Guardando...' : <><Save size={18} /> Guardar</>}
-        </button>
+        <div className={styles.headerActions}>
+          <div className={styles.currencyBadge} title="Moneda detectada desde tus archivos importados">
+            <DollarSign size={14} />
+            <span>{currentCurrency}</span>
+          </div>
+          <button 
+            className={`${styles.btnSave} ${saved ? styles.saved : ''}`}
+            onClick={handleSave}
+            disabled={saving}
+          >
+            {saved ? <><CheckCircle size={18} /> Guardado</> : 
+             saving ? 'Guardando...' : <><Save size={18} /> Guardar</>}
+          </button>
+        </div>
       </header>
 
       {/* Data Banner */}

@@ -24,6 +24,7 @@ import {
   getCollections, 
   getReservationEconomics,
   getCashMetrics,
+  getActions,
   trackEvent,
 } from '../api';
 import { formatCurrencyShort } from '../utils/formatters';
@@ -63,6 +64,7 @@ export default function Actions() {
   const [collections, setCollections] = useState<any>(null);
   const [economics, setEconomics] = useState<any>(null);
   const [cash, setCash] = useState<any>(null);
+  const [backendActions, setBackendActions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
   // Track completed steps locally
@@ -90,17 +92,19 @@ export default function Actions() {
     
     const days = dateRange.days;
     
-    const [insightsRes, collectionsRes, economicsRes, cashRes] = await Promise.all([
+    const [insightsRes, collectionsRes, economicsRes, cashRes, actionsRes] = await Promise.all([
       getInsights(property.id, days),
       getCollections(property.id),
       getReservationEconomics(property.id, days),
       getCashMetrics(property.id, days),
+      getActions(property.id, days),
     ]);
 
     if (insightsRes.success) setInsights(insightsRes.data);
     if (collectionsRes.success) setCollections(collectionsRes.data);
     if (economicsRes.success) setEconomics(economicsRes.data);
     if (cashRes.success) setCash(cashRes.data);
+    if (actionsRes.success) setBackendActions(actionsRes.data || []);
 
     setLoading(false);
   };
@@ -251,6 +255,39 @@ export default function Actions() {
     }
     */
 
+    // 4. ADD BACKEND GENERATED ACTIONS (Period-aware)
+    backendActions.forEach((ba: any) => {
+      // Avoid duplicates if already added by frontend logic
+      if (actions.some(a => a.id === ba.id || a.title === ba.title)) return;
+
+      actions.push({
+        id: ba.id,
+        category: ba.type === 'ota_dependency' || ba.type === 'channel_cost' ? 'channels' : 
+                  ba.type === 'cash_risk' ? 'cash' : 
+                  ba.type === 'unprofitable_reservations' || ba.type === 'one_night_loss_pattern' ? 'pricing' : 'data',
+        type: ba.priority === 1 ? 'critical' : 'warning',
+        title: ba.title,
+        description: ba.description,
+        impact: {
+          value: ba.impact.value,
+          label: ba.impact.unit,
+          type: ba.impact.direction === 'down' ? 'loss' : 'savings',
+        },
+        steps: ba.steps.map((s: any, idx: number) => ({
+          id: `${ba.id}-${idx}`,
+          text: s.text,
+          completed: s.completed,
+        })),
+        evidence: ba.evidence.map((e: any) => ({
+          label: e.metric,
+          value: e.value,
+        })),
+        href: ba.type === 'ota_dependency' || ba.type === 'channel_cost' ? '/canales' : 
+              ba.type === 'unprofitable_reservations' || ba.type === 'one_night_loss_pattern' ? '/rentabilidad' : undefined,
+        completed: ba.steps.every((s: any) => s.completed),
+      });
+    });
+
     // Sort: critical first, then by impact
     return actions.sort((a, b) => {
       // Completed goes last
@@ -259,13 +296,13 @@ export default function Actions() {
       
       // Priority order
       const typeOrder = { critical: 0, warning: 1, info: 2, positive: 3 };
-      const typeDiff = typeOrder[a.type] - typeOrder[b.type];
+      const typeDiff = typeOrder[a.type as keyof typeof typeOrder] - typeOrder[b.type as keyof typeof typeOrder];
       if (typeDiff !== 0) return typeDiff;
 
       // Then by impact value
       return b.impact.value - a.impact.value;
     });
-  }, [insights, collections, economics, cash, completedSteps]);
+  }, [insights, collections, economics, cash, backendActions, completedSteps]);
 
   // Filtered actions
   const filteredActions = useMemo(() => {

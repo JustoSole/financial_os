@@ -9,7 +9,7 @@ import {
   getTrends,
 } from '../api';
 import {
-  DateRangePicker,
+  PeriodSelector,
   ReservationDrawer,
   Card,
   LoadingState,
@@ -229,7 +229,7 @@ export default function Profitability() {
           </h1>
           <p className="page-subtitle">Ganancia o pérdida de cada reserva individual</p>
         </div>
-        <DateRangePicker />
+        <PeriodSelector />
       </div>
 
       {/* Summary Cards */}

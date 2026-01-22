@@ -30,7 +30,7 @@
 
 ---
 
-## 📊 Vista: Home — Command Center (v2.1)
+## 📊 Vista: Home — Command Center (v2.2)
 
 El Command Center es la vista principal que responde a las preguntas críticas para la **toma de decisiones** en 90 segundos.
 
@@ -39,21 +39,32 @@ El Command Center es la vista principal que responde a las preguntas críticas p
 #### 1. Banners de Estado
 *   **Data Confidence Banner:** Score (0-100) y nivel de confianza.
 *   **History Warning Banner:** Alerta de cobertura histórica insuficiente.
+*   **Demo Mode Banner:** Indica cuando se usan datos de ejemplo.
+*   **Costs Not Configured Banner:** Alerta cuando no hay costos fijos configurados.
 
-#### 2. Weekly Action Card (Prominent)
-La **única acción más importante** de la semana. Ahora con diseño visualmente dominante y CTA de "Ver por qué".
+#### 2. Estado Actual
+*   **Hero Profit con Contexto:** Net Profit del período con:
+    *   Comparación inteligente vs período anterior (maneja casos sin datos)
+    *   Estado del punto de equilibrio (CUBIERTO/EN RIESGO) con noches de margen
+*   **Quick Indicators:** 3 tarjetas de estado compacto mejoradas:
+    *   **Ocupación:** Con subtítulo explicativo, semáforo y comparativa vs anterior
+    *   **Ganancia por Noche:** Con contexto "después de costos"
+    *   **Punto de Equilibrio:** Muestra ocupación actual + pp sobre/bajo el mínimo + ocupación necesaria
+*   **Period Summary Stats:** Barra horizontal con 4 KPIs del período:
+    *   Revenue (con comparativa vs anterior)
+    *   ADR (con comparativa vs anterior)
+    *   Noches vendidas
+    *   Reservas estimadas
 
-#### 3. Estado Actual
-*   **Hero Profit con Contexto:** Net Profit del período comparado visualmente con el período anterior (MoM) y estado frente al Break-even.
-*   **Quick Indicators:** 3 tarjetas de estado compacto con semáforos:
-    *   **Ocupación:** Saludable / Baja.
-    *   **Margen / Noche:** Ganando / Perdiendo.
-    *   **Punto de Equilibrio:** Arriba / Debajo.
-*   **Date Range Picker:** Selector de fechas flexible con soporte para rangos personalizados y comparativas automáticas.
+#### 3. Cobranzas Pendientes (Condicional)
+*   Solo aparece si `totalPending > $10K`
+*   Muestra: Total pendiente, vencido, próximos 7 días
+*   CTA directo a gestión de cobranzas
 
 #### 4. Canales y Distribución (Resumen)
-*   **OTA Dependency Bar:** Visualización compacta de Directo vs Portales.
-*   **Highlights:** Identificación directa del Mejor y Peor canal por profit real.
+*   **Mix de Canales:** Barra visual con leyenda Directo vs OTAs
+*   **Alerta de dependencia:** Warning si OTA share > 70%
+*   **Best/Worst Channel:** Con subtexto "por rentabilidad/noche"
 
 #### 5. Análisis Profundo (Navegación)
 Links directos con descripción a las vistas de detalle:
@@ -198,7 +209,9 @@ Lista de archivos procesados con estado, cantidad de registros, tipo detectado y
 | `ActionCard` | type, title, description, impact, confidence, steps[], priority |
 | `DataHealthBanner` | score, issues[], lastImport |
 | `DataConfidenceBanner` | confidence (level, missingForHighConfidence, missingReports) |
-| `WeeklyActionCard` | action (title, impact, type, priority) |
+| `StatusCard` | title, value, status, label, subtitle, comparison, helpKey |
+| `PeriodSummaryStats` | health, breakeven, comparisons |
+| `PeriodComparisonWidget` | comparisons (maneja casos sin datos) |
 | `KPICard` | question, value, benchmark, status, icon |
 | `BreakevenGauge` | breakEvenOccupancy, currentOccupancy, gapToBreakEven |
 | `UnitEconomicCard` | question, value, subtitle, isPositive, isCost |
@@ -417,7 +430,8 @@ Lista de archivos procesados con estado, cantidad de registros, tipo detectado y
 .reconciliation              /* Reconciliación cargado/cobrado */
 .ar-aging                    /* Aging buckets */
 .cash-runway                 /* Card de runway */
-.weekly-action               /* Card de acción semanal */
+.period-summary              /* Barra de resumen del período */
+.collections-alert           /* Alerta de cobranzas pendientes */
 .confidence-banner           /* Banner de confianza de datos */
 .top-alert                   /* Alerta principal */
 .quick-actions               /* Links rápidos */

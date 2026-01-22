@@ -546,7 +546,16 @@ router.get('/metrics/:propertyId/unprofitable', (req: Request, res: Response) =>
 // Get recommended actions
 router.get('/actions/:propertyId', (req: Request, res: Response) => {
   try {
-    const actions = generateActions(req.params.propertyId);
+    const { startDate, endDate, days } = req.query;
+    let actions;
+    
+    if (startDate && endDate) {
+      actions = generateActions(req.params.propertyId, startDate as string, endDate as string);
+    } else {
+      const d = parseInt(days as string) || 30;
+      actions = generateActions(req.params.propertyId, d);
+    }
+    
     const completed = getCompletedSteps(req.params.propertyId);
     
     // Merge completion status

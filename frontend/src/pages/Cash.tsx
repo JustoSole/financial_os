@@ -197,8 +197,13 @@ export default function Cash() {
   // Free plan upgrade screen
   if (!hasForecastAccess) {
     return (
-      <div className="cash-page">
-        <PageHeader title="Flujo de Caja" subtitle="Proyección de tu efectivo" />
+      <div className={styles.page}>
+        <div className="page-header">
+          <div>
+            <h1 className="page-title">Flujo de Caja</h1>
+            <p className="page-subtitle">Proyección de tu efectivo</p>
+          </div>
+        </div>
 
         <div className="cash-upgrade">
           <div className="cash-upgrade__card">
@@ -253,19 +258,19 @@ export default function Cash() {
 
   return (
     <div className={styles.page}>
-      <PageHeader
-        title="Flujo de Caja"
-        subtitle={`Proyección basada en los últimos ${dateRange.days} días`}
-        actions={
-          <>
-            <Button variant="secondary" onClick={loadData} disabled={loading}>
-              <RefreshCw size={16} className={loading ? 'spin' : ''} />
-              Actualizar
-            </Button>
-            <PeriodSelector />
-          </>
-        }
-      />
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Flujo de Caja</h1>
+          <p className="page-subtitle">Proyección basada en los últimos {dateRange.days} días</p>
+        </div>
+        <div className="page-header-actions">
+          <Button variant="secondary" onClick={loadData} disabled={loading}>
+            <RefreshCw size={16} className={loading ? 'spin' : ''} />
+            Actualizar
+          </Button>
+          <PeriodSelector />
+        </div>
+      </div>
 
       {/* Hero: Runway Days */}
       <section className={styles.hero}>

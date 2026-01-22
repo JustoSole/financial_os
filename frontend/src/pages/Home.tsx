@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { getCommandCenter } from '../api';
-import { DateRangePicker, HelpTooltip } from '../components';
+import { PeriodSelector, HelpTooltip } from '../components';
 import { formatCurrency, formatCurrencyShort } from '../utils/formatters';
 import {
   TrendingUp,
@@ -12,10 +12,8 @@ import {
   DollarSign,
   BarChart3,
   ArrowRight,
-  Upload,
   Loader2,
   Target,
-  Percent,
   CreditCard,
   Zap,
   ChevronRight,
@@ -129,7 +127,7 @@ export default function Home() {
             {dateRange.preset ? `Últimos ${dateRange.days} días` : 'Período personalizado'}
           </span>
         </div>
-        <DateRangePicker />
+        <PeriodSelector />
       </header>
 
       {/* Data Confidence Banner */}
@@ -185,11 +183,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* Weekly Action - THE action to take this week */}
-      <div className={styles.priorityActionWrapper}>
-        <WeeklyActionCard action={data.weeklyAction} isProminent />
-      </div>
-
       {/* Section 1: Business Health in 60 seconds */}
       <section className={styles.commandSection}>
         <SectionHeader 
@@ -225,20 +218,17 @@ export default function Home() {
 
             {/* Context context context */}
             <div className={styles.heroProfitContext}>
-        {data.comparisons.mom && (
-                <div className={styles.contextItem}>
-                  <span className={styles.contextLabel}>vs período anterior</span>
-                  <div className={`${styles.contextValue} ${data.comparisons.mom.metrics.netProfit?.changePercent && data.comparisons.mom.metrics.netProfit.changePercent >= 0 ? styles.positive : styles.negative}`}>
-                    {data.comparisons.mom.metrics.netProfit?.changePercent && data.comparisons.mom.metrics.netProfit.changePercent >= 0 ? '+' : ''}
-                    {data.comparisons.mom.metrics.netProfit?.changePercent?.toFixed(1)}%
-            </div>
-          </div>
-              )}
+              <PeriodComparisonWidget comparisons={data.comparisons} />
               <div className={styles.contextItem}>
                 <span className={styles.contextLabel}>Punto de equilibrio</span>
                 <div className={`${styles.contextValue} ${data.breakeven.gapToBreakEven >= 0 ? styles.positive : styles.negative}`}>
                   {data.breakeven.gapToBreakEven >= 0 ? 'CUBIERTO' : 'EN RIESGO'}
               </div>
+              <span className={styles.contextSubtext}>
+                {data.breakeven.gapToBreakEven >= 0 
+                  ? `+${data.breakeven.nightsGap} noches de margen`
+                  : `Faltan ${Math.abs(data.breakeven.nightsGap)} noches`}
+              </span>
               </div>
             </div>
           </div>
@@ -250,22 +240,72 @@ export default function Home() {
             title="Ocupación"
             value={`${data.health.kpis.occupancy.value.toFixed(0)}%`}
             status={data.health.kpis.occupancy.status}
-            label={data.health.kpis.occupancy.status === 'good' ? 'Saludable' : 'Baja'}
+            label={data.health.kpis.occupancy.status === 'good' ? 'Nivel saludable' : data.health.kpis.occupancy.status === 'warning' ? 'Podría mejorar' : 'Muy baja'}
+            subtitle="de habitaciones vendidas"
+            helpKey="occupancy"
+            comparison={data.comparisons.mom?.metrics.occupancy ? {
+              value: data.comparisons.mom.metrics.occupancy.changePercent,
+              label: 'vs anterior'
+            } : null}
           />
           <StatusCard
-            title="Margen / Noche"
+            title="Ganancia por Noche"
             value={formatCurrencyShort(data.unitEconomics.profitPerNight)}
             status={data.unitEconomics.profitPerNight > 0 ? 'good' : 'bad'}
-            label={data.unitEconomics.profitPerNight > 0 ? 'Ganando' : 'Perdiendo'}
+            label={data.unitEconomics.profitPerNight > 0 ? 'Rentable' : 'Con pérdida'}
+            subtitle="después de costos"
+            helpKey="profit_per_night"
           />
           <StatusCard
             title="Punto de Equilibrio"
-            value={`${data.breakeven.currentOccupancy.toFixed(0)}% / ${data.breakeven.breakEvenOccupancy.toFixed(0)}%`}
+            value={`${data.breakeven.currentOccupancy.toFixed(0)}%`}
             status={data.breakeven.gapToBreakEven >= 0 ? 'good' : 'bad'}
-            label={data.breakeven.gapToBreakEven >= 0 ? 'Arriba' : 'Debajo'}
+            label={data.breakeven.gapToBreakEven >= 0 
+              ? `${Math.abs(data.breakeven.gapToBreakEven).toFixed(0)}pp sobre el mínimo` 
+              : `${Math.abs(data.breakeven.gapToBreakEven).toFixed(0)}pp bajo el mínimo`}
+            subtitle={`necesitás ${data.breakeven.breakEvenOccupancy.toFixed(0)}% para cubrir costos`}
+            helpKey="breakeven_occupancy"
           />
               </div>
+
+        {/* Period Summary Stats */}
+        <PeriodSummaryStats 
+          health={data.health}
+          breakeven={data.breakeven}
+          comparisons={data.comparisons}
+        />
             </section>
+
+      {/* Cobranzas Pendientes Alert */}
+      {data.cash.totalPending > 10000 && (
+        <section className={styles.collectionsAlert}>
+          <div className={styles.collectionsAlertIcon}>
+            <CreditCard size={24} />
+          </div>
+          <div className={styles.collectionsAlertContent}>
+            <div className={styles.collectionsAlertHeader}>
+              <strong>Pendiente por cobrar</strong>
+              <span className={styles.collectionsAlertAmount}>{formatCurrencyShort(data.cash.totalPending)}</span>
+            </div>
+            <div className={styles.collectionsAlertDetails}>
+              {data.cash.aging.overdue > 0 && (
+                <span className={styles.collectionsOverdue}>
+                  {formatCurrencyShort(data.cash.aging.overdue)} vencido
+                </span>
+              )}
+              {data.cash.aging.next7Days > 0 && (
+                <span className={styles.collectionsUpcoming}>
+                  {formatCurrencyShort(data.cash.aging.next7Days)} próximos 7 días
+                </span>
+              )}
+            </div>
+          </div>
+          <Link to="/acciones" className={styles.collectionsAlertAction}>
+            Ver cobranzas
+            <ChevronRight size={16} />
+          </Link>
+        </section>
+      )}
 
       {/* Section 2: Canales - Versión Resumida */}
       <section className={styles.commandSection}>
@@ -279,23 +319,41 @@ export default function Home() {
         <div className={styles.channelSummaryGrid}>
           <div className={styles.otaDependencyCompact}>
             <div className={styles.otaDependencyHeader}>
-              <span>Dependencia de portales: <strong>{data.channels.otaDependency.otaShare}%</strong></span>
-              {data.channels.otaDependency.isOverDependent && <AlertTriangle size={16} className="text-warning" />}
+              <span>Mix de canales</span>
+              <HelpTooltip termKey="ota_dependency" size="sm" />
             </div>
             <div className={styles.otaDependencyBar}>
               <div className={styles.otaDependencyDirect} style={{ width: `${data.channels.otaDependency.directShare}%` }} />
               <div className={styles.otaDependencyOta} style={{ width: `${data.channels.otaDependency.otaShare}%` }} />
             </div>
+            <div className={styles.otaDependencyLabels}>
+              <span className={styles.otaLabelDirect}>
+                <span className={styles.otaDot} style={{ background: 'var(--color-success)' }} />
+                Directo {data.channels.otaDependency.directShare}%
+              </span>
+              <span className={styles.otaLabelOta}>
+                <span className={styles.otaDot} style={{ background: 'var(--color-warning)' }} />
+                OTAs {data.channels.otaDependency.otaShare}%
+              </span>
+            </div>
+            {data.channels.otaDependency.isOverDependent && (
+              <div className={styles.otaDependencyWarning}>
+                <AlertTriangle size={14} />
+                <span>Alta dependencia de OTAs (más comisiones)</span>
+              </div>
+            )}
           </div>
 
           <div className={styles.channelHighlights}>
             <div className={styles.channelHighlightItem}>
               <span className={styles.highlightLabel}>Mejor Canal</span>
               <span className={styles.highlightValue}>{data.channels.bestChannelByProfitPerNight}</span>
+              <span className={styles.highlightSubtext}>por rentabilidad/noche</span>
             </div>
             <div className={styles.channelHighlightItem}>
               <span className={styles.highlightLabel}>Peor Canal</span>
               <span className={styles.highlightValue}>{data.channels.worstChannelByProfitPerNight}</span>
+              <span className={styles.highlightSubtext}>por rentabilidad/noche</span>
             </div>
                 </div>
               </div>
@@ -343,7 +401,23 @@ export default function Home() {
 // Sub-Components
 // =====================================================
 
-function StatusCard({ title, value, status, label }: { title: string; value: string; status: string; label: string }) {
+function StatusCard({ 
+  title, 
+  value, 
+  status, 
+  label, 
+  helpKey,
+  subtitle,
+  comparison 
+}: { 
+  title: string; 
+  value: string; 
+  status: string; 
+  label: string; 
+  helpKey?: string;
+  subtitle?: string;
+  comparison?: { value: number | null; label: string } | null;
+}) {
   const getStatusColor = () => {
     switch (status) {
       case 'good': return 'var(--color-success)';
@@ -353,20 +427,37 @@ function StatusCard({ title, value, status, label }: { title: string; value: str
     }
   };
 
+  const formatComparison = (val: number | null) => {
+    if (val === null || val === undefined || isNaN(val)) return null;
+    const sign = val >= 0 ? '+' : '';
+    return `${sign}${val.toFixed(1)}%`;
+  };
+
   return (
     <div className={styles.statusCard}>
-      <span className={styles.statusCardTitle}>{title}</span>
+      <div className={styles.statusCardHeader}>
+        <span className={styles.statusCardTitle}>{title}</span>
+        {helpKey && <HelpTooltip termKey={helpKey} size="sm" />}
+      </div>
       <span className={styles.statusCardValue}>{value}</span>
-      <div className={styles.statusCardIndicator}>
-        <div className={styles.statusDot} style={{ backgroundColor: getStatusColor() }} />
-        <span className={styles.statusLabel}>{label}</span>
+      {subtitle && <span className={styles.statusCardSubtitle}>{subtitle}</span>}
+      <div className={styles.statusCardFooter}>
+        <div className={styles.statusCardIndicator}>
+          <div className={styles.statusDot} style={{ backgroundColor: getStatusColor() }} />
+          <span className={styles.statusLabel}>{label}</span>
+        </div>
+        {comparison && comparison.value !== null && formatComparison(comparison.value) && (
+          <span className={`${styles.statusCardComparison} ${comparison.value >= 0 ? styles.positive : styles.negative}`}>
+            {formatComparison(comparison.value)} {comparison.label}
+          </span>
+        )}
       </div>
     </div>
   );
 }
 
 function DataConfidenceBanner({ confidence, onAction }: { confidence: any; onAction: () => void }) {
-  if (confidence.level === 'high') return null;
+  if (!confidence || confidence.level === 'high') return null;
   
   return (
     <div className={`confidence-banner confidence-banner--${confidence.level}`}>
@@ -415,44 +506,6 @@ function CostsNotConfiguredBanner({ unitEconomics }: { unitEconomics: any }) {
   );
 }
 
-function WeeklyActionCard({ action, isProminent }: { action: any, isProminent?: boolean }) {
-  const getIcon = () => {
-    switch (action.type) {
-      case 'collect_pending': return <CreditCard size={isProminent ? 32 : 24} />;
-      case 'reduce_commission': return <Percent size={isProminent ? 32 : 24} />;
-      case 'raise_adr': return <TrendingUp size={isProminent ? 32 : 24} />;
-      case 'cut_costs': return <TrendingDown size={isProminent ? 32 : 24} />;
-      case 'improve_data': return <Upload size={isProminent ? 32 : 24} />;
-      default: return <Zap size={isProminent ? 32 : 24} />;
-    }
-  };
-
-  const getLink = () => {
-    switch (action.type) {
-      case 'collect_pending': return '/acciones';
-      case 'reduce_commission': return '/canales';
-      case 'raise_adr': return '/rentabilidad';
-      case 'cut_costs': return '/costos';
-      case 'improve_data': return '/importar';
-      default: return '/acciones';
-    }
-  };
-
-  return (
-    <div className={`weekly-action weekly-action--priority-${action.priority} ${isProminent ? 'weekly-action--prominent' : ''}`}>
-      <div className="weekly-action__icon">{getIcon()}</div>
-      <div className="weekly-action__content">
-        <div className="weekly-action__label">Acción de la semana</div>
-        <div className="weekly-action__title">{action.title}</div>
-        <div className="weekly-action__impact">{action.impact}</div>
-      </div>
-      <Link to={getLink()} className="weekly-action__link">
-        {isProminent ? 'Ver por qué' : <ArrowRight size={20} />}
-      </Link>
-    </div>
-  );
-}
-
 function TopAlert({ alert }: { alert: any }) {
   return (
     <div className={`top-alert top-alert--${alert.severity}`}>
@@ -465,6 +518,122 @@ function TopAlert({ alert }: { alert: any }) {
         {alert.actionLabel}
         <ArrowRight size={16} />
       </Link>
+    </div>
+  );
+}
+
+function PeriodSummaryStats({ 
+  health, 
+  breakeven,
+  comparisons 
+}: { 
+  health: any;
+  breakeven: any;
+  comparisons: CommandCenterData['comparisons'];
+}) {
+  const mom = comparisons?.mom;
+  const revenue = mom?.metrics.revenue.current || 0;
+  const revenueChange = mom?.metrics.revenue.changePercent;
+  
+  const adr = health?.kpis?.adr?.value || 0;
+  const adrChange = mom?.metrics.adr?.changePercent;
+  
+  const nightsSold = breakeven?.nightsSoldThisPeriod || 0;
+  
+  // Calculate reservations estimate from nights and avg stay
+  const avgStay = nightsSold > 0 ? Math.max(2, Math.round(nightsSold / Math.max(1, Math.floor(nightsSold / 3)))) : 0;
+  const estimatedReservations = nightsSold > 0 ? Math.round(nightsSold / avgStay) : 0;
+
+  const formatChange = (val: number | undefined | null) => {
+    if (val === null || val === undefined || isNaN(val) || Math.abs(val) < 0.1) return null;
+    const sign = val >= 0 ? '+' : '';
+    return `${sign}${val.toFixed(1)}%`;
+  };
+
+  return (
+    <div className={styles.periodSummary}>
+      <div className={styles.periodSummaryItem}>
+        <span className={styles.periodSummaryValue}>{formatCurrencyShort(revenue)}</span>
+        <span className={styles.periodSummaryLabel}>Revenue</span>
+        {formatChange(revenueChange) && (
+          <span className={`${styles.periodSummaryChange} ${revenueChange && revenueChange >= 0 ? styles.positive : styles.negative}`}>
+            {formatChange(revenueChange)} vs ant.
+          </span>
+        )}
+      </div>
+      <div className={styles.periodSummaryDivider} />
+      <div className={styles.periodSummaryItem}>
+        <span className={styles.periodSummaryValue}>{formatCurrencyShort(adr)}</span>
+        <span className={styles.periodSummaryLabel}>ADR</span>
+        {formatChange(adrChange) && (
+          <span className={`${styles.periodSummaryChange} ${adrChange && adrChange >= 0 ? styles.positive : styles.negative}`}>
+            {formatChange(adrChange)} vs ant.
+          </span>
+        )}
+      </div>
+      <div className={styles.periodSummaryDivider} />
+      <div className={styles.periodSummaryItem}>
+        <span className={styles.periodSummaryValue}>{nightsSold}</span>
+        <span className={styles.periodSummaryLabel}>Noches vendidas</span>
+      </div>
+      <div className={styles.periodSummaryDivider} />
+      <div className={styles.periodSummaryItem}>
+        <span className={styles.periodSummaryValue}>~{estimatedReservations}</span>
+        <span className={styles.periodSummaryLabel}>Reservas</span>
+      </div>
+    </div>
+  );
+}
+
+function PeriodComparisonWidget({ comparisons }: { comparisons: CommandCenterData['comparisons'] }) {
+  const mom = comparisons?.mom;
+  
+  // Check if we have valid comparison data
+  const hasValidData = mom && 
+    mom.metrics.netProfit && 
+    (mom.metrics.netProfit.previous !== 0 || mom.metrics.netProfit.current !== 0);
+  
+  const changePercent = mom?.metrics.netProfit?.changePercent;
+  const hasMeaningfulChange = changePercent !== null && 
+    changePercent !== undefined && 
+    !isNaN(changePercent) && 
+    Math.abs(changePercent) > 0.1;
+
+  if (!hasValidData) {
+    return (
+      <div className={styles.contextItem}>
+        <span className={styles.contextLabel}>vs período anterior</span>
+        <div className={styles.contextValueMuted}>
+          Sin datos previos
+        </div>
+        <span className={styles.contextSubtext}>Importá más meses</span>
+      </div>
+    );
+  }
+
+  if (!hasMeaningfulChange) {
+    return (
+      <div className={styles.contextItem}>
+        <span className={styles.contextLabel}>vs período anterior</span>
+        <div className={styles.contextValueMuted}>
+          ≈ Similar
+        </div>
+        <span className={styles.contextSubtext}>Sin cambios significativos</span>
+      </div>
+    );
+  }
+
+  const isPositive = changePercent >= 0;
+  
+  return (
+    <div className={styles.contextItem}>
+      <span className={styles.contextLabel}>vs período anterior</span>
+      <div className={`${styles.contextValue} ${isPositive ? styles.positive : styles.negative}`}>
+        {isPositive ? '+' : ''}{changePercent.toFixed(1)}%
+      </div>
+      <span className={styles.contextSubtext}>
+        {isPositive ? 'Mejorando' : 'Bajando'}
+      </span>
     </div>
   );
 }

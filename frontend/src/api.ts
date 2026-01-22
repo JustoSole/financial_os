@@ -186,8 +186,12 @@ export const getUnprofitableReservations = (propertyId: string, days: number = 3
 // =====================================================
 // Actions (Section 8 PRD)
 // =====================================================
-export const getActions = (propertyId: string) =>
-  request<any[]>(`/actions/${propertyId}`);
+export const getActions = (propertyId: string, startDateOrDays: string | number = 30, endDate?: string) => {
+  const params = typeof startDateOrDays === 'string' && endDate
+    ? new URLSearchParams({ startDate: startDateOrDays, endDate })
+    : new URLSearchParams({ days: startDateOrDays.toString() });
+  return request<any[]>(`/actions/${propertyId}?${params}`);
+};
 
 export const completeActionStep = (propertyId: string, actionType: string, stepIndex: number) =>
   request<void>(`/actions/${propertyId}/step`, {

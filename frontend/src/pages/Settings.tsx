@@ -229,11 +229,16 @@ export default function Settings() {
                       setSaved(false);
                     }}
                   >
-                    <option value="USD">Dólar (USD)</option>
                     <option value="ARS">Peso Argentino (ARS)</option>
                     <option value="MXN">Peso Mexicano (MXN)</option>
+                    <option value="COP">Peso Colombiano (COP)</option>
+                    <option value="USD">Dólar (USD)</option>
                     <option value="BRL">Real (BRL)</option>
+                    <option value="EUR">Euro (EUR)</option>
                   </select>
+                  <small style={{ color: 'var(--color-text-muted)', marginTop: '0.25rem', display: 'block' }}>
+                    Esta moneda se usa para mostrar todos los valores. Debería coincidir con la de tus archivos CSV.
+                  </small>
                 </div>
                 <div className="form-group">
                   <label>Total de Habitaciones</label>

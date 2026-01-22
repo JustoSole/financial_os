@@ -379,7 +379,13 @@ export function getCommandCenterData(propertyId: string, startDateOrDays: string
           previous: (momData.metrics.revenue.previous / (costSettings?.room_count || 1) / days),
           changePercent: momData.metrics.revenue.changePercent // approximation
         },
-        netProfit: { current: profitability.totalNetProfit, previous: 0, changePercent: 0 } // Historical profit is harder to get in one go
+        netProfit: { 
+          current: profitability.totalNetProfit, 
+          previous: previousProfitability?.totalNetProfit || 0, 
+          changePercent: previousProfitability?.totalNetProfit && previousProfitability.totalNetProfit !== 0
+            ? ((profitability.totalNetProfit - previousProfitability.totalNetProfit) / Math.abs(previousProfitability.totalNetProfit)) * 100
+            : 0 
+        }
       }
     } : null,
     yoy: yoyData ? {
