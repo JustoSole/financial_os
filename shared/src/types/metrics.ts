@@ -374,6 +374,9 @@ export interface ReservationEconomicsSummary {
   unprofitableLoss: number;
   unprofitableShare: number;
   
+  // GOPPAR
+  goppar: number;
+  
   // Patterns
   patterns: ReservationPattern[];
   
