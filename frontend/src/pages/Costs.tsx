@@ -152,7 +152,7 @@ export default function Costs() {
         setStartingCashBalance(data.starting_cash_balance || 0);
         
         // Load cleaning per stay (independent from monthly variables)
-        if (data.variable_costs?.cleaningPerStay > 0) {
+        if (data.variable_costs?.cleaningPerStay !== undefined) {
           setCleaningPerStay(data.variable_costs.cleaningPerStay);
         }
         
@@ -292,7 +292,7 @@ export default function Costs() {
     setSaving(true);
     setSaved(false);
     try {
-      const res = await updateCosts(property.id, {
+      const updateData: any = {
         startingCashBalance,
         cleaningPerStay, // Costo de limpieza por estadía (unit economics real)
         variableCategories,
@@ -300,7 +300,8 @@ export default function Costs() {
         extraordinaryCosts,
         channelCommissions,
         paymentFees,
-      });
+      };
+      const res = await updateCosts(property.id, updateData);
       if (res.success) {
         setSaved(true);
         refreshData();

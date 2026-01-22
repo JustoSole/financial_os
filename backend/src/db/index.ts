@@ -24,6 +24,18 @@ interface Database {
   import_log: any[];
 }
 
+// Default empty database
+const emptyDb: Database = {
+  properties: [],
+  import_files: [],
+  ledger_transactions: [],
+  reservation_financials: [],
+  channel_summaries: [],
+  cost_settings: [],
+  action_completions: [],
+  import_log: [],
+};
+
 // Ensure data directory exists
 const dataDir = process.env.RENDER_DISK_MOUNT_PATH 
   ? path.join(process.env.RENDER_DISK_MOUNT_PATH)

@@ -124,14 +124,6 @@ export const glossary: Record<string, GlossaryTerm> = {
     example: 'Tenés $50,000 vencidos, $30,000 a 7 días, $80,000 a 30 días.',
     category: 'financial',
   },
-  goppar: {
-    term: 'GOPPAR',
-    definition: 'Gross Operating Profit Per Available Room. Es la ganancia neta real por cada habitación que tenés (esté ocupada o no). A diferencia del RevPAR, el GOPPAR descuenta todos los costos operativos.',
-  },
-  goppar: {
-    term: 'GOPPAR',
-    definition: 'Gross Operating Profit Per Available Room. Es la ganancia neta real por cada habitación que tenés (esté ocupada o no). A diferencia del RevPAR, el GOPPAR descuenta todos los costos operativos.',
-  },
   unitEconomics: {
     term: 'Economía por Reserva',
     shortExplanation: 'Cuánto ganás o perdés en cada reserva',
