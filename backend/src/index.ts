@@ -3,6 +3,7 @@ import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
 import { initializeDatabase } from './db';
+import { seedDatabase } from './seed';
 import apiRoutes from './routes/api';
 
 const app = express();
@@ -12,6 +13,11 @@ const PORT = process.env.PORT || 3001;
 console.log('🔧 Initializing database...');
 initializeDatabase();
 console.log('✅ Database initialized');
+
+// Seed database with sample data if empty
+seedDatabase()
+  .then(() => console.log('✅ Seed check complete'))
+  .catch(err => console.error('❌ Seed failed:', err));
 
 // Middleware
 app.use(cors());

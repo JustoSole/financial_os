@@ -25,6 +25,7 @@ import {
   Badge,
   EmptyState,
 } from '../components/ui';
+import DataHealthBanner from '../components/DataHealthBanner';
 import styles from './Home.module.css';
 
 
@@ -137,6 +138,30 @@ export default function Home() {
         confidence={data.dataConfidence} 
         onAction={() => window.location.href = '/importar'} 
       />
+
+      {/* Demo Mode Banner */}
+      {data.dataConfidence.score >= 90 && (
+        <div style={{ 
+          marginBottom: 'var(--space-6)',
+          padding: 'var(--space-3) var(--space-4)', 
+          background: 'var(--color-primary-subtle)', 
+          borderRadius: 'var(--radius-md)',
+          fontSize: 'var(--text-sm)',
+          color: 'var(--color-primary)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 'var(--space-3)',
+          border: '1px solid var(--color-primary-light)'
+        }}>
+          <Zap size={18} fill="currentColor" />
+          <div>
+            <strong>Modo Demo Activo:</strong> Estás viendo datos de ejemplo para explorar la herramienta. 
+            <Link to="/importar" style={{ marginLeft: 'var(--space-2)', fontWeight: 600, textDecoration: 'underline' }}>
+              Cargá tus propios reportes aquí
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* Costs Not Configured Banner */}
       <CostsNotConfiguredBanner unitEconomics={data.unitEconomics} />
