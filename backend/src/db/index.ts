@@ -24,22 +24,13 @@ interface Database {
   import_log: any[];
 }
 
-const dataDir = path.join(__dirname, '../../data');
+// Ensure data directory exists
+const dataDir = process.env.RENDER_DISK_MOUNT_PATH 
+  ? path.join(process.env.RENDER_DISK_MOUNT_PATH)
+  : path.join(__dirname, '../../data');
+
 const dbPath = path.join(dataDir, 'financial_os.json');
 
-// Default empty database
-const emptyDb: Database = {
-  properties: [],
-  import_files: [],
-  ledger_transactions: [],
-  reservation_financials: [],
-  channel_summaries: [],
-  cost_settings: [],
-  action_completions: [],
-  import_log: [],
-};
-
-// Ensure data directory exists
 if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true });
 }

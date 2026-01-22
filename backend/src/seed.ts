@@ -4,7 +4,9 @@ import database from './db';
 import { importCSV } from './services/import-service';
 import { nanoid } from 'nanoid';
 
-const SAMPLE_DATA_DIR = path.join(__dirname, '../../sample-data');
+const SAMPLE_DATA_DIR = process.env.NODE_ENV === 'production'
+  ? path.join(__dirname, '../sample-data') // In production, it will be inside backend/dist/sample-data or similar
+  : path.join(__dirname, '../../sample-data');
 
 export async function seedDatabase() {
   const existingProperty = database.getProperty();

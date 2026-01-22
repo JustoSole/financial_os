@@ -8,6 +8,8 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      - key: RENDER_DISK_MOUNT_PATH
+        value: /opt/render/project/src/backend/data
     disk:
       name: financial-os-data
       mountPath: /opt/render/project/src/backend/data
