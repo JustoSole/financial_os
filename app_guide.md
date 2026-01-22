@@ -186,7 +186,7 @@ Un dueño de hotel siempre se pregunta:
 * Subida manual de CSVs (1 por tipo de reporte / 30 días)
 * **Command Center** con métricas básicas:
   * Net Profit del período
-  * KPIs: Occupancy, ADR, RevPAR, GOPPAR
+  * KPIs: Occupancy, ADR, RevPAR, GOPPAR (Gross Operating Profit Per Available Room)
   * Break-even básico
   * Channel mix
 * Hasta 2 acciones recomendadas
@@ -480,13 +480,15 @@ Penalizaciones:
 *   ✅ Command Center con análisis MoM/YoY.
 *   ✅ Gráficos de tendencia (last 6 months).
 *   ✅ Date Range Picker con rangos personalizados.
-*   ✅ P&L Detallado por reserva con Memoria de Cálculo.
+*   ✅ P&L Detallado por reserva con Memoria de Cálculo y AI Insights.
 *   ✅ Detección de cobertura histórica insuficiente.
+*   ✅ Categorías de costos flexibles (V4).
 
 ### v2.1 (Próximo)
 *   Inbox Connect (auto-ingesta por email).
 *   Alertas configurables por email/whatsapp.
 *   Exportes PDF automatizados.
+*   Análisis de Día de Semana (DOW) y Proyecciones OTB.
 
 ### v3.0 (Futuro)
 *   Integración directa con API Cloudbeds.

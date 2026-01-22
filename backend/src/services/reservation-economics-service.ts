@@ -375,6 +375,11 @@ export function calculateReservationEconomicsSummary(
   const avgMarginPercent = totalRevenue > 0 ? (totalNetProfit / totalRevenue) * 100 : 0;
   const avgProfitPerNight = totalRoomNights > 0 ? totalNetProfit / totalRoomNights : 0;
 
+  // GOPPAR: Total Net Profit / Available Room Nights
+  const roomCount = costSettings?.room_count || 0;
+  const availableNights = roomCount * days;
+  const goppar = availableNights > 0 ? totalNetProfit / availableNights : 0;
+
   // Unprofitable analysis
   const unprofitable = reservationEconomics.filter(r => r.isUnprofitable);
   const unprofitableCount = unprofitable.length;
@@ -456,6 +461,7 @@ export function calculateReservationEconomicsSummary(
     totalNetProfit: Math.round(totalNetProfit),
     avgMarginPercent: Math.round(avgMarginPercent * 10) / 10,
     avgProfitPerNight: Math.round(avgProfitPerNight),
+    goppar: Math.round(goppar),
     unprofitableCount,
     unprofitableLoss: Math.round(unprofitableLoss),
     unprofitableShare: Math.round(unprofitableShare * 10) / 10,

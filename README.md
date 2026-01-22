@@ -12,11 +12,12 @@ Convertimos tus reportes de Cloudbeds en decisiones de ganancia y caja, sin Exce
 
 En **menos de 5 minutos**, un hotelero puede:
 
-1. **Subir 3 CSVs** exportados desde Cloudbeds
-2. **Ver su Command Center** con respuestas a las 40 preguntas clave del negocio en 60 segundos
-3. **Recibir la acción de la semana** con impacto estimado en $ y prioridad visual
-4. **Analizar tendencias** de los últimos 6 meses y proyecciones de ingresos
-5. **Confiar en los datos** — con sellos de `Real` vs `Estimado` e indicadores de confianza `●/◐/○`
+1. **Subir 3 CSVs** exportados desde Cloudbeds (Transactions, Reservations, Channels).
+2. **Ver su Command Center** con respuestas a las 40 preguntas clave del negocio en 60 segundos.
+3. **Recibir la acción de la semana** con impacto estimado en $ y prioridad visual.
+4. **Analizar Rentabilidad Detallada**: P&L por reserva con **Memoria de Cálculo** y explicación de "por qué pasó".
+5. **Analizar tendencias** de los últimos 6 meses y comparativas **MoM / YoY** automáticas.
+6. **Confiar en los datos** — con sellos de `Real` vs `Estimado` e indicadores de confianza `●/◐/○`.
 
 ---
 
@@ -53,8 +54,9 @@ El análisis detallado se distribuye en vistas especializadas para no saturar el
 *   **Rentabilidad**: P&L por reserva, **Tendencias Históricas** (6 meses), **Comparativas MoM/YoY** y simuladores.
 *   **Canales**: Tabla completa de comisiones, ADR neto y mix detallado.
 *   **Caja**: Reconciliación, Runway y Aging de cobranzas.
+*   **Costos**: Configuración flexible de costos fijos y variables (V4).
 
-### 5. Caja, Cobranzas y Proyección
+### 4. Caja, Cobranzas y Proyección
 | Pregunta | Respuesta |
 |----------|-----------|
 | ¿Cuánto cobré vs cuánto cargué? | **Reconciliación** con gap explicado |
@@ -62,7 +64,7 @@ El análisis detallado se distribuye en vistas especializadas para no saturar el
 | ¿Mi caja aguanta? | **Runway** en días basado en saldo actual y burn-rate |
 | ¿Cuánta plata va a entrar? | **Proyección de ingresos** a 4 semanas (on-the-books) |
 
-### 6. Acción de la Semana
+### 5. Acción de la Semana
 La **única acción más importante** que debés tomar esta semana, con impacto en $ y prioridad visual generada por el Decision Engine.
 
 ---
@@ -151,7 +153,7 @@ financial-os-cloudbeds/
 │   │   ├── parsers/      # Parsers de CSV específicos para Cloudbeds
 │   │   ├── services/     # Lógica de negocio y motores de decisión
 │   │   │   ├── calculators/      # Profit engine, Pricing engine
-│   │   │   ├── command-center-service.ts  # ⭐ Nuevo: Servicio unificado
+│   │   │   ├── command-center-service.ts  # ⭐ Servicio unificado
 │   │   │   ├── insights-service.ts
 │   │   │   ├── metrics-service.ts
 │   │   │   └── ...

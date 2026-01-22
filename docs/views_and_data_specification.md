@@ -49,6 +49,7 @@ La **única acción más importante** de la semana. Ahora con diseño visualment
     *   **Ocupación:** Saludable / Baja.
     *   **Margen / Noche:** Ganando / Perdiendo.
     *   **Punto de Equilibrio:** Arriba / Debajo.
+*   **Date Range Picker:** Selector de fechas flexible con soporte para rangos personalizados y comparativas automáticas.
 
 #### 4. Canales y Distribución (Resumen)
 *   **OTA Dependency Bar:** Visualización compacta de Directo vs Portales.
@@ -65,7 +66,7 @@ Links directos con descripción a las vistas de detalle:
 ## 📈 Vista: Rentabilidad
 
 ### Resumen del Período
-* Net Profit Total, Margen Promedio y alertas de reservas no rentables.
+* Net Profit Total, GOPPAR (Gross Operating Profit Per Available Room), Margen Promedio y alertas de reservas no rentables.
 
 ### Sistema de Navegación por Tabs
 1.  **Umbrales:** Punto de equilibrio detallado y desgloses de costos.
@@ -80,7 +81,7 @@ Links directos con descripción a las vistas de detalle:
 Al hacer clic en una reserva, se abre un drawer con:
 *   **Resumen de Profit:** Net Profit, Profit/noche y Margen %.
 *   **Desglose P&L:** Revenue - Comisiones - Costos Variables - Costos Fijos.
-*   **Análisis Inteligente:** Explicación textual de "por qué pasó" la pérdida.
+*   **Análisis Inteligente:** Explicación textual de "por qué pasó" la pérdida (ej. "Estadía corta con altos costos variables").
 *   **Memoria de Cálculo:** Listado paso a paso de todas las fórmulas aplicadas.
 *   **Confidence Badges:** Nivel de precisión del dato (Real/Estimado) y motivos de confianza.
 
@@ -98,12 +99,10 @@ Al hacer clic en una reserva, se abre un drawer con:
 - **Bar Chart:** Profit per night por canal
 
 ### Tabla de Detalle
-
 | Canal | Ingresos | Comisión | Tasa % | Noches | Profit/Noche |
 |-------|----------|----------|--------|--------|--------------|
 
 ### Comisiones por Defecto (Fallback)
-
 ```typescript
 { "booking.com": 15%, "expedia": 18%, "hotels.com": 20%, 
   "airbnb": 3%, "vrbo": 8%, "agoda": 15%, "direct": 0% }
@@ -114,7 +113,6 @@ Al hacer clic en una reserva, se abre un drawer con:
 ## 💰 Vista: Caja
 
 ### Card Principal: Días de Tranquilidad
-
 | Estado | Condición | Mensaje |
 |--------|-----------|---------|
 | Excellent | ∞ | "Caja creciendo, buen momento para invertir" |
@@ -130,7 +128,6 @@ Al hacer clic en una reserva, se abre un drawer con:
 - Montos por bucket
 
 ### Proyección de Flujo
-
 ```
 Saldo inicial + Ingresos proyectados - Egresos proyectados = Flujo neto
 ```
@@ -140,13 +137,12 @@ Saldo inicial + Ingresos proyectados - Egresos proyectados = Flujo neto
 ## ⚙️ Vista: Costos
 
 ### Secciones de Configuración
-
 | Sección | Contenido |
 |---------|-----------|
 | **Room Count** | Cantidad de habitaciones (crítico para cálculos) |
 | **Saldo** | Saldo inicial de caja para cálculo de runway |
-| **Variables** | Limpieza por estadía, Lavandería (mes), Amenities (mes) |
-| **Fijos** | Sueldos, Alquiler, Servicios, Otros |
+| **Variables** | Categorías flexibles (Limpieza, Lavandería, Amenities, etc.) |
+| **Fijos** | Categorías flexibles (Sueldos, Alquiler, Servicios, etc.) |
 | **OTAs** | Comisiones por canal detectado en PMS + Default |
 | **Pasarela** | Fees de cobro por método (MercadoPago, Stripe, etc.) |
 
@@ -178,7 +174,6 @@ Lista de archivos procesados con estado, cantidad de registros, tipo detectado y
 ## 🔧 Vista: Configuración
 
 ### Secciones
-
 | Sección | Contenido |
 |---------|-----------|
 | **Propiedad** | Nombre, Moneda (USD, MXN, EUR, etc.) |
@@ -187,7 +182,6 @@ Lista de archivos procesados con estado, cantidad de registros, tipo detectado y
 | **Privacidad** | Exportar datos, eliminar cuenta |
 
 ### Límites por Plan
-
 | Feature | Free | Pro | Partner |
 |---------|------|-----|---------|
 | Propiedades | 1 | 1 | ∞ |
@@ -198,7 +192,6 @@ Lista de archivos procesados con estado, cantidad de registros, tipo detectado y
 ---
 
 ## 🧩 Componentes Clave
-
 | Componente | Props Principales |
 |------------|-------------------|
 | `MetricCard` | title, value, delta, tooltip, isEstimate, confidence, icon, prefix/suffix |
@@ -212,8 +205,9 @@ Lista de archivos procesados con estado, cantidad de registros, tipo detectado y
 | `ChannelInsightCard` | type (best/worst/commission), title, channel, value |
 | `AgingBucket` | label, amount, status, icon |
 | `CashRunway` | runwayDays, runwayStatus |
-| `PeriodSelector` | Valores: 7, 30, 90 días |
+| `PeriodSelector` | Valores: 7, 30, 90 días, Custom |
 | `ImportWizard` | Estados: upload → validate → importing → complete |
+| `ReservationDrawer` | P&L details, Calculation Memory, AI Insights |
 
 ---
 
@@ -249,7 +243,8 @@ Lista de archivos procesados con estado, cantidad de registros, tipo detectado y
   reservationNumber, guestName, source, sourceCategory, checkIn,
   roomNights, revenue, commissionAmount, variableCosts, 
   fixedCostAllocated, netProfit, profitPerNight, marginPercent,
-  isUnprofitable, trust, confidence, confidenceReasons[], calcNotes[]
+  isUnprofitable, trust, confidence, confidenceReasons[], calcNotes[],
+  aiInsights: string[]
 }
 ```
 
@@ -369,7 +364,6 @@ Lista de archivos procesados con estado, cantidad de registros, tipo detectado y
 ## 🎨 Design System
 
 ### Colores Principales
-
 | Variable | Valor | Uso |
 |----------|-------|-----|
 | `--color-primary` | #0f766e | Acciones, éxito, brand |
@@ -382,12 +376,10 @@ Lista de archivos procesados con estado, cantidad de registros, tipo detectado y
 | `--color-bg` | #fafaf9 | Fondo |
 
 ### Tipografía
-
 - Sans: Plus Jakarta Sans
 - Mono: JetBrains Mono (valores numéricos)
 
 ### Badges
-
 | Clase | Color | Uso |
 |-------|-------|-----|
 | `.badge-success` | Verde | Éxito, alta confianza |
@@ -400,7 +392,6 @@ Lista de archivos procesados con estado, cantidad de registros, tipo detectado y
 | `.badge--real` | Verde | Métrica real |
 
 ### Status Colors para KPIs
-
 | Status | Color | Uso |
 |--------|-------|-----|
 | `good` | Verde border-left | KPI saludable |
@@ -408,7 +399,6 @@ Lista de archivos procesados con estado, cantidad de registros, tipo detectado y
 | `bad` | Rojo border-left | KPI crítico |
 
 ### Command Center Classes
-
 ```css
 .command-center              /* Container principal */
 .command-section             /* Cada sección con fondo blanco */
@@ -459,7 +449,6 @@ El sistema utiliza un mapeo flexible para detectar las columnas, pero estas son 
 ---
 
 ## 📊 Telemetría
-
 | Evento | Trigger |
 |--------|---------|
 | `view_home` | Carga Command Center |
@@ -474,7 +463,8 @@ El sistema utiliza un mapeo flexible para detectar las columnas, pero estas son 
 | `import_success/failed` | Resultado import |
 | `costs_updated` | Guarda costos |
 | `action_checked` | Completa paso de acción |
+| `reservation_drawer_opened` | Abre detalle de reserva |
 
 ---
 
-*Financial OS v2.0 — Command Center Edition*
+*Financial OS v2.1 — Command Center Edition*

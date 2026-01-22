@@ -52,6 +52,7 @@ interface Summary {
   totalNetProfit: number;
   avgMarginPercent: number;
   avgProfitPerNight: number;
+  goppar: number;
   unprofitableCount: number;
   unprofitableLoss: number;
   unprofitableShare: number;
@@ -242,6 +243,18 @@ export default function Profitability() {
         <SummaryMetric
           value={`${summary.avgMarginPercent.toFixed(1)}%`}
           label="Margen promedio"
+        />
+        <SummaryMetric
+          value={formatCurrency(summary.goppar)}
+          label="GOPPAR"
+          variant={summary.goppar >= 0 ? 'positive' : 'negative'}
+          helpKey="goppar"
+        />
+        <SummaryMetric
+          value={formatCurrency(summary.goppar)}
+          label="GOPPAR"
+          variant={summary.goppar >= 0 ? 'positive' : 'negative'}
+          helpKey="goppar"
         />
         <SummaryMetric
           value={summary.unprofitableCount}
