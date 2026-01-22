@@ -50,9 +50,28 @@ if (!fs.existsSync(dataDir)) {
 // Load database from file
 function loadDb(): Database {
   try {
+    // 1. Try to load from persistent storage
     if (fs.existsSync(dbPath)) {
       const data = fs.readFileSync(dbPath, 'utf-8');
-      return { ...emptyDb, ...JSON.parse(data) };
+      const parsed = JSON.parse(data);
+      
+      // If database has a property and some data, return it
+      if (parsed.properties?.length > 0 && (parsed.ledger_transactions?.length > 0 || parsed.reservation_financials?.length > 0)) {
+        return { ...emptyDb, ...parsed };
+      }
+    }
+
+    // 2. If persistent storage is empty or doesn't exist, try to load from demo backup
+    const demoDbPath = path.join(__dirname, '../data/default/demo_db.json');
+    if (fs.existsSync(demoDbPath)) {
+      console.log('💡 Loading demo database from backup...');
+      const demoData = fs.readFileSync(demoDbPath, 'utf-8');
+      const parsedDemo = JSON.parse(demoData);
+      
+      // Save it to persistent storage immediately so it persists across restarts
+      saveDb(parsedDemo);
+      
+      return { ...emptyDb, ...parsedDemo };
     }
   } catch (e) {
     console.error('Error loading database:', e);
