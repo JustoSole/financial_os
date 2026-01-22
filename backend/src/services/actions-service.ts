@@ -416,9 +416,11 @@ function checkUnprofitableReservations(propertyId: string, startDateOrDays: stri
 // Trigger: avg_profit_per_night < 0 for 1-night bucket and count >= 5
 // =====================================================
 
-function checkOneNightLossPattern(propertyId: string, startDateOrDays: string | number = 30, endDate?: string): RecommendedAction | null {
+function checkOneNightLossPattern(propertyId: string, startDateOrDays: string | number = 30, _endDate?: string): RecommendedAction | null {
   try {
-    const lossPatterns = getChannelLossPatterns(propertyId, startDateOrDays, endDate);
+    // getChannelLossPatterns only supports days parameter, not date ranges
+    const days = typeof startDateOrDays === 'number' ? startDateOrDays : 30;
+    const lossPatterns = getChannelLossPatterns(propertyId, days);
     
     // Find 1-night loss patterns with significant count
     const oneNightLosses = lossPatterns.filter(p => 

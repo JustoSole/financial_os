@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { getCommandCenter } from '../api';
-import { PeriodSelector, HelpTooltip } from '../components';
+import { PeriodSelector, HelpTooltip, OnboardingWizard } from '../components';
 import { formatCurrency, formatCurrencyShort } from '../utils/formatters';
 import {
   TrendingUp,
@@ -21,7 +21,6 @@ import {
 } from 'lucide-react';
 import {
   Badge,
-  EmptyState,
 } from '../components/ui';
 import styles from './Home.module.css';
 
@@ -68,9 +67,14 @@ interface CommandCenterData {
 // =====================================================
 
 export default function Home() {
-  const { property, dateRange } = useApp();
+  const { property, dateRange, refreshData, refreshProperty } = useApp();
   const [data, setData] = useState<CommandCenterData | null>(null);
   const [loading, setLoading] = useState(true);
+  
+  // Check URL for forced onboarding (useful for demos)
+  const urlParams = new URLSearchParams(window.location.search);
+  const forceOnboarding = urlParams.get('setup') === '1';
+  const [showOnboarding, setShowOnboarding] = useState(forceOnboarding);
 
   useEffect(() => {
     async function load() {
@@ -84,12 +88,35 @@ export default function Home() {
         getCommandCenter(property.id, startStr, endStr),
       ]);
 
-      if (commandRes.success) setData(commandRes.data);
+      if (commandRes.success) {
+        setData(commandRes.data);
+        // Show onboarding if no real data (unless forced via URL)
+        if (!forceOnboarding) {
+          const hasRealData = commandRes.data?.health && 
+            commandRes.data?.health?.kpis?.occupancy?.value > 0;
+          setShowOnboarding(!hasRealData);
+        }
+      } else {
+        setShowOnboarding(true);
+      }
 
       setLoading(false);
     }
     load();
-  }, [property?.id, dateRange]);
+  }, [property?.id, dateRange, forceOnboarding]);
+
+  const handleOnboardingComplete = async () => {
+    setShowOnboarding(false);
+    await refreshProperty();
+    await refreshData();
+    // Reload data
+    if (property?.id) {
+      const startStr = dateRange.start.toISOString().substring(0, 10);
+      const endStr = dateRange.end.toISOString().substring(0, 10);
+      const commandRes = await getCommandCenter(property.id, startStr, endStr);
+      if (commandRes.success) setData(commandRes.data);
+    }
+  };
 
   if (loading) {
     return (
@@ -102,17 +129,10 @@ export default function Home() {
 
   const hasData = data && data.health;
 
-  if (!hasData) {
+  if (!hasData || showOnboarding) {
     return (
-      <div className={styles.commandCenter}>
-        <EmptyState 
-          title="Conectá tus datos de Cloudbeds" 
-          description="Para ver tu Dashboard, necesitamos subir tus reportes de Cloudbeds. El proceso toma menos de 2 minutos." 
-          action={{ 
-            label: 'Ir a Importar datos', 
-            onClick: () => window.location.href = '/importar'
-          }}
-        />
+      <div className={styles.onboardingOverlay}>
+        <OnboardingWizard onComplete={handleOnboardingComplete} />
       </div>
     );
   }
