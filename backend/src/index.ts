@@ -43,7 +43,37 @@ async function startServer() {
 app.use(cors());
 app.use(express.json());
 
-// ... rest of middleware and routes ...
+// API Routes
+app.use('/api', apiRoutes);
+
+// Serve frontend static files in production
+if (process.env.NODE_ENV === 'production') {
+  const frontendDistPath = path.join(__dirname, '../../frontend/dist');
+  console.log(`📁 Serving frontend from: ${frontendDistPath}`);
+  
+  // Serve static assets
+  app.use(express.static(frontendDistPath));
+  
+  // Handle SPA routing - serve index.html for all non-API routes
+  app.get('*', (req, res) => {
+    const indexPath = path.join(frontendDistPath, 'index.html');
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      console.error('❌ index.html not found at:', indexPath);
+      res.status(404).send('Frontend not built. Please run npm run build.');
+    }
+  });
+} else {
+  // Development: API routes only (frontend runs on separate vite server)
+  app.get('/', (req, res) => {
+    res.json({ 
+      message: 'Financial OS API', 
+      status: 'running',
+      docs: '/api/health'
+    });
+  });
+}
 
 startServer();
 

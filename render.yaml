@@ -14,5 +14,5 @@ services:
       name: financial-os-data
       mountPath: /opt/render/project/src/backend/data
       sizeGB: 1
-    healthCheckPath: /
+    healthCheckPath: /api/health
 
