@@ -9,6 +9,8 @@ interface FileInfo {
   reportType?: string;
   error?: string;
   warnings?: string[];
+  detectedCurrency?: string;
+  currencyMismatch?: boolean;
 }
 
 const REPORT_TYPES = {
@@ -83,16 +85,30 @@ export default function ImportWizard() {
       try {
         const result = await validateFile(fileInfos[i].file);
         
+        // Check currency mismatch (Currency Lock feature)
+        const detectedCurrency = result.data?.detectedCurrency;
+        const propertyCurrency = property?.currency || 'ARS';
+        const currencyMismatch = detectedCurrency && 
+          detectedCurrency !== 'unknown' && 
+          detectedCurrency !== propertyCurrency;
+        
         setFiles((prev) => {
           const updated = [...prev];
           const idx = prev.findIndex((f) => f.file === fileInfos[i].file);
           if (idx !== -1) {
+            // Si hay mismatch de moneda, marcar como inválido
+            const isValid = result.success && result.data?.isValid && !currencyMismatch;
+            
             updated[idx] = {
               ...updated[idx],
-              status: result.success && result.data?.isValid ? 'valid' : 'invalid',
+              status: isValid ? 'valid' : 'invalid',
               reportType: result.data?.reportType,
-              error: result.data?.missingRequired?.join(', '),
+              error: currencyMismatch 
+                ? `⚠️ MONEDA INCORRECTA: El archivo parece estar en ${detectedCurrency} pero tu propiedad está configurada en ${propertyCurrency}. Esto causaría análisis incorrectos.`
+                : result.data?.missingRequired?.join(', '),
               warnings: result.data?.warnings,
+              detectedCurrency,
+              currencyMismatch,
             };
           }
           return updated;
@@ -238,7 +254,9 @@ export default function ImportWizard() {
                 <div className="file-info">
                   <span className="file-name">{fileInfo.file.name}</span>
                   <span className="file-meta">
-                    {fileInfo.reportType && REPORT_TYPES[fileInfo.reportType as keyof typeof REPORT_TYPES]
+                    {fileInfo.currencyMismatch
+                      ? fileInfo.error
+                      : fileInfo.reportType && REPORT_TYPES[fileInfo.reportType as keyof typeof REPORT_TYPES]
                       ? REPORT_TYPES[fileInfo.reportType as keyof typeof REPORT_TYPES].name
                       : fileInfo.status === 'validating'
                       ? 'Validando...'
@@ -511,6 +529,12 @@ export default function ImportWizard() {
         .file-item.invalid .file-meta,
         .file-item.error .file-meta {
           color: var(--color-error);
+        }
+
+        .file-item.invalid .file-meta {
+          font-size: 0.75rem;
+          line-height: 1.4;
+          max-width: 350px;
         }
 
         .file-warnings {

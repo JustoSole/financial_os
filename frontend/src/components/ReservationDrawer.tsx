@@ -112,8 +112,13 @@ export default function ReservationDrawer({
             </div>
           </DrawerSection>
 
-          {/* Breakdown Section */}
+          {/* Breakdown Section - Fórmula Explícita */}
           <DrawerSection title="Desglose P&L">
+            <div className={styles.formulaBox}>
+              <span className={styles.formulaText}>
+                Profit = Revenue - Comisión - Variables - Fijos
+              </span>
+            </div>
             <div className="breakdown-rows">
               <BreakdownRow 
                 label="Revenue" 
@@ -121,23 +126,68 @@ export default function ReservationDrawer({
                 variant="positive" 
               />
               <BreakdownRow
-                label={`Comisión (${(reservation.commissionRate * 100).toFixed(0)}%)`}
+                label={`(-) Comisión canal (${(reservation.commissionRate * 100).toFixed(0)}%)`}
                 value={`-${formatCurrency(reservation.commissionAmount)}`}
               />
               <BreakdownRow
-                label="Costos variables"
+                label="(-) Costos variables"
                 value={`-${formatCurrency(reservation.variableCosts)}`}
               />
               <BreakdownRow
-                label="Costos fijos (prorrateo)"
+                label="(-) Costos fijos prorrateados"
                 value={`-${formatCurrency(reservation.fixedCostAllocated)}`}
               />
+              <div className={styles.breakdownDivider} />
               <BreakdownRow
-                label="Net Profit"
+                label="= Net Profit"
                 value={formatCurrency(reservation.netProfit)}
                 variant={reservation.netProfit >= 0 ? 'positive' : 'negative'}
                 className="breakdown-row--total"
               />
+            </div>
+            
+            {/* Breakdown Visual Explicativo */}
+            <div className={styles.profitBreakdownVisual}>
+              <div className={styles.profitBreakdownBar}>
+                <div 
+                  className={styles.profitBreakdownSegment} 
+                  style={{ 
+                    width: `${reservation.revenue > 0 ? (reservation.commissionAmount / reservation.revenue) * 100 : 0}%`,
+                    background: 'var(--color-warning)'
+                  }}
+                  title={`Comisión: ${formatCurrency(reservation.commissionAmount)}`}
+                />
+                <div 
+                  className={styles.profitBreakdownSegment} 
+                  style={{ 
+                    width: `${reservation.revenue > 0 ? (reservation.variableCosts / reservation.revenue) * 100 : 0}%`,
+                    background: 'var(--color-info)'
+                  }}
+                  title={`Variables: ${formatCurrency(reservation.variableCosts)}`}
+                />
+                <div 
+                  className={styles.profitBreakdownSegment} 
+                  style={{ 
+                    width: `${reservation.revenue > 0 ? (reservation.fixedCostAllocated / reservation.revenue) * 100 : 0}%`,
+                    background: 'var(--color-text-muted)'
+                  }}
+                  title={`Fijos: ${formatCurrency(reservation.fixedCostAllocated)}`}
+                />
+                <div 
+                  className={styles.profitBreakdownSegment} 
+                  style={{ 
+                    width: `${reservation.revenue > 0 ? Math.max(0, reservation.netProfit / reservation.revenue) * 100 : 0}%`,
+                    background: reservation.netProfit >= 0 ? 'var(--color-success)' : 'var(--color-error)'
+                  }}
+                  title={`Profit: ${formatCurrency(reservation.netProfit)}`}
+                />
+              </div>
+              <div className={styles.profitBreakdownLegend}>
+                <span style={{ color: 'var(--color-warning)' }}>● Comisión</span>
+                <span style={{ color: 'var(--color-info)' }}>● Variables</span>
+                <span style={{ color: 'var(--color-text-muted)' }}>● Fijos</span>
+                <span style={{ color: reservation.netProfit >= 0 ? 'var(--color-success)' : 'var(--color-error)' }}>● Profit</span>
+              </div>
             </div>
           </DrawerSection>
 

@@ -32,7 +32,6 @@ interface ExtraordinaryCost {
 
 // Default categories (user can add/remove)
 const DEFAULT_VARIABLE_CATEGORIES: CostCategory[] = [
-  { id: 'cleaning', name: 'Limpieza', monthlyAmount: 0 },
   { id: 'laundry', name: 'Lavandería', monthlyAmount: 0 },
   { id: 'amenities', name: 'Amenities', monthlyAmount: 0 },
   { id: 'supplies', name: 'Insumos', monthlyAmount: 0 },
@@ -93,6 +92,7 @@ export default function Costs() {
   
   // State
   const [startingCashBalance, setStartingCashBalance] = useState(0);
+  const [cleaningPerStay, setCleaningPerStay] = useState(0); // Costo de limpieza por estadía (independiente)
   const [variableCategories, setVariableCategories] = useState<CostCategory[]>(DEFAULT_VARIABLE_CATEGORIES);
   const [fixedCategories, setFixedCategories] = useState<CostCategory[]>(DEFAULT_FIXED_CATEGORIES);
   const [extraordinaryCosts, setExtraordinaryCosts] = useState<ExtraordinaryCost[]>([]);
@@ -151,24 +151,24 @@ export default function Costs() {
         const data = costsRes.data;
         setStartingCashBalance(data.starting_cash_balance || 0);
         
+        // Load cleaning per stay (independent from monthly variables)
+        if (data.variable_costs?.cleaningPerStay > 0) {
+          setCleaningPerStay(data.variable_costs.cleaningPerStay);
+        }
+        
         // Load variable categories (simplified - all monthly now)
         if (data.variable_categories && data.variable_categories.length > 0) {
-          // Remove type field if present (legacy data)
-          setVariableCategories(data.variable_categories.map((c: CostCategory & { type?: string }) => ({
-            id: c.id,
-            name: c.name,
-            monthlyAmount: c.monthlyAmount || 0
-          })));
+          // Remove type field if present (legacy data) and filter out cleaning category
+          setVariableCategories(data.variable_categories
+            .filter((c: CostCategory & { type?: string }) => c.id !== 'cleaning')
+            .map((c: CostCategory & { type?: string }) => ({
+              id: c.id,
+              name: c.name,
+              monthlyAmount: c.monthlyAmount || 0
+            })));
         } else if (data.variable_costs) {
-          // Legacy format - convert to new format
+          // Legacy format - convert to new format (cleaning is now separate)
           const legacyCategories: CostCategory[] = [];
-          if (data.variable_costs.cleaningPerStay > 0) {
-            legacyCategories.push({
-              id: 'cleaning',
-              name: 'Limpieza',
-              monthlyAmount: data.variable_costs.cleaningPerStay * (data.calculated?.totalReservationsLastMonth || 30),
-            });
-          }
           if (data.variable_costs.laundryMonthly > 0) {
             legacyCategories.push({
               id: 'laundry',
@@ -294,6 +294,7 @@ export default function Costs() {
     try {
       const res = await updateCosts(property.id, {
         startingCashBalance,
+        cleaningPerStay, // Costo de limpieza por estadía (unit economics real)
         variableCategories,
         fixedCategories,
         extraordinaryCosts,
@@ -592,13 +593,52 @@ export default function Costs() {
             </div>
           </section>
 
+          {/* Cleaning Per Stay - CRITICAL for Unit Economics */}
+          <section className={styles.costCard}>
+            <div className={styles.cardHeader}>
+              <div className={`${styles.cardIcon} ${styles.green}`}><Sparkles size={18} /></div>
+              <div className={styles.cardTitle}>
+                <h2>Limpieza por Estadía</h2>
+                <p>Costo fijo por cada check-out (critical para estadías cortas)</p>
+              </div>
+            </div>
+            <div className={styles.cardBody}>
+              <div className={styles.helpText} style={{ background: '#fef3c7', border: '1px solid #f59e0b', borderRadius: '8px', padding: '12px' }}>
+                <AlertCircle size={14} style={{ color: '#d97706' }} />
+                <span style={{ color: '#92400e' }}>
+                  <strong>¿Por qué es importante?</strong> Las estadías de 1 noche suelen perder dinero porque pagan el mismo costo de limpieza que una de 5 noches. Este valor se descuenta <strong>una vez por reserva</strong>, no por noche.
+                </span>
+              </div>
+              <div className={styles.bigInput} style={{ marginTop: '16px' }}>
+                <span className={styles.currencySymbol}>$</span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={formatNumericInputValue(cleaningPerStay)}
+                  onChange={(e) => setCleaningPerStay(parseIntegerInput(e.target.value))}
+                  placeholder="0"
+                />
+                <span style={{ marginLeft: '8px', color: 'var(--color-text-muted)', fontSize: '0.875rem' }}>/estadía</span>
+              </div>
+              {cleaningPerStay > 0 && hasOccupancyData && totalReservations > 0 && (
+                <div className={styles.calcResult} style={{ marginTop: '12px' }}>
+                  <Calculator size={14} />
+                  <span>
+                    {totalReservations} reservas × ${cleaningPerStay.toLocaleString()} = <strong>{formatCurrency(cleaningPerStay * totalReservations)}/mes</strong> en limpieza
+                  </span>
+                </div>
+              )}
+            </div>
+          </section>
+
           {/* Variable Costs */}
           <section className={styles.costCard}>
             <div className={styles.cardHeader}>
               <div className={`${styles.cardIcon} ${styles.amber}`}><TrendingUp size={18} /></div>
               <div className={styles.cardTitle}>
-                <h2>Costos Variables</h2>
-                <p>Gastos que dependen de la ocupación</p>
+                <h2>Costos Variables Mensuales</h2>
+                <p>Gastos mensuales que dependen de la ocupación (excl. limpieza)</p>
               </div>
               {totalVariableMonthly > 0 && (
                 <div className={styles.cardTotal}>{formatCurrency(totalVariableMonthly)}<span>/mes</span></div>

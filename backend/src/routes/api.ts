@@ -657,6 +657,7 @@ router.put('/costs/:propertyId', (req: Request, res: Response) => {
     const {
       roomCount,
       startingCashBalance,
+      cleaningPerStay, // Costo de limpieza por estadía (unit economics real)
       // New V4 flexible categories
       variableCategories,
       fixedCategories,
@@ -683,13 +684,15 @@ router.put('/costs/:propertyId', (req: Request, res: Response) => {
       updateData.variable_categories = variableCategories;
       
       // Also calculate legacy format for backward compatibility
-      const cleaningCat = variableCategories.find((c: any) => c.id === 'cleaning' || c.name.toLowerCase().includes('limpieza'));
       const laundryCat = variableCategories.find((c: any) => c.id === 'laundry' || c.name.toLowerCase().includes('lavandería'));
       const amenitiesCat = variableCategories.find((c: any) => c.id === 'amenities' || c.name.toLowerCase().includes('amenities'));
       
-      // Store legacy format too
+      // Calculate total monthly from all variable categories (excluding cleaning which is per-stay)
+      const totalMonthlyVariable = variableCategories.reduce((sum: number, c: any) => sum + (c.monthlyAmount || 0), 0);
+      
+      // Store legacy format too - cleaningPerStay se maneja separado ahora
       updateData.variable_costs = {
-        cleaningPerStay: cleaningCat?.monthlyAmount || 0, // Note: this is total, not per stay
+        cleaningPerStay: cleaningPerStay !== undefined ? cleaningPerStay : 0, // Unit economics real: costo por estadía
         laundryMonthly: laundryCat?.monthlyAmount || 0,
         amenitiesMonthly: amenitiesCat?.monthlyAmount || 0,
       };
@@ -699,6 +702,13 @@ router.put('/costs/:propertyId', (req: Request, res: Response) => {
         cleaningPerStay: variableCosts.cleaningPerStay,
         laundryMonthly: variableCosts.laundryMonthly,
         amenitiesMonthly: variableCosts.amenitiesMonthly,
+      };
+    } else if (cleaningPerStay !== undefined) {
+      // Solo se actualizó cleaningPerStay
+      const existingCosts = database.getCostSettings(req.params.propertyId);
+      updateData.variable_costs = {
+        ...existingCosts?.variable_costs,
+        cleaningPerStay,
       };
     }
     

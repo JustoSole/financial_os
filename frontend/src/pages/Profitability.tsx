@@ -363,70 +363,118 @@ export default function Profitability() {
       ) : activeTab === 'patterns' ? (
         <PatternsView patterns={summary.patterns} />
       ) : (
-        <Card padding="none" className={`${styles.tableCard} table-responsive`}>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>Reserva</th>
-                <th>Canal</th>
-                <th className="text-right">Noches</th>
-                <th className="text-right">Ingresos</th>
-                <th className="text-right">Comisión</th>
-                <th className="text-right">Ganancia</th>
-                <th className="text-right">$/Noche</th>
-                <th>Precisión</th>
-              </tr>
-            </thead>
-            <tbody>
-              {displayData.map((r) => (
-                <tr
-                  key={r.reservationNumber}
-                  className={r.isUnprofitable ? styles.unprofitable : ''}
-                  onClick={() => openDrawer(r.reservationNumber)}
-                >
-                  <td data-label="Reserva">
-                    <div className={styles.cellReservation}>
-                      <span className={styles.reservationNumber}>{r.reservationNumber}</span>
-                      <span className={styles.reservationGuest}>{r.guestName}</span>
+        <>
+          {/* Mobile Card Layout */}
+          <div className={styles.mobileCardList}>
+            {displayData.map((r) => (
+              <div
+                key={r.reservationNumber}
+                className={`${styles.mobileCard} ${r.isUnprofitable ? styles.unprofitable : styles.profitable}`}
+                onClick={() => openDrawer(r.reservationNumber)}
+              >
+                <div className={styles.mobileCardHeader}>
+                  <div>
+                    <div className={styles.mobileCardId}>{r.reservationNumber}</div>
+                    <div className={styles.mobileCardGuest}>{r.guestName}</div>
+                  </div>
+                  <div className={styles.mobileCardProfit}>
+                    <div className={`${styles.mobileCardProfitValue} ${r.netProfit >= 0 ? styles.positive : styles.negative}`}>
+                      {formatCurrencyShort(r.netProfit)}
                     </div>
-                  </td>
-                  <td data-label="Canal">
-                    <ChannelBadge channel={r.source} category={r.sourceCategory} />
-                  </td>
-                  <td data-label="Noches" className="text-right font-mono">{r.roomNights}</td>
-                  <td data-label="Ingresos" className="text-right font-mono">{formatCurrencyShort(r.revenue)}</td>
-                  <td data-label="Comisión" className="text-right font-mono text-muted">
-                    {(r.commissionRate * 100).toFixed(0)}%
-                  </td>
-                  <td
-                    data-label="Ganancia"
-                    className={`text-right font-mono font-semibold ${r.netProfit >= 0 ? 'text-success' : 'text-error'}`}
-                  >
-                    {formatCurrencyShort(r.netProfit)}
-                  </td>
-                  <td
-                    data-label="$/Noche"
-                    className={`text-right font-mono ${r.profitPerNight >= 0 ? 'text-success' : 'text-error'}`}
-                  >
-                    {formatCurrencyShort(r.profitPerNight)}
-                  </td>
-                  <td data-label="Precisión">
-                    <div className={styles.confidenceCell}>
-                      <TrustBadge trust={r.trust} />
-                      <ConfidenceBadge confidence={r.confidence} />
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    <div className={styles.mobileCardProfitLabel}>profit</div>
+                  </div>
+                </div>
+                <div className={styles.mobileCardDetails}>
+                  <div className={styles.mobileCardDetail}>
+                    <span className={styles.mobileCardDetailLabel}>Canal</span>
+                    <span className={styles.mobileCardChannel}>{r.source}</span>
+                  </div>
+                  <div className={styles.mobileCardDetail}>
+                    <span className={styles.mobileCardDetailLabel}>Noches</span>
+                    <span className={styles.mobileCardDetailValue}>{r.roomNights}</span>
+                  </div>
+                  <div className={styles.mobileCardDetail}>
+                    <span className={styles.mobileCardDetailLabel}>$/Noche</span>
+                    <span className={`${styles.mobileCardDetailValue} ${r.profitPerNight >= 0 ? 'text-success' : 'text-error'}`}>
+                      {formatCurrencyShort(r.profitPerNight)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {displayData.length === 0 && (
+              <div className={styles.tableEmpty}>
+                <p>No hay reservas que coincidan con los filtros</p>
+              </div>
+            )}
+          </div>
 
-          {displayData.length === 0 && (
-            <div className={styles.tableEmpty}>
-              <p>No hay reservas que coincidan con los filtros</p>
-            </div>
-          )}
-        </Card>
+          {/* Desktop Table Layout */}
+          <Card padding="none" className={`${styles.tableCard} table-responsive`}>
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>Reserva</th>
+                  <th>Canal</th>
+                  <th className="text-right">Noches</th>
+                  <th className="text-right">Ingresos</th>
+                  <th className="text-right">Comisión</th>
+                  <th className="text-right">Ganancia</th>
+                  <th className="text-right">$/Noche</th>
+                  <th>Precisión</th>
+                </tr>
+              </thead>
+              <tbody>
+                {displayData.map((r) => (
+                  <tr
+                    key={r.reservationNumber}
+                    className={r.isUnprofitable ? styles.unprofitable : ''}
+                    onClick={() => openDrawer(r.reservationNumber)}
+                  >
+                    <td data-label="Reserva">
+                      <div className={styles.cellReservation}>
+                        <span className={styles.reservationNumber}>{r.reservationNumber}</span>
+                        <span className={styles.reservationGuest}>{r.guestName}</span>
+                      </div>
+                    </td>
+                    <td data-label="Canal">
+                      <ChannelBadge channel={r.source} category={r.sourceCategory} />
+                    </td>
+                    <td data-label="Noches" className="text-right font-mono">{r.roomNights}</td>
+                    <td data-label="Ingresos" className="text-right font-mono">{formatCurrencyShort(r.revenue)}</td>
+                    <td data-label="Comisión" className="text-right font-mono text-muted">
+                      {(r.commissionRate * 100).toFixed(0)}%
+                    </td>
+                    <td
+                      data-label="Ganancia"
+                      className={`text-right font-mono font-semibold ${r.netProfit >= 0 ? 'text-success' : 'text-error'}`}
+                    >
+                      {formatCurrencyShort(r.netProfit)}
+                    </td>
+                    <td
+                      data-label="$/Noche"
+                      className={`text-right font-mono ${r.profitPerNight >= 0 ? 'text-success' : 'text-error'}`}
+                    >
+                      {formatCurrencyShort(r.profitPerNight)}
+                    </td>
+                    <td data-label="Precisión">
+                      <div className={styles.confidenceCell}>
+                        <TrustBadge trust={r.trust} />
+                        <ConfidenceBadge confidence={r.confidence} />
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {displayData.length === 0 && (
+              <div className={styles.tableEmpty}>
+                <p>No hay reservas que coincidan con los filtros</p>
+              </div>
+            )}
+          </Card>
+        </>
       )}
 
       {/* Drawer */}

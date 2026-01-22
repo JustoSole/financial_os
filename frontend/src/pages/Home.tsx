@@ -138,6 +138,9 @@ export default function Home() {
         onAction={() => window.location.href = '/importar'} 
       />
 
+      {/* Costs Not Configured Banner */}
+      <CostsNotConfiguredBanner unitEconomics={data.unitEconomics} />
+
       {/* History Coverage Banner - New */}
       {data.dataConfidence.monthsCovered <= 1 && (
         <div className={styles.historyWarningBanner}>
@@ -361,6 +364,29 @@ function DataConfidenceBanner({ confidence, onAction }: { confidence: any; onAct
       >
         Completar
       </button>
+    </div>
+  );
+}
+
+function CostsNotConfiguredBanner({ unitEconomics }: { unitEconomics: any }) {
+  // Si no hay costos fijos configurados, mostrar advertencia
+  if (!unitEconomics || unitEconomics.cporBreakdown?.fixed > 0) return null;
+  
+  return (
+    <div className={styles.costsBanner}>
+      <div className={styles.costsBannerIcon}>
+        <AlertTriangle size={24} />
+      </div>
+      <div className={styles.costsBannerContent}>
+        <strong>⚠️ Tus ganancias no descuentan gastos fijos</strong>
+        <p>Los números de profit que ves son irrealmente altos porque no tenés configurados costos fijos (sueldos, alquiler, servicios). Configurá tus costos para ver profit real.</p>
+      </div>
+      <a 
+        href="/costos" 
+        className={styles.costsBannerAction}
+      >
+        Configurar costos
+      </a>
     </div>
   );
 }
