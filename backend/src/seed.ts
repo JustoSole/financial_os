@@ -11,12 +11,17 @@ const SAMPLE_DATA_DIR = process.env.NODE_ENV === 'production'
 export async function seedDatabase() {
   const existingProperty = database.getProperty();
   
-  // Only seed if no property exists or if it has no data
+  // Only seed if no property exists or if it has very low data health
   const health = existingProperty ? database.getDataHealth(existingProperty.id) : null;
   
-  if (existingProperty && health && health.score > 0) {
-    console.log('⏩ Database already has data, skipping seed.');
+  // FORCE SEED if score is very low (e.g., 10/100 as seen in the screenshot)
+  if (existingProperty && health && health.score > 20) {
+    console.log(`⏩ Database already has healthy data (Score: ${health.score}), skipping seed.`);
     return;
+  }
+
+  if (existingProperty && health && health.score <= 20) {
+    console.log(`🧹 Data health is low (${health.score}/100). Re-seeding to ensure demo data is present...`);
   }
 
   console.log('🌱 Seeding database with sample data...');
