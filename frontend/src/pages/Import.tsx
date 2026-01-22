@@ -7,8 +7,7 @@ import {
   Upload, 
   ArrowRight,
   FileUp,
-  Info,
-  ExternalLink
+  Info
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { getImportHistory, importFile, validateFile, trackEvent } from '../api';

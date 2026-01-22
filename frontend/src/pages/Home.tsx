@@ -25,7 +25,6 @@ import {
   Badge,
   EmptyState,
 } from '../components/ui';
-import DataHealthBanner from '../components/DataHealthBanner';
 import styles from './Home.module.css';
 
 
@@ -71,7 +70,7 @@ interface CommandCenterData {
 // =====================================================
 
 export default function Home() {
-  const { property, dateRange, refreshData } = useApp();
+  const { property, dateRange } = useApp();
   const [data, setData] = useState<CommandCenterData | null>(null);
   const [loading, setLoading] = useState(true);
 
