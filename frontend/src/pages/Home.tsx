@@ -13,7 +13,6 @@ import {
   DollarSign,
   BarChart3,
   ArrowRight,
-  Loader2,
   Target,
   CreditCard,
   Zap,
@@ -120,8 +119,11 @@ export default function Home() {
           setShowOnboarding(false);
         } else {
           // First time - check if there's real data
+          // We check for both health KPIs and data confidence to be more robust
           const hasRealData = commandRes.data?.health && 
-            commandRes.data?.health?.kpis?.occupancy?.value > 0;
+            (commandRes.data?.health?.kpis?.occupancy?.value > 0 || 
+             commandRes.data?.dataConfidence?.monthsCovered > 0);
+          
           setShowOnboarding(!hasRealData);
           
           // If there's real data, mark onboarding as implicitly completed

@@ -241,9 +241,14 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
       markOnboardingCompleted(property.id);
       trackEvent(property.id, 'onboarding_complete');
     }
-    await refreshProperty();
-    await refreshData();
-    onComplete();
+    
+    // Ensure state is updated before calling onComplete
+    // This helps prevent the Home component from seeing an old state
+    setTimeout(async () => {
+      await refreshProperty();
+      await refreshData();
+      onComplete();
+    }, 100);
   };
   
   const handleSkipWithDemo = () => {
