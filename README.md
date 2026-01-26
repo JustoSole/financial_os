@@ -64,26 +64,12 @@ Solo aparece si hay más de $10K pendiente:
 | ¿Dependo mucho de OTAs? | Alerta visual si dependencia > 70% |
 | ¿Cuáles son mis extremos? | **Best vs Worst channel** por rentabilidad/noche |
 
-### 3. Análisis Profundo (Exploración)
+### 5. Análisis Profundo (Exploración)
 El análisis detallado se distribuye en vistas especializadas para no saturar el mando:
 *   **Rentabilidad**: P&L por reserva, **Tendencias Históricas** (6 meses), **Comparativas MoM/YoY** y simuladores.
 *   **Canales**: Tabla completa de comisiones, ADR neto y mix detallado.
 *   **Caja**: Reconciliación, Runway y Aging de cobranzas.
 *   **Costos**: Configuración flexible de costos fijos y variables (V4).
-
-### 4. Caja, Cobranzas y Proyección
-| Pregunta | Respuesta |
-|----------|-----------|
-| ¿Cuánto cobré vs cuánto cargué? | **Reconciliación** con gap explicado |
-| ¿Cuánta plata tengo pendiente? | **Aging**: Vencido / 7 días / 30 días / Futuro |
-| ¿Mi caja aguanta? | **Runway** en días basado en saldo actual y burn-rate |
-| ¿Cuánta plata va a entrar? | **Proyección de ingresos** a 4 semanas (on-the-books) |
-
-### 5. Análisis Profundo
-Accesos directos a vistas especializadas:
-*   **Rentabilidad y P&L** — Análisis por reserva con memoria de cálculo
-*   **Canales Detallados** — Comisiones y ADR neto por canal
-*   **Gestión de Costos** — Configuración de costos fijos y variables
 
 ---
 
@@ -104,12 +90,13 @@ Para un análisis completo (incluyendo YoY), podés subir **hasta 3 años de his
 
 ---
 
-## 🚀 Instalación
+## 🚀 Instalación y Setup
 
 ### Requisitos
 
 - Node.js 18+
 - npm 9+
+- Cuenta en Supabase (para modo producción)
 
 ### Desarrollo local
 
@@ -121,43 +108,22 @@ cd financial-os-cloudbeds
 # Instalar dependencias
 npm install
 
+# Configurar variables de entorno (opcional para Supabase)
+# Copia .env.example a .env en la carpeta /backend
+# Si no se configura, usará almacenamiento JSON local
+
 # Iniciar en modo desarrollo (backend + frontend)
 npm run dev
 ```
 
 El backend corre en `http://localhost:3001` y el frontend en `http://localhost:3000`.
 
-### Producción
+### Producción & Deploy
 
-```bash
-# Build
-npm run build
-
-# Iniciar servidor
-npm start
-```
-
-### Deploy en Render
-
-1. **Conecta tu repositorio de GitHub** a Render:
-   - Ve a [render.com](https://render.com)
-   - Crea una cuenta o inicia sesión
-   - Click en "New" → "Web Service"
-   - Conecta tu repositorio de GitHub
-
-2. **Configuración automática**:
-   - Render detectará el archivo `render.yaml` automáticamente
-   - El build y deploy se ejecutarán automáticamente
-
-3. **Variables de entorno** (opcionales):
-   - `NODE_ENV=production` (ya configurado en render.yaml)
-   - `PORT` (Render lo asigna automáticamente)
-
-4. **Persistencia de datos**:
-   - Render creará un disco persistente para `/backend/data`
-   - Tus datos se guardarán automáticamente
-
-5. **¡Listo!** Tu app estará disponible en `https://tu-app.onrender.com`
+#### Deploy en Render
+1. **Conecta tu repositorio** a Render.
+2. Render detectará `render.yaml` automáticamente.
+3. Configura las variables de entorno `SUPABASE_URL` y `SUPABASE_ANON_KEY` si usas Supabase.
 
 ---
 
@@ -165,23 +131,18 @@ npm start
 
 ```
 financial-os-cloudbeds/
-├── backend/               # API Node.js + Express
+├── backend/               # API Node.js + Express + TypeScript
 │   ├── src/
-│   │   ├── db/           # In-memory JSON storage con persistencia
+│   │   ├── db/           # Adaptador Dual (Supabase / JSON Local)
 │   │   ├── parsers/      # Parsers de CSV específicos para Cloudbeds
-│   │   ├── services/     # Lógica de negocio y motores de decisión
-│   │   │   ├── calculators/      # Profit engine, Pricing engine
-│   │   │   ├── command-center-service.ts  # ⭐ Servicio unificado
-│   │   │   ├── insights-service.ts
-│   │   │   ├── metrics-service.ts
-│   │   │   └── ...
+│   │   ├── services/     # Motores de cálculo (Profit, Pricing, Metrics)
 │   │   └── routes/       # Endpoints API (Rest)
-│   └── data/             # Archivo financial_os.json
+│   └── data/             # Almacenamiento JSON local (fallback)
 ├── frontend/             # React + Vite + Tailwind + Recharts
 │   └── src/
-│       ├── components/   # UI Library (MetricCards, ActionCards, etc.)
-│       ├── pages/        # Command Center (Home), Caja, Canales, Costos, etc.
-│       └── context/      # Estado global de la aplicación
+│       ├── components/   # Librería de UI (MetricCards, ActionCards)
+│       ├── pages/        # Command Center, Caja, Canales, Rentabilidad
+│       └── context/      # Auth y App Context (Supabase Auth)
 └── shared/               # Tipos TypeScript compartidos
 ```
 
@@ -189,75 +150,42 @@ financial-os-cloudbeds/
 
 ## 🔧 API Endpoints Principales
 
+### Auth & Property
+- `GET /api/property` — Obtiene o crea la propiedad del usuario autenticado.
+- `PUT /api/property/:id` — Actualiza configuración del hotel.
+
 ### Import & Data
-- `POST /api/import` — Procesar CSV de Cloudbeds
-- `GET /api/import/history/:propertyId` — Historial de carga
-- `GET /api/data-health/:propertyId` — Score de calidad de datos y cobertura histórica
+- `POST /api/import` — Procesar CSV de Cloudbeds.
+- `POST /api/import/batch` — Procesar múltiples CSVs simultáneamente.
+- `GET /api/import/history/:propertyId` — Historial de carga.
 
-### Command Center (Unificado)
-- `GET /api/metrics/:propertyId/command-center` — **Todas las métricas unificadas** (responde 40 preguntas, MoM, YoY, Alertas)
-
-### Business Intelligence & Analytics
-- `GET /api/metrics/:propertyId/trends?months=6` — Gráficos de evolución histórica
-- `GET /api/metrics/:propertyId/projection` — Proyección de ingresos futura (OTB)
-- `GET /api/metrics/:propertyId/dow` — Performance por día de la semana
-- `GET /api/metrics/:propertyId/channels` — Mix de distribución con profit/noche real
-- `GET /api/metrics/:propertyId/reconcile` — Reconciliación cargado vs cobrado
-- `GET /api/metrics/:propertyId/ar-aging` — Aging de cuentas por cobrar visual
-- `GET /api/metrics/:propertyId/reservation-economics/:resNumber` — Detalle P&L con memoria de cálculo
-- `GET /api/costs/:propertyId` — Configuración de costos V4 (Flexible Categories)
+### Command Center & Analytics
+- `GET /api/metrics/:propertyId/command-center` — **Métricas unificadas** (40 preguntas).
+- `GET /api/metrics/:propertyId/trends` — Gráficos de evolución (6 meses).
+- `GET /api/metrics/:propertyId/reservation-economics/:resNumber` — P&L con memoria de cálculo.
+- `GET /api/metrics/:propertyId/breakeven` — Análisis de punto de equilibrio.
+- `GET /api/costs/:propertyId` — Configuración de costos V4.
 
 ---
 
-## 📈 Planes
+## 🛡️ Seguridad y Tecnología
 
-| Feature | Free | Pro | Partner |
-|---------|------|-----|---------|
-| Propiedades | 1 | 1 | Ilimitadas |
-| Historial | 30 días | 365 días | 365 días |
-| Command Center | ✅ Básico | ✅ Completo | ✅ Completo |
-| Comparativas | ❌ | ✅ MoM / YoY | ✅ MoM / YoY |
-| Rentabilidad por Reserva | Básica | Detallada (Memory) | Avanzada |
-| Inbox Connect (Auto) | ❌ | ✅ | ✅ |
-| Análisis DOW | ❌ | ❌ | ✅ |
-
----
-
-## 🛡️ Seguridad y privacidad
-
-- Los archivos CSV se procesan en memoria y los datos se guardan localmente en un archivo JSON encriptable.
-- **Trust Layer**: Cada número indica si es `Real`, `Estimado` o `Incompleto` mediante badges visuales.
-- Trazabilidad total: los insights se basan directamente en tus reportes mediante la Memoria de Cálculo.
+- **Arquitectura Híbrida**: Soporta Supabase (PostgreSQL) para escalabilidad o JSON local para simplicidad.
+- **Row Level Security (RLS)**: Aislamiento total de datos entre usuarios en Supabase.
+- **Trust Layer**: Indicadores visuales de precisión (`Real`, `Estimado`, `Incompleto`).
+- **Memoria de Cálculo**: Trazabilidad total de cada número mostrado.
 
 ---
 
 ## 📝 Roadmap
 
-- [x] **v1.0** — Command Center con 40 preguntas respondidas
-- [x] **v1.1** — Break-even analysis y simulador de margen
-- [x] **v2.0** — Análisis Histórico (MoM, YoY) y Gráficos de Tendencia
-- [x] **v2.1** — P&L Detallado por Reserva con Memoria de Cálculo y Categorías V4
-- [ ] **v2.2** — Análisis de Día de Semana (DOW) y Proyecciones OTB
-- [ ] **v3.0** — Inbox Connect (auto-ingesta por email)
+- [x] **v1.0** — Command Center Básico
+- [x] **v2.0** — Integración Supabase & Auth
+- [x] **v2.1** — P&L Detallado por Reserva & Categorías de Costos V4
+- [x] **v2.2** — Command Center Unificado (40 preguntas)
+- [ ] **v3.0** — Inbox Connect (Auto-ingesta por email)
 - [ ] **v3.1** — Integración API Cloudbeds Directa
-- [ ] **v3.2** — Multi-propiedad y portfolio
 
 ---
 
-## 🤝 Contribuir
-
-1. Fork el repositorio
-2. Creá tu branch (`git checkout -b feature/nueva-funcionalidad`)
-3. Commit tus cambios (`git commit -m 'Agrega X'`)
-4. Push al branch (`git push origin feature/nueva-funcionalidad`)
-5. Abrí un Pull Request
-
----
-
-## 📄 Licencia
-
-MIT © 2026
-
----
-
-**Hecho con ❤️ para hoteleros que quieren números claros, sin Excel.**
+MIT © 2026 | **Hecho con ❤️ para hoteleros que quieren números claros.**

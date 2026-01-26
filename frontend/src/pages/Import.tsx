@@ -1,28 +1,53 @@
 import { useState, useEffect, useCallback } from 'react';
 import { 
-  FileText, 
-  Clock, 
   CheckCircle, 
   AlertCircle, 
   Upload, 
   ArrowRight,
   FileUp,
-  Info
+  Loader2,
+  FileText,
+  X,
+  Zap,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { getImportHistory, importFile, validateFile, trackEvent } from '../api';
+import { getImportHistory, importFiles, validateFile, trackEvent } from '../api';
+import styles from './Import.module.css';
 
 type ImportStep = 'upload' | 'validating' | 'importing' | 'complete' | 'error';
+
+interface FileInfo {
+  file: File;
+  status: 'pending' | 'validating' | 'valid' | 'invalid' | 'importing' | 'success' | 'error';
+  reportType?: string;
+  error?: string;
+}
+
+const REPORT_INFO = {
+  expanded_transactions: {
+    name: 'Transacciones',
+    icon: '💳',
+    description: 'Todos los cargos y pagos'
+  },
+  reservations_financials: {
+    name: 'Reservas',
+    icon: '📅',
+    description: 'Reservas con financieros'
+  },
+  channel_performance: {
+    name: 'Canales',
+    icon: '📊',
+    description: 'Performance por canal'
+  }
+};
 
 export default function Import() {
   const { property, refreshData } = useApp();
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [step, setStep] = useState<ImportStep>('upload');
+  const [files, setFiles] = useState<FileInfo[]>([]);
   const [dragActive, setDragActive] = useState(false);
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [validationResult, setValidationResult] = useState<any>(null);
-  const [importResult, setImportResult] = useState<any>(null);
 
   useEffect(() => {
     if (property) {
@@ -50,581 +75,369 @@ export default function Import() {
     e.preventDefault();
     e.stopPropagation();
     setDragActive(false);
-    const files = Array.from(e.dataTransfer.files).filter(f => f.name.endsWith('.csv'));
-    if (files.length > 0) handleFilesSelected(files);
+    const droppedFiles = Array.from(e.dataTransfer.files).filter(
+      f => f.name.toLowerCase().endsWith('.csv') || f.type === 'text/csv'
+    );
+    if (droppedFiles.length > 0) addFiles(droppedFiles);
   }, []);
 
   const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) handleFilesSelected(Array.from(e.target.files));
+    if (e.target.files) addFiles(Array.from(e.target.files));
+    e.target.value = '';
   };
 
-  const handleFilesSelected = async (files: File[]) => {
-    if (!property) return;
-    setSelectedFiles(files);
-    setStep('validating');
+  const addFiles = async (newFiles: File[]) => {
+    const existingNames = files.map(f => f.file.name);
+    const uniqueNewFiles = newFiles.filter(f => !existingNames.includes(f.name));
     
-    try {
-      const result = await validateFile(files[0]);
-      if (result.success) {
-        setValidationResult(result.data);
-        await handleImport(files);
-      } else {
-        setStep('error');
-        setValidationResult({ error: result.error });
+    const fileInfos: FileInfo[] = uniqueNewFiles.map(file => ({
+      file,
+      status: 'validating'
+    }));
+    
+    setFiles(prev => [...prev, ...fileInfos]);
+    
+    for (const fileInfo of fileInfos) {
+      try {
+        const result = await validateFile(fileInfo.file);
+        setFiles(prev => prev.map(f => {
+          if (f.file.name === fileInfo.file.name) {
+            return {
+              ...f,
+              status: result.success && result.data?.isValid ? 'valid' : 'invalid',
+              reportType: result.data?.reportType,
+              error: result.data?.missingRequired?.join(', ') || result.error
+            };
+          }
+          return f;
+        }));
+      } catch (err: any) {
+        setFiles(prev => prev.map(f => {
+          if (f.file.name === fileInfo.file.name) {
+            return { ...f, status: 'invalid', error: err.message };
+          }
+          return f;
+        }));
       }
-    } catch {
-      setStep('error');
-      setValidationResult({ error: 'Error al validar el archivo' });
     }
   };
 
-  const handleImport = async (files: File[]) => {
-    if (!property) return;
+  const removeFile = (filename: string) => {
+    setFiles(prev => prev.filter(f => f.file.name !== filename));
+  };
+
+  const handleImport = async () => {
+    if (!property?.id) return;
+    
     setStep('importing');
+    trackEvent(property.id, 'import_started', { fileCount: files.length });
+    
+    const validFiles = files.filter(f => f.status === 'valid');
+    
+    setFiles(prev => prev.map(f => 
+      f.status === 'valid' ? { ...f, status: 'importing' } : f
+    ));
     
     try {
-      for (const file of files) {
-        const result = await importFile(property.id, file);
-        if (result.success) setImportResult(result.data);
-      }
+      await importFiles(property.id, validFiles.map(f => f.file));
+      
+      setFiles(prev => prev.map(f => {
+        if (f.status === 'importing') {
+          return { ...f, status: 'success' };
+        }
+        return f;
+      }));
+      
       setStep('complete');
-      refreshData();
+      await refreshData();
       loadHistory();
       trackEvent(property.id, 'import_success');
-    } catch {
+    } catch (err: any) {
+      console.error('Import error:', err);
       setStep('error');
+      setFiles(prev => prev.map(f => 
+        f.status === 'importing' ? { ...f, status: 'error', error: err.message } : f
+      ));
       trackEvent(property.id, 'import_failed');
     }
   };
 
   const resetImport = () => {
     setStep('upload');
-    setSelectedFiles([]);
-    setValidationResult(null);
-    setImportResult(null);
+    setFiles([]);
   };
 
   const reportNames: Record<string, string> = {
-    expanded_transactions: 'Expanded Transactions',
-    reservations_financials: 'Reservations Report',
-    channel_performance: 'Channel Performance',
+    expanded_transactions: 'Transacciones',
+    reservations_financials: 'Reservas',
+    channel_performance: 'Canales',
     unknown: 'Desconocido',
   };
 
+  const validFilesCount = files.filter(f => f.status === 'valid' || f.status === 'success').length;
+  const hasTransactions = files.some(f => f.reportType === 'expanded_transactions' && f.status !== 'invalid');
+  
+  const reportStatus = {
+    transactions: files.find(f => f.reportType === 'expanded_transactions'),
+    reservations: files.find(f => f.reportType === 'reservations_financials'),
+    channels: files.find(f => f.reportType === 'channel_performance')
+  };
+
   return (
-    <div className="page-import">
-      <div className="page-header">
+    <div className={styles.pageImport}>
+      <div className={styles.pageHeader}>
         <div>
-          <h1 className="page-title">Importar datos</h1>
-          <p className="page-subtitle">Subí tus reportes de Cloudbeds para actualizar tu Dashboard</p>
+          <h1 className={styles.pageTitle}>Importar datos</h1>
+          <p className={styles.pageSubtitle}>Subí tus reportes de Cloudbeds para actualizar tu Dashboard</p>
         </div>
       </div>
 
-      {/* Upload Area */}
-      <div className="import-section">
+      <div className={styles.importSection}>
         {step === 'upload' && (
-          <div 
-            className={`upload-zone ${dragActive ? 'active' : ''}`}
-            onDragEnter={handleDrag}
-            onDragLeave={handleDrag}
-            onDragOver={handleDrag}
-            onDrop={handleDrop}
-          >
-            <div className="upload-icon">
-              <FileUp size={36} />
+          <>
+            <div
+              className={`${styles.dropzone} ${dragActive ? styles.dropzoneActive : ''} ${files.length > 0 ? styles.dropzoneHasFiles : ''}`}
+              onDragEnter={handleDrag}
+              onDragLeave={handleDrag}
+              onDragOver={handleDrag}
+              onDrop={handleDrop}
+            >
+              <input
+                type="file"
+                id="file-upload"
+                accept=".csv,text/csv"
+                multiple
+                onChange={handleFileInput}
+                className={styles.fileInput}
+              />
+              
+              {files.length === 0 ? (
+                <label htmlFor="file-upload" className={styles.dropzoneContent}>
+                  <div className={styles.dropzoneIcon}>
+                    <Upload size={32} />
+                  </div>
+                  <span className={styles.dropzoneTitle}>
+                    Arrastrá tus archivos CSV aquí
+                  </span>
+                  <span className={styles.dropzoneSubtitle}>
+                    o hacé clic para seleccionar
+                  </span>
+                </label>
+              ) : (
+                <div className={styles.filesList}>
+                  {files.map(f => (
+                    <div 
+                      key={f.file.name} 
+                      className={`${styles.fileItem} ${styles[f.status]}`}
+                    >
+                      <div className={styles.fileIcon}>
+                        {f.status === 'validating' || f.status === 'importing' ? (
+                          <Loader2 size={20} className={styles.spin} />
+                        ) : f.status === 'valid' || f.status === 'success' ? (
+                          <CheckCircle size={20} />
+                        ) : f.status === 'invalid' || f.status === 'error' ? (
+                          <AlertCircle size={20} />
+                        ) : (
+                          <FileText size={20} />
+                        )}
+                      </div>
+                      <div className={styles.fileInfo}>
+                        <span className={styles.fileName}>{f.file.name}</span>
+                        <span className={styles.fileMeta}>
+                          {f.reportType && REPORT_INFO[f.reportType as keyof typeof REPORT_INFO]
+                            ? `${REPORT_INFO[f.reportType as keyof typeof REPORT_INFO].icon} ${REPORT_INFO[f.reportType as keyof typeof REPORT_INFO].name}`
+                            : f.status === 'validating' ? 'Analizando...'
+                            : f.status === 'importing' ? 'Importando...'
+                            : f.error || 'Archivo no reconocido'
+                          }
+                        </span>
+                      </div>
+                      {f.status !== 'importing' && f.status !== 'success' && (
+                        <button 
+                          className={styles.fileRemove}
+                          onClick={() => removeFile(f.file.name)}
+                        >
+                          <X size={16} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  
+                  <label htmlFor="file-upload" className={styles.addMoreBtn}>
+                    <Upload size={16} />
+                    Agregar más archivos
+                  </label>
+                </div>
+              )}
             </div>
-            <h3>Arrastrá tu archivo CSV aquí</h3>
-            <p>o hacé click para seleccionar</p>
-            <input type="file" accept=".csv" onChange={handleFileInput} className="upload-input" />
-            <button className="btn btn-primary btn-lg">
-              <Upload size={18} />
-              Seleccionar archivo
-            </button>
-            
-            <div className="supported-reports">
-              <span>Reportes soportados (Recomendado: últimos 13 meses para MoM/YoY):</span>
-              <div className="report-tags">
-                <span className="report-tag">Expanded Transactions (Hasta 3 años)</span>
-                <span className="report-tag">Reservations with Financials (Hasta 3 años)</span>
-                <span className="report-tag">Channel Performance (Hasta 3 años)</span>
+
+            <div className={styles.reportChecklist}>
+              <h4>Archivos recomendados:</h4>
+              <div className={styles.checklistItems}>
+                <div className={`${styles.checklistItem} ${reportStatus.transactions?.status === 'valid' || reportStatus.transactions?.status === 'success' ? styles.complete : ''}`}>
+                  <div className={styles.checklistIcon}>
+                    {reportStatus.transactions?.status === 'valid' || reportStatus.transactions?.status === 'success' ? (
+                      <CheckCircle size={18} />
+                    ) : (
+                      <span className={styles.checkNumber}>1</span>
+                    )}
+                  </div>
+                  <div className={styles.checklistContent}>
+                    <strong>Expanded Transaction Report with Details</strong>
+                    <span>Reportes → Expanded Transaction Report</span>
+                  </div>
+                </div>
+                
+                <div className={`${styles.checklistItem} ${reportStatus.reservations?.status === 'valid' || reportStatus.reservations?.status === 'success' ? styles.complete : ''}`}>
+                  <div className={styles.checklistIcon}>
+                    {reportStatus.reservations?.status === 'valid' || reportStatus.reservations?.status === 'success' ? (
+                      <CheckCircle size={18} />
+                    ) : (
+                      <span className={styles.checkNumber}>2</span>
+                    )}
+                  </div>
+                  <div className={styles.checklistContent}>
+                    <strong>Reservations with Financials</strong>
+                    <span>Reportes → Reservations with Financials</span>
+                  </div>
+                </div>
+                
+                <div className={`${styles.checklistItem} ${reportStatus.channels?.status === 'valid' || reportStatus.channels?.status === 'success' ? styles.complete : ''}`}>
+                  <div className={styles.checklistIcon}>
+                    {reportStatus.channels?.status === 'valid' || reportStatus.channels?.status === 'success' ? (
+                      <CheckCircle size={18} />
+                    ) : (
+                      <span className={styles.checkNumber}>3</span>
+                    )}
+                  </div>
+                  <div className={styles.checklistContent}>
+                    <strong>Channel Performance Summary</strong>
+                    <span>Reportes → Channel Performance Summary</span>
+                  </div>
+                </div>
+              </div>
+              
+              <div className={styles.checklistTip}>
+                <Zap size={14} />
+                <span>Exportá cada reporte como <strong>CSV</strong> con vista <strong>"Table"</strong> o <strong>"Details Only"</strong></span>
               </div>
             </div>
-          </div>
+
+            <div className={styles.stepActions}>
+              <button 
+                className={styles.btnPrimary}
+                onClick={handleImport}
+                disabled={validFilesCount === 0}
+              >
+                Importar {validFilesCount} archivo{validFilesCount !== 1 ? 's' : ''}
+                <ArrowRight size={18} />
+              </button>
+            </div>
+
+            {!hasTransactions && files.length > 0 && (
+              <div className={styles.warningBox}>
+                <AlertCircle size={16} />
+                <span>Se recomienda incluir el reporte de <strong>Transacciones</strong> para datos actualizados</span>
+              </div>
+            )}
+          </>
         )}
 
-        {step === 'validating' && (
-          <div className="processing-state">
-            <div className="loading-spinner" />
-            <h3>Analizando archivo...</h3>
-            <p>Detectando tipo de reporte</p>
-          </div>
-        )}
-
-        {step === 'importing' && (
-          <div className="processing-state">
-            <div className="loading-spinner" />
+        {(step === 'importing') && (
+          <div className={styles.processingState}>
+            <div className={styles.spinContainer}>
+              <Loader2 size={48} className={styles.spin} />
+            </div>
             <h3>Importando datos...</h3>
-            <p>Procesando {selectedFiles[0]?.name}</p>
+            <p>Estamos procesando tus archivos de Cloudbeds. Esto puede tardar unos segundos dependiendo del tamaño de los reportes.</p>
+            <div className={styles.progressBarContainer}>
+              <div className={styles.progressBarFill} />
+            </div>
+            <div className={styles.selectedFilesList}>
+              {files.filter(f => f.status === 'importing' || f.status === 'success').map(f => (
+                <div key={f.file.name} className={styles.selectedFileItem}>
+                  {f.status === 'success' ? '✅' : '⏳'} {f.file.name}
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
         {step === 'complete' && (
-          <div className="complete-state">
-            <div className="complete-icon">
-              <CheckCircle size={36} />
+          <div className={styles.completeState}>
+            <div className={styles.completeIcon}>
+              <CheckCircle size={48} />
             </div>
-            <h2>¡Datos importados!</h2>
-            <p>Se procesaron {importResult?.rows || 0} registros correctamente.</p>
+            <h2>¡Importación completada!</h2>
+            <p>Tus datos han sido actualizados correctamente.</p>
 
-            <div className="complete-actions">
-              <a href="/" className="btn btn-primary btn-lg">
+            <div className={styles.completeActions}>
+              <button onClick={() => window.location.href = '/'} className={styles.btnPrimary}>
                 Ver dashboard
                 <ArrowRight size={18} />
-              </a>
-              <button onClick={resetImport} className="btn btn-secondary">
-                Importar otro archivo
+              </button>
+              <button onClick={resetImport} className={styles.btnSecondary}>
+                Subir más
               </button>
             </div>
           </div>
         )}
 
-        {step === 'error' && (
-          <div className="error-state">
-            <div className="error-icon">
-              <AlertCircle size={36} />
+        {(step === 'error' || step === 'error') && (
+          <div className={styles.errorState}>
+            <div className={styles.errorIcon}>
+              <AlertCircle size={48} />
             </div>
-            <h3>Error al importar</h3>
-            <p>{validationResult?.error || 'Hubo un problema procesando el archivo'}</p>
-            <button onClick={resetImport} className="btn btn-secondary">
+            <h3>Problemas con la importación</h3>
+            <p>Hubo un error al procesar algunos archivos.</p>
+            <div className={styles.errorFileList}>
+              {files.map(f => (
+                <div key={f.file.name} className={styles.errorFileItem}>
+                  <strong>{f.file.name}:</strong>
+                  <span className={f.status === 'error' || f.status === 'invalid' ? styles.textError : styles.textSuccess}>
+                    {f.status === 'error' || f.status === 'invalid' ? `❌ ${f.error || 'Error'}` : '✅ OK'}
+                  </span>
+                </div>
+              ))}
+            </div>
+            <button onClick={resetImport} className={styles.btnPrimary}>
               Intentar de nuevo
             </button>
           </div>
         )}
       </div>
 
-      {/* How to export guide */}
-      <div className="guide-section">
-        <h3>📋 Guía de Exportación desde Cloudbeds</h3>
-        <p className="guide-intro">Para un análisis completo, subí estos 3 reportes (CSV) exportados desde Cloudbeds:</p>
-        
-        <div className="guide-grid">
-          <div className="guide-card">
-            <div className="guide-card-header">
-              <span className="guide-step-number">1</span>
-              <h4>Transacciones Detalladas</h4>
-            </div>
-            <p><strong>Ubicación:</strong> Reportes → Expanded Transaction Report with Details</p>
-            <ul>
-              <li>Seleccioná el período (recomendamos últimos 12 meses).</li>
-              <li>Asegururate que la vista sea "Details Only" o "Table".</li>
-              <li>Hacé clic en <strong>Export → CSV</strong>.</li>
-            </ul>
-          </div>
-
-          <div className="guide-card">
-            <div className="guide-card-header">
-              <span className="guide-step-number">2</span>
-              <h4>Reservas con Financieros</h4>
-            </div>
-            <p><strong>Ubicación:</strong> Reportes → Reservations with Financials</p>
-            <ul>
-              <li>Seleccioná el mismo período que el reporte anterior.</li>
-              <li>Asegururate que la vista sea "Table" (no Summary).</li>
-              <li>Hacé clic en <strong>Export → CSV</strong>.</li>
-            </ul>
-          </div>
-
-          <div className="guide-card">
-            <div className="guide-card-header">
-              <span className="guide-step-number">3</span>
-              <h4>Performance de Canales</h4>
-            </div>
-            <p><strong>Ubicación:</strong> Reportes → Channel Performance Summary</p>
-            <ul>
-              <li>Seleccioná el mismo período de análisis.</li>
-              <li>Este reporte es vital para el análisis de comisiones.</li>
-              <li>Hacé clic en <strong>Export → CSV</strong>.</li>
-            </ul>
-          </div>
-        </div>
-
-        <div className="guide-footer">
-          <Info size={16} />
-          <span><strong>Tip:</strong> Podés arrastrar los 3 archivos juntos a la zona de subida superior.</span>
-        </div>
-      </div>
-
       {/* History */}
-      <div className="history-section">
-        <h3>Historial de importaciones</h3>
-        
+      <div className={styles.historySection}>
+        <h3 className={styles.sectionTitle}>Historial de importaciones</h3>
         {loading ? (
-          <div className="history-loading">
-            <div className="loading-spinner" style={{ width: 24, height: 24, borderWidth: 2 }} />
-            <span>Cargando...</span>
-          </div>
+          <div className={styles.historyLoading}>Cargando historial...</div>
         ) : history.length > 0 ? (
-          <div className="history-list">
+          <div className={styles.historyList}>
             {history.map((file) => (
-              <div key={file.id} className={`history-item ${file.status}`}>
-                <div className="history-icon">
-                  {file.status === 'processed' ? <CheckCircle size={18} /> : 
-                   file.status === 'failed' ? <AlertCircle size={18} /> : <FileText size={18} />}
-                </div>
-                <div className="history-content">
-                  <span className="history-name">{file.filename}</span>
-                  <span className="history-meta">
-                    {reportNames[file.report_type] || file.report_type} • {file.rows} registros
+              <div key={file.id} className={styles.historyItem}>
+                <div className={styles.historyContent}>
+                  <span className={styles.historyName}>{file.filename}</span>
+                  <span className={styles.historyMeta}>
+                    {reportNames[file.report_type] || file.report_type} • {file.rows} filas
                   </span>
                 </div>
-                <div className="history-date">
-                  <Clock size={14} />
-                  {new Date(file.uploaded_at).toLocaleDateString('es-AR', { 
-                    day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit'
-                  })}
+                <div className={styles.historyRight}>
+                  <div className={styles.historyDate}>
+                    {new Date(file.uploaded_at).toLocaleDateString()}
+                  </div>
+                  <span className={`${styles.badge} ${file.status === 'processed' ? styles.badgeSuccess : styles.badgeError}`}>
+                    {file.status === 'processed' ? 'Éxito' : 'Error'}
+                  </span>
                 </div>
-                <span className={`badge badge-${file.status === 'processed' ? 'success' : file.status === 'failed' ? 'error' : 'neutral'}`}>
-                  {file.status === 'processed' ? 'Éxito' : file.status === 'failed' ? 'Error' : 'Procesando'}
-                </span>
               </div>
             ))}
           </div>
         ) : (
-          <div className="history-empty">
-            <FileText size={24} />
-            <span>No hay importaciones anteriores</span>
-          </div>
+          <div className={styles.historyEmpty}>No hay importaciones aún</div>
         )}
       </div>
-
-      <style>{`
-        .import-section {
-          margin-bottom: var(--space-8);
-        }
-
-        /* Upload Zone */
-        .upload-zone {
-          background: white;
-          border: 2px dashed var(--color-border);
-          border-radius: var(--radius-xl);
-          padding: var(--space-10);
-          text-align: center;
-          position: relative;
-          transition: all var(--transition-fast);
-          box-shadow: var(--shadow-card);
-        }
-
-        .upload-zone.active {
-          border-color: var(--color-primary);
-          background: var(--color-primary-subtle);
-        }
-
-        .upload-icon {
-          width: 64px;
-          height: 64px;
-          background: var(--color-bg-hover);
-          border-radius: var(--radius-xl);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          margin: 0 auto var(--space-4);
-          color: var(--color-text-muted);
-        }
-
-        .upload-zone.active .upload-icon {
-          background: var(--color-primary);
-          color: white;
-        }
-
-        .upload-zone h3 {
-          margin-bottom: var(--space-2);
-        }
-
-        .upload-zone > p {
-          color: var(--color-text-muted);
-          margin-bottom: var(--space-5);
-        }
-
-        .upload-input {
-          position: absolute;
-          inset: 0;
-          opacity: 0;
-          cursor: pointer;
-          z-index: 10;
-        }
-
-        .supported-reports {
-          margin-top: var(--space-6);
-          padding-top: var(--space-5);
-          border-top: 1px solid var(--color-border);
-        }
-
-        .supported-reports > span {
-          font-size: var(--text-sm);
-          color: var(--color-text-muted);
-          display: block;
-          margin-bottom: var(--space-3);
-        }
-
-        .report-tags {
-          display: flex;
-          justify-content: center;
-          gap: var(--space-2);
-          flex-wrap: wrap;
-        }
-
-        .report-tag {
-          padding: var(--space-1) var(--space-3);
-          background: var(--color-bg-hover);
-          border-radius: var(--radius-full);
-          font-size: var(--text-xs);
-          color: var(--color-text-secondary);
-        }
-
-        /* Processing State */
-        .processing-state {
-          background: white;
-          border: 1px solid var(--color-border);
-          border-radius: var(--radius-xl);
-          padding: var(--space-12);
-          text-align: center;
-          box-shadow: var(--shadow-card);
-        }
-
-        .processing-state .loading-spinner {
-          margin: 0 auto var(--space-4);
-        }
-
-        .processing-state p {
-          color: var(--color-text-muted);
-        }
-
-        /* Complete State */
-        .complete-state {
-          background: #f0fdf4;
-          border: 1px solid #86efac;
-          border-radius: var(--radius-xl);
-          padding: var(--space-8);
-          text-align: center;
-          box-shadow: var(--shadow-card);
-        }
-
-        .complete-icon {
-          width: 64px;
-          height: 64px;
-          background: var(--color-success);
-          border-radius: var(--radius-xl);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: white;
-          margin: 0 auto var(--space-4);
-        }
-
-        .complete-state h2 {
-          margin-bottom: var(--space-2);
-        }
-
-        .complete-state > p {
-          color: var(--color-text-secondary);
-          margin-bottom: var(--space-6);
-        }
-
-        .complete-actions {
-          display: flex;
-          justify-content: center;
-          gap: var(--space-3);
-        }
-
-        /* Error State */
-        .error-state {
-          background: #fef2f2;
-          border: 1px solid #fca5a5;
-          border-radius: var(--radius-xl);
-          padding: var(--space-12);
-          text-align: center;
-          box-shadow: var(--shadow-card);
-        }
-
-        .error-icon {
-          width: 64px;
-          height: 64px;
-          background: var(--color-error);
-          border-radius: var(--radius-xl);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: white;
-          margin: 0 auto var(--space-4);
-        }
-
-        .error-state p {
-          color: var(--color-text-secondary);
-          margin-bottom: var(--space-6);
-        }
-
-        /* Guide Section */
-        .guide-section {
-          background: white;
-          border: 1px solid var(--color-border);
-          border-radius: var(--radius-xl);
-          padding: var(--space-8);
-          margin-bottom: var(--space-8);
-          box-shadow: var(--shadow-card);
-        }
-
-        .guide-intro {
-          color: var(--color-text-muted);
-          margin-bottom: var(--space-6);
-        }
-
-        .guide-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-          gap: var(--space-6);
-          margin-bottom: var(--space-6);
-        }
-
-        .guide-card {
-          padding: var(--space-5);
-          background: var(--color-bg-hover);
-          border-radius: var(--radius-lg);
-          border: 1px solid var(--color-border);
-        }
-
-        .guide-card-header {
-          display: flex;
-          align-items: center;
-          gap: var(--space-3);
-          margin-bottom: var(--space-4);
-        }
-
-        .guide-step-number {
-          width: 28px;
-          height: 28px;
-          background: var(--color-primary);
-          color: white;
-          border-radius: var(--radius-full);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-weight: 700;
-          font-size: var(--text-sm);
-        }
-
-        .guide-card h4 {
-          margin: 0;
-          font-size: var(--text-base);
-        }
-
-        .guide-card p {
-          font-size: var(--text-sm);
-          margin-bottom: var(--space-3);
-        }
-
-        .guide-card ul {
-          padding-left: var(--space-5);
-          font-size: var(--text-xs);
-          color: var(--color-text-secondary);
-          display: flex;
-          flex-direction: column;
-          gap: var(--space-2);
-        }
-
-        .guide-footer {
-          display: flex;
-          align-items: center;
-          gap: var(--space-2);
-          padding-top: var(--space-4);
-          border-top: 1px solid var(--color-border);
-          font-size: var(--text-sm);
-          color: var(--color-text-secondary);
-        }
-
-        .history-section {
-          background: white;
-          border: 1px solid var(--color-border);
-          border-radius: var(--radius-xl);
-          padding: var(--space-5);
-          box-shadow: var(--shadow-card);
-        }
-
-        .history-section h3 {
-          font-size: var(--text-base);
-          margin-bottom: var(--space-4);
-        }
-
-        .history-list {
-          display: flex;
-          flex-direction: column;
-          gap: var(--space-2);
-        }
-
-        .history-item {
-          display: flex;
-          align-items: center;
-          gap: var(--space-4);
-          padding: var(--space-4);
-          background: var(--color-bg-hover);
-          border-radius: var(--radius-lg);
-        }
-
-        .history-icon {
-          color: var(--color-text-muted);
-        }
-
-        .history-item.processed .history-icon {
-          color: var(--color-success);
-        }
-
-        .history-item.failed .history-icon {
-          color: var(--color-error);
-        }
-
-        .history-content {
-          flex: 1;
-          min-width: 0;
-        }
-
-        .history-name {
-          display: block;
-          font-weight: 500;
-          font-size: var(--text-sm);
-        }
-
-        .history-meta {
-          font-size: var(--text-xs);
-          color: var(--color-text-muted);
-        }
-
-        .history-date {
-          display: flex;
-          align-items: center;
-          gap: var(--space-1);
-          font-size: var(--text-xs);
-          color: var(--color-text-muted);
-        }
-
-        .history-loading,
-        .history-empty {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: var(--space-3);
-          padding: var(--space-8);
-          color: var(--color-text-muted);
-        }
-
-        @media (max-width: 768px) {
-          .guide-steps {
-            flex-direction: column;
-          }
-
-          .complete-actions {
-            flex-direction: column;
-          }
-        }
-      `}</style>
     </div>
   );
 }
+

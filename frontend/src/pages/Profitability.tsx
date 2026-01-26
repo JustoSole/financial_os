@@ -241,7 +241,7 @@ export default function Profitability() {
           variant={summary.totalNetProfit >= 0 ? 'positive' : 'negative'}
         />
         <SummaryMetric
-          value={`${summary.avgMarginPercent.toFixed(1)}%`}
+          value={`${(summary.avgMarginPercent || 0).toFixed(1)}%`}
           label="Margen promedio"
         />
         <SummaryMetric
@@ -250,8 +250,8 @@ export default function Profitability() {
           variant={summary.goppar >= 0 ? 'positive' : 'negative'}
         />
         <SummaryMetric
-          value={summary.unprofitableCount}
-          label={`Con pérdida (${summary.unprofitableShare.toFixed(1)}%)`}
+          value={summary.unprofitableCount || 0}
+          label={`Con pérdida (${(summary.unprofitableShare || 0).toFixed(1)}%)`}
           variant="danger"
         />
         <SummaryMetric
@@ -265,17 +265,17 @@ export default function Profitability() {
       <div className={styles.config}>
         <span className={styles.configLabel}>Costos configurados:</span>
         <span className={styles.configItem}>
-          Variable: ${summary.configUsed.variableCostPerNight}/noche
+          Variable: ${summary.configUsed?.variableCostPerNight || 0}/noche
         </span>
         <span className={styles.configItem}>
-          Fijos: ${summary.configUsed.monthlyFixedCosts.toLocaleString()}/mes
+          Fijos: ${(summary.configUsed?.monthlyFixedCosts || 0).toLocaleString()}/mes
         </span>
         <span className={styles.configItem}>
-          Comisión default: {(summary.configUsed.defaultCommissionRate * 100).toFixed(0)}%
+          Comisión default: {((summary.configUsed?.defaultCommissionRate || 0) * 100).toFixed(0)}%
         </span>
-        {summary.lowConfidenceShare > 20 && (
+        {(summary.lowConfidenceShare || 0) > 20 && (
           <span className={styles.configWarning}>
-            ⚠ {summary.lowConfidenceShare.toFixed(0)}% con baja confianza
+            ⚠ {(summary.lowConfidenceShare || 0).toFixed(0)}% con baja confianza
           </span>
         )}
       </div>
@@ -539,7 +539,7 @@ function AnalysisView({
                   label: 'Ocupación', 
                   current: comparisons.mom.metrics.occupancy.current, 
                   previous: comparisons.mom.metrics.occupancy.previous, 
-                  formatter: (v) => `${v.toFixed(0)}%` 
+                  formatter: (v) => `${(v || 0).toFixed(0)}%` 
                 },
                 { 
                   label: 'ADR', 
@@ -574,7 +574,7 @@ function AnalysisView({
                   label: 'Ocupación', 
                   current: comparisons.yoy.metrics.occupancy.current, 
                   previous: comparisons.yoy.metrics.occupancy.previous, 
-                  formatter: (v) => `${v.toFixed(0)}%` 
+                  formatter: (v) => `${(v || 0).toFixed(0)}%` 
                 },
                 { 
                   label: 'ADR', 
@@ -639,7 +639,7 @@ function AnalysisView({
             }
             valueFormatter={
               selectedMetric === 'occupancy' 
-                ? (v: number) => `${v.toFixed(1)}%` 
+                ? (v: number) => `${(v || 0).toFixed(1)}%` 
                 : formatCurrencyShort
             }
             color={
@@ -777,15 +777,15 @@ function ThresholdsView({
           <div className="result-details">
             <div className="result-item">
               <span>Costo Base (Fijo + Variable)</span>
-              <span>{formatCurrency(simulation?.components.fixedCostPerNight + simulation?.components.variableCostPerNight || 0)}</span>
+              <span>{formatCurrency((simulation?.components?.fixedCostPerNight || 0) + (simulation?.components?.variableCostPerNight || 0))}</span>
             </div>
             <div className="result-item">
               <span>Margen Neto ({marginPct}%)</span>
-              <span>+{formatCurrency(simulation?.components.markupAmount || 0)}</span>
+              <span>+{formatCurrency(simulation?.components?.markupAmount || 0)}</span>
             </div>
             <div className="result-item">
               <span>Costo de Comisiones (Est.)</span>
-              <span>+{formatCurrency(simulation?.components.commissionImpact || 0)}</span>
+              <span>+{formatCurrency(simulation?.components?.commissionImpact || 0)}</span>
             </div>
           </div>
         </Card>
@@ -795,7 +795,7 @@ function ThresholdsView({
         <h4>Desglose de Costos del Periodo</h4>
         <div className="thresholds-list">
           <div className="threshold-item">
-            <span>Costos Fijos Prorrateados ({breakEven.period.days} días)</span>
+            <span>Costos Fijos Prorrateados ({breakEven?.period?.days || 0} días)</span>
             <span>{formatCurrency(fixedCosts)}</span>
           </div>
           <div className="threshold-item">

@@ -17,9 +17,9 @@ console.log('✅ Database initialized');
 async function startServer() {
   try {
     // Seed database with sample data if empty
-    console.log('🌱 Checking seed data...');
-    await seedDatabase();
-    console.log('✅ Seed check complete');
+    // console.log('🌱 Checking seed data...');
+    // await seedDatabase();
+    // console.log('✅ Seed check complete');
 
     app.listen(PORT, () => {
       console.log(`
@@ -40,7 +40,11 @@ async function startServer() {
 }
 
 // Middleware
-app.use(cors());
+app.use(cors({
+  origin: '*', // En producción deberías limitar esto
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 
 // API Routes

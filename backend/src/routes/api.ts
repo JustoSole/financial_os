@@ -1,7 +1,8 @@
-import { Router, Request, Response } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import multer from 'multer';
-import { nanoid } from 'nanoid';
+import { v4 as uuidv4 } from 'uuid';
 import database from '../db';
+import { supabase } from '../db/supabase-client';
 import cacheService from '../services/cache-service';
 import { importCSV, validateCSV } from '../services/import-service';
 import { 
@@ -9,7 +10,6 @@ import {
   calculateCashMetrics, 
   calculateChannelMetrics, 
   getCollectionsData,
-  getChannelBreakdown,
   getDailyFlow,
   calculateRevenueProjection,
   calculateMoMComparison,
@@ -31,6 +31,29 @@ import { getCommandCenterData, getBreakEvenAnalysis } from '../services/command-
 import { calculateTrendMetrics } from '../services/trends-service';
 
 const router = Router();
+
+// Middleware to verify Supabase JWT
+const authenticate = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.status(401).json({ success: false, error: 'No token provided' });
+    }
+
+    const token = authHeader.split(' ')[1];
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+
+    if (error || !user) {
+      return res.status(401).json({ success: false, error: 'Invalid token' });
+    }
+
+    // Attach user to request
+    (req as any).user = user;
+    next();
+  } catch (error) {
+    res.status(401).json({ success: false, error: 'Authentication failed' });
+  }
+};
 
 // Health check endpoint
 router.get('/health', (req: Request, res: Response) => {
@@ -62,17 +85,21 @@ const upload = multer({
 // =====================================================
 
 // Get or create default property
-router.get('/property', (req: Request, res: Response) => {
+router.get('/property', authenticate, async (req: Request, res: Response) => {
   try {
-    console.log('📋 GET /api/property - Request received');
-    let property = database.getProperty();
+    const user = (req as any).user;
+    console.log(`📋 GET /api/property - User: ${user.email}`);
+    
+    // Buscar propiedad del usuario
+    let property = await database.getPropertyByUser(user.id);
     console.log('📋 Property from DB:', property ? 'Found' : 'Not found');
     
     if (!property) {
-      console.log('📋 Creating default property...');
-      const id = nanoid();
-      property = database.insertProperty({
+      console.log('📋 Creating default property for user...');
+      const id = uuidv4();
+      property = await database.insertProperty({
         id,
+        user_id: user.id,
         name: 'Mi Hotel',
         currency: 'ARS',
         timezone: 'America/Argentina/Buenos_Aires',
@@ -83,7 +110,7 @@ router.get('/property', (req: Request, res: Response) => {
       console.log('📋 Default property created:', id);
       
       // Create default cost settings
-      database.upsertCostSettings(id, {});
+      await database.upsertCostSettings(id, {});
       console.log('📋 Default cost settings created');
     }
     
@@ -96,10 +123,10 @@ router.get('/property', (req: Request, res: Response) => {
 });
 
 // Update property
-router.put('/property/:id', (req: Request, res: Response) => {
+router.put('/property/:id', async (req: Request, res: Response) => {
   try {
     const { name, currency, timezone } = req.body;
-    const property = database.updateProperty(req.params.id, {
+    const property = await database.updateProperty(req.params.id, {
       name,
       currency,
       timezone,
@@ -186,9 +213,9 @@ router.post('/import/batch', upload.array('files', 5), async (req: Request, res:
 });
 
 // Get import history
-router.get('/import/history/:propertyId', (req: Request, res: Response) => {
+router.get('/import/history/:propertyId', async (req: Request, res: Response) => {
   try {
-    const files = database.getImportFilesByProperty(req.params.propertyId, 20);
+    const files = await database.getImportFilesByProperty(req.params.propertyId, 20);
     res.json({ success: true, data: files });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -200,16 +227,16 @@ router.get('/import/history/:propertyId', (req: Request, res: Response) => {
 // =====================================================
 
 // Get home dashboard metrics (4 tiles)
-router.get('/metrics/:propertyId', (req: Request, res: Response) => {
+router.get('/metrics/:propertyId', async (req: Request, res: Response) => {
   try {
     const { startDate, endDate, days } = req.query;
     let metrics;
     
     if (startDate && endDate) {
-      metrics = calculateHomeMetrics(req.params.propertyId, startDate as string, endDate as string);
+      metrics = await calculateHomeMetrics(req.params.propertyId, startDate as string, endDate as string);
     } else {
       const d = parseInt(days as string) || 30;
-      metrics = calculateHomeMetrics(req.params.propertyId, d);
+      metrics = await calculateHomeMetrics(req.params.propertyId, d);
     }
     
     res.json({ success: true, data: metrics });
@@ -219,34 +246,41 @@ router.get('/metrics/:propertyId', (req: Request, res: Response) => {
 });
 
 // NEW: Command Center - All key metrics unified (responds to 40 key questions)
-router.get('/metrics/:propertyId/command-center', (req: Request, res: Response) => {
+router.get('/metrics/:propertyId/command-center', async (req: Request, res: Response) => {
   try {
     const { startDate, endDate, days } = req.query;
     let data;
     
     if (startDate && endDate) {
-      data = getCommandCenterData(req.params.propertyId, startDate as string, endDate as string);
+      data = await getCommandCenterData(req.params.propertyId, startDate as string, endDate as string);
     } else {
       const d = parseInt(days as string) || 30;
-      data = getCommandCenterData(req.params.propertyId, d);
+      data = await getCommandCenterData(req.params.propertyId, d);
     }
+    
+    // Ensure success: true and standardized data structure
     res.json({ success: true, data });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    console.error('❌ Error in /metrics/:propertyId/command-center:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Error interno al procesar el Command Center',
+      message: error.message 
+    });
   }
 });
 
 // Get cash view metrics (runway, daily flow, alerts)
-router.get('/metrics/:propertyId/cash', (req: Request, res: Response) => {
+router.get('/metrics/:propertyId/cash', async (req: Request, res: Response) => {
   try {
     const { startDate, endDate, days } = req.query;
     let metrics;
     
     if (startDate && endDate) {
-      metrics = calculateCashMetrics(req.params.propertyId, startDate as string, endDate as string);
+      metrics = await calculateCashMetrics(req.params.propertyId, startDate as string, endDate as string);
     } else {
       const d = parseInt(days as string) || 90;
-      metrics = calculateCashMetrics(req.params.propertyId, d);
+      metrics = await calculateCashMetrics(req.params.propertyId, d);
     }
     
     res.json({ success: true, data: metrics });
@@ -256,16 +290,16 @@ router.get('/metrics/:propertyId/cash', (req: Request, res: Response) => {
 });
 
 // Get channel metrics (donut, dependency, savings)
-router.get('/metrics/:propertyId/channels', (req: Request, res: Response) => {
+router.get('/metrics/:propertyId/channels', async (req: Request, res: Response) => {
   try {
     const { startDate, endDate, days } = req.query;
     let metrics;
     
     if (startDate && endDate) {
-      metrics = calculateChannelMetrics(req.params.propertyId, startDate as string, endDate as string);
+      metrics = await calculateChannelMetrics(req.params.propertyId, startDate as string, endDate as string);
     } else {
       const d = parseInt(days as string) || 90;
-      metrics = calculateChannelMetrics(req.params.propertyId, d);
+      metrics = await calculateChannelMetrics(req.params.propertyId, d);
     }
     
     res.json({ success: true, data: metrics });
@@ -275,9 +309,9 @@ router.get('/metrics/:propertyId/channels', (req: Request, res: Response) => {
 });
 
 // Get collections data (reservations with balance due)
-router.get('/metrics/:propertyId/collections', (req: Request, res: Response) => {
+router.get('/metrics/:propertyId/collections', async (req: Request, res: Response) => {
   try {
-    const data = getCollectionsData(req.params.propertyId);
+    const data = await getCollectionsData(req.params.propertyId);
     
     res.json({ success: true, data });
   } catch (error: any) {
@@ -286,19 +320,11 @@ router.get('/metrics/:propertyId/collections', (req: Request, res: Response) => 
 });
 
 // Get daily flow for chart
-router.get('/metrics/:propertyId/daily-flow', (req: Request, res: Response) => {
+router.get('/metrics/:propertyId/daily-flow', async (req: Request, res: Response) => {
   try {
-    const { startDate, endDate, days } = req.query;
-    let data;
-    
-    if (startDate && endDate) {
-      data = database.getDailyFlow(req.params.propertyId, startDate as string, endDate as string);
-    } else {
-      const d = parseInt(days as string) || 30;
-      const end = new Date().toISOString().substring(0, 10);
-      const start = new Date(Date.now() - d * 24 * 60 * 60 * 1000).toISOString().substring(0, 10);
-      data = database.getDailyFlow(req.params.propertyId, start, end);
-    }
+    const { days } = req.query;
+    const d = parseInt(days as string) || 30;
+    const data = await getDailyFlow(req.params.propertyId, d);
     
     res.json({ success: true, data });
   } catch (error: any) {
@@ -307,10 +333,10 @@ router.get('/metrics/:propertyId/daily-flow', (req: Request, res: Response) => {
 });
 
 // NEW: Get revenue projection (future bookings)
-router.get('/metrics/:propertyId/projection', (req: Request, res: Response) => {
+router.get('/metrics/:propertyId/projection', async (req: Request, res: Response) => {
   try {
     const weeks = parseInt(req.query.weeks as string) || 4;
-    const data = calculateRevenueProjection(req.params.propertyId, weeks);
+    const data = await calculateRevenueProjection(req.params.propertyId, weeks);
     
     res.json({ success: true, data });
   } catch (error: any) {
@@ -319,9 +345,9 @@ router.get('/metrics/:propertyId/projection', (req: Request, res: Response) => {
 });
 
 // NEW: Get period comparison (this month vs previous)
-router.get('/metrics/:propertyId/comparison', (req: Request, res: Response) => {
+router.get('/metrics/:propertyId/comparison', async (req: Request, res: Response) => {
   try {
-    const data = calculateMoMComparison(req.params.propertyId);
+    const data = await calculateMoMComparison(req.params.propertyId);
     
     res.json({ success: true, data });
   } catch (error: any) {
@@ -330,16 +356,16 @@ router.get('/metrics/:propertyId/comparison', (req: Request, res: Response) => {
 });
 
 // NEW: Get structure metrics (Occupancy, ADR, RevPAR, GOPPAR)
-router.get('/metrics/:propertyId/structure', (req: Request, res: Response) => {
+router.get('/metrics/:propertyId/structure', async (req: Request, res: Response) => {
   try {
     const { startDate, endDate, days } = req.query;
     let data;
     
     if (startDate && endDate) {
-      data = calculateStructureMetrics(req.params.propertyId, startDate as string, endDate as string);
+      data = await calculateStructureMetrics(req.params.propertyId, startDate as string, endDate as string);
     } else {
       const d = parseInt(days as string) || 30;
-      data = calculateStructureMetrics(req.params.propertyId, d);
+      data = await calculateStructureMetrics(req.params.propertyId, d);
     }
     res.json({ success: true, data });
   } catch (error: any) {
@@ -348,16 +374,16 @@ router.get('/metrics/:propertyId/structure', (req: Request, res: Response) => {
 });
 
 // NEW: Get reconciliation metrics (Charged vs Collected)
-router.get('/metrics/:propertyId/reconcile', (req: Request, res: Response) => {
+router.get('/metrics/:propertyId/reconcile', async (req: Request, res: Response) => {
   try {
     const { startDate, endDate, days } = req.query;
     let data;
     
     if (startDate && endDate) {
-      data = calculateReconciliation(req.params.propertyId, startDate as string, endDate as string);
+      data = await calculateReconciliation(req.params.propertyId, startDate as string, endDate as string);
     } else {
       const d = parseInt(days as string) || 30;
-      data = calculateReconciliation(req.params.propertyId, d);
+      data = await calculateReconciliation(req.params.propertyId, d);
     }
     res.json({ success: true, data });
   } catch (error: any) {
@@ -366,9 +392,9 @@ router.get('/metrics/:propertyId/reconcile', (req: Request, res: Response) => {
 });
 
 // NEW: Get A/R aging
-router.get('/metrics/:propertyId/ar-aging', (req: Request, res: Response) => {
+router.get('/metrics/:propertyId/ar-aging', async (req: Request, res: Response) => {
   try {
-    const data = getARAging(req.params.propertyId);
+    const data = await getARAging(req.params.propertyId);
     res.json({ success: true, data });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -376,16 +402,16 @@ router.get('/metrics/:propertyId/ar-aging', (req: Request, res: Response) => {
 });
 
 // NEW: Get break-even metrics
-router.get('/metrics/:propertyId/breakeven', (req: Request, res: Response) => {
+router.get('/metrics/:propertyId/breakeven', async (req: Request, res: Response) => {
   try {
     const { startDate, endDate, days } = req.query;
     let data;
     
     if (startDate && endDate) {
-      data = getBreakEvenAnalysis(req.params.propertyId, startDate as string, endDate as string);
+      data = await getBreakEvenAnalysis(req.params.propertyId, startDate as string, endDate as string);
     } else {
       const d = parseInt(days as string) || 30;
-      data = getBreakEvenAnalysis(req.params.propertyId, d);
+      data = await getBreakEvenAnalysis(req.params.propertyId, d);
     }
     res.json({ success: true, data });
   } catch (error: any) {
@@ -394,10 +420,10 @@ router.get('/metrics/:propertyId/breakeven', (req: Request, res: Response) => {
 });
 
 // NEW: Get minimum price simulation
-router.get('/metrics/:propertyId/minimum-price', (req: Request, res: Response) => {
+router.get('/metrics/:propertyId/minimum-price', async (req: Request, res: Response) => {
   try {
     const margin = parseFloat(req.query.margin as string) || 0;
-    const data = getMinimumPriceSimulation(req.params.propertyId, margin);
+    const data = await getMinimumPriceSimulation(req.params.propertyId, margin);
     res.json({ success: true, data });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -405,16 +431,16 @@ router.get('/metrics/:propertyId/minimum-price', (req: Request, res: Response) =
 });
 
 // NEW: Get intelligent insights
-router.get('/metrics/:propertyId/insights', (req: Request, res: Response) => {
+router.get('/metrics/:propertyId/insights', async (req: Request, res: Response) => {
   try {
     const { startDate, endDate, days } = req.query;
     let insights;
     
     if (startDate && endDate) {
-      insights = generateInsights(req.params.propertyId, startDate as string, endDate as string);
+      insights = await generateInsights(req.params.propertyId, startDate as string, endDate as string);
     } else {
       const d = parseInt(days as string) || 30;
-      insights = generateInsights(req.params.propertyId, d);
+      insights = await generateInsights(req.params.propertyId, d);
     }
     
     res.json({ success: true, data: insights });
@@ -424,10 +450,10 @@ router.get('/metrics/:propertyId/insights', (req: Request, res: Response) => {
 });
 
 // NEW: Get trends
-router.get('/metrics/:propertyId/trends', (req: Request, res: Response) => {
+router.get('/metrics/:propertyId/trends', async (req: Request, res: Response) => {
   try {
     const { months } = req.query;
-    const data = calculateTrendMetrics(req.params.propertyId, parseInt(months as string) || 6);
+    const data = await calculateTrendMetrics(req.params.propertyId, parseInt(months as string) || 6);
     res.json({ success: true, data });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -435,16 +461,16 @@ router.get('/metrics/:propertyId/trends', (req: Request, res: Response) => {
 });
 
 // NEW: Get DOW performance
-router.get('/metrics/:propertyId/dow', (req: Request, res: Response) => {
+router.get('/metrics/:propertyId/dow', async (req: Request, res: Response) => {
   try {
     const { startDate, endDate, days } = req.query;
     let data;
     
     if (startDate && endDate) {
-      data = calculateDOWPerformance(req.params.propertyId, startDate as string, endDate as string);
+      data = await calculateDOWPerformance(req.params.propertyId, startDate as string, endDate as string);
     } else {
       const d = parseInt(days as string) || 90;
-      data = calculateDOWPerformance(req.params.propertyId, d);
+      data = await calculateDOWPerformance(req.params.propertyId, d);
     }
     res.json({ success: true, data });
   } catch (error: any) {
@@ -453,9 +479,9 @@ router.get('/metrics/:propertyId/dow', (req: Request, res: Response) => {
 });
 
 // NEW: Get YoY comparison
-router.get('/metrics/:propertyId/yoy', (req: Request, res: Response) => {
+router.get('/metrics/:propertyId/yoy', async (req: Request, res: Response) => {
   try {
-    const data = calculateYoYComparison(req.params.propertyId);
+    const data = await calculateYoYComparison(req.params.propertyId);
     res.json({ success: true, data });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -467,16 +493,16 @@ router.get('/metrics/:propertyId/yoy', (req: Request, res: Response) => {
 // =====================================================
 
 // Get reservation economics summary (aggregates + patterns + worst)
-router.get('/metrics/:propertyId/reservation-economics', (req: Request, res: Response) => {
+router.get('/metrics/:propertyId/reservation-economics', async (req: Request, res: Response) => {
   try {
     const { startDate, endDate, days } = req.query;
     let data;
     
     if (startDate && endDate) {
-      data = calculateReservationEconomicsSummary(req.params.propertyId, startDate as string, endDate as string);
+      data = await calculateReservationEconomicsSummary(req.params.propertyId, startDate as string, endDate as string);
     } else {
       const d = parseInt(days as string) || 30;
-      data = calculateReservationEconomicsSummary(req.params.propertyId, d);
+      data = await calculateReservationEconomicsSummary(req.params.propertyId, d);
     }
     
     res.json({ success: true, data });
@@ -486,21 +512,16 @@ router.get('/metrics/:propertyId/reservation-economics', (req: Request, res: Res
 });
 
 // Get all reservation economics (full list with filters)
-router.get('/metrics/:propertyId/reservation-economics/list', (req: Request, res: Response) => {
+router.get('/metrics/:propertyId/reservation-economics/list', async (req: Request, res: Response) => {
   try {
-    const { startDate, endDate, days, source, nightsBucket, unprofitableOnly } = req.query;
-    const filters = {
-      source: source as string | undefined,
-      nightsBucket: nightsBucket as '1' | '2' | '3+' | undefined,
-      unprofitableOnly: unprofitableOnly === 'true',
-    };
+    const { startDate, endDate, days, source, unprofitableOnly } = req.query;
     
     let data;
     if (startDate && endDate) {
-      data = getReservationEconomicsList(req.params.propertyId, startDate as string, endDate as string, filters);
+      data = await getReservationEconomicsList(req.params.propertyId, startDate as string, endDate as string, { source: source as any, unprofitableOnly: unprofitableOnly === 'true' } as any);
     } else {
       const d = parseInt(days as string) || 30;
-      data = getReservationEconomicsList(req.params.propertyId, d, filters);
+      data = await getReservationEconomicsList(req.params.propertyId, d, { source: source as any, unprofitableOnly: unprofitableOnly === 'true' } as any);
     }
     
     res.json({ success: true, data });
@@ -510,9 +531,9 @@ router.get('/metrics/:propertyId/reservation-economics/list', (req: Request, res
 });
 
 // Get single reservation economics detail
-router.get('/metrics/:propertyId/reservation-economics/:reservationNumber', (req: Request, res: Response) => {
+router.get('/metrics/:propertyId/reservation-economics/:reservationNumber', async (req: Request, res: Response) => {
   try {
-    const data = getReservationEconomicsDetail(
+    const data = await getReservationEconomicsDetail(
       req.params.propertyId, 
       req.params.reservationNumber
     );
@@ -528,10 +549,11 @@ router.get('/metrics/:propertyId/reservation-economics/:reservationNumber', (req
 });
 
 // Get unprofitable reservations only (helper endpoint)
-router.get('/metrics/:propertyId/unprofitable', (req: Request, res: Response) => {
+router.get('/metrics/:propertyId/unprofitable', async (req: Request, res: Response) => {
   try {
-    const days = parseInt(req.query.days as string) || 30;
-    const data = getReservationEconomicsList(req.params.propertyId, days, { unprofitableOnly: true });
+    const { days } = req.query;
+    const d = parseInt(days as string) || 30;
+    const data = await getReservationEconomicsList(req.params.propertyId, d, { unprofitableOnly: true } as any);
     
     res.json({ success: true, data });
   } catch (error: any) {
@@ -544,19 +566,19 @@ router.get('/metrics/:propertyId/unprofitable', (req: Request, res: Response) =>
 // =====================================================
 
 // Get recommended actions
-router.get('/actions/:propertyId', (req: Request, res: Response) => {
+router.get('/actions/:propertyId', async (req: Request, res: Response) => {
   try {
     const { startDate, endDate, days } = req.query;
     let actions;
     
     if (startDate && endDate) {
-      actions = generateActions(req.params.propertyId, startDate as string, endDate as string);
+      actions = await generateActions(req.params.propertyId, startDate as string, endDate as string);
     } else {
       const d = parseInt(days as string) || 30;
-      actions = generateActions(req.params.propertyId, d);
+      actions = await generateActions(req.params.propertyId, d);
     }
     
-    const completed = getCompletedSteps(req.params.propertyId);
+    const completed = await getCompletedSteps(req.params.propertyId);
     
     // Merge completion status
     for (const action of actions) {
@@ -576,10 +598,10 @@ router.get('/actions/:propertyId', (req: Request, res: Response) => {
 });
 
 // Complete an action step
-router.post('/actions/:propertyId/step', (req: Request, res: Response) => {
+router.post('/actions/:propertyId/step', async (req: Request, res: Response) => {
   try {
     const { actionType, stepIndex } = req.body;
-    completeActionStep(req.params.propertyId, actionType, stepIndex);
+    await completeActionStep(req.params.propertyId, actionType, stepIndex);
     
     res.json({ success: true });
   } catch (error: any) {
@@ -592,9 +614,9 @@ router.post('/actions/:propertyId/step', (req: Request, res: Response) => {
 // =====================================================
 
 // Get channels from PMS data (for commission configuration)
-router.get('/costs/:propertyId/channels', (req: Request, res: Response) => {
+router.get('/costs/:propertyId/channels', async (req: Request, res: Response) => {
   try {
-    const channels = database.getChannelsFromPMS(req.params.propertyId);
+    const channels = await database.getChannelsFromPMS(req.params.propertyId);
     res.json({ success: true, data: channels });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
@@ -602,16 +624,16 @@ router.get('/costs/:propertyId/channels', (req: Request, res: Response) => {
 });
 
 // Get cost settings with occupancy data for auto-calculations
-router.get('/costs/:propertyId', (req: Request, res: Response) => {
+router.get('/costs/:propertyId', async (req: Request, res: Response) => {
   try {
-    let costs = database.getCostSettings(req.params.propertyId);
+    let costs = await database.getCostSettings(req.params.propertyId);
     
     if (!costs) {
-      costs = database.upsertCostSettings(req.params.propertyId, {});
+      costs = await database.upsertCostSettings(req.params.propertyId, {});
     }
     
     // Get occupancy stats from PMS data
-    const occupancy = database.getOccupancyStats(req.params.propertyId, 30);
+    const occupancy = await database.getOccupancyStats(req.params.propertyId, 30);
     
     // Calculate totals from V4 categories or legacy V3 fields
     let totalVariableMonthly = 0;
@@ -661,7 +683,7 @@ router.get('/costs/:propertyId', (req: Request, res: Response) => {
 });
 
 // Update cost settings (V4 - Flexible Categories)
-router.put('/costs/:propertyId', (req: Request, res: Response) => {
+router.put('/costs/:propertyId', async (req: Request, res: Response) => {
   try {
     const {
       roomCount,
@@ -696,9 +718,6 @@ router.put('/costs/:propertyId', (req: Request, res: Response) => {
       const laundryCat = variableCategories.find((c: any) => c.id === 'laundry' || c.name.toLowerCase().includes('lavandería'));
       const amenitiesCat = variableCategories.find((c: any) => c.id === 'amenities' || c.name.toLowerCase().includes('amenities'));
       
-      // Calculate total monthly from all variable categories (excluding cleaning which is per-stay)
-      const totalMonthlyVariable = variableCategories.reduce((sum: number, c: any) => sum + (c.monthlyAmount || 0), 0);
-      
       // Store legacy format too - cleaningPerStay se maneja separado ahora
       updateData.variable_costs = {
         cleaningPerStay: cleaningPerStay !== undefined ? cleaningPerStay : 0, // Unit economics real: costo por estadía
@@ -714,7 +733,7 @@ router.put('/costs/:propertyId', (req: Request, res: Response) => {
       };
     } else if (cleaningPerStay !== undefined) {
       // Solo se actualizó cleaningPerStay
-      const existingCosts = database.getCostSettings(req.params.propertyId);
+      const existingCosts = await database.getCostSettings(req.params.propertyId);
       updateData.variable_costs = {
         ...existingCosts?.variable_costs,
         cleaningPerStay,
@@ -745,7 +764,7 @@ router.put('/costs/:propertyId', (req: Request, res: Response) => {
     } else if (fixedCosts) {
       // V3 legacy fixed costs
       updateData.fixed_costs = {
-        salaries: fixedCosts.salaries ?? fixedCosts.salpiaries,
+        salaries: fixedCosts.salaries,
         rent: fixedCosts.rent,
         utilities: fixedCosts.utilities,
         other: fixedCosts.other,
@@ -772,7 +791,7 @@ router.put('/costs/:propertyId', (req: Request, res: Response) => {
       updateData.extraordinary_costs = extraordinaryCosts;
     }
     
-    const costs = database.upsertCostSettings(req.params.propertyId, updateData);
+    const costs = await database.upsertCostSettings(req.params.propertyId, updateData);
     
     cacheService.clear();
     res.json({ success: true, data: costs });
@@ -781,14 +800,32 @@ router.put('/costs/:propertyId', (req: Request, res: Response) => {
   }
 });
 
-// =====================================================
 // Data Health Route
-// =====================================================
-
-router.get('/data-health/:propertyId', (req: Request, res: Response) => {
+router.get('/data-health/:propertyId', async (req: Request, res: Response) => {
   try {
-    const health = database.getDataHealth(req.params.propertyId);
+    const health = await database.getDataHealth(req.params.propertyId);
     res.json({ success: true, data: health });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// RESET DATABASE Route
+router.post('/property/:propertyId/reset', authenticate, async (req: Request, res: Response) => {
+  try {
+    const { propertyId } = req.params;
+    const user = (req as any).user;
+    
+    // Verify property belongs to user
+    const property = await database.getPropertyById(propertyId);
+    if (!property || property.user_id !== user.id) {
+      return res.status(403).json({ success: false, error: 'Unauthorized' });
+    }
+    
+    await database.resetDatabase(propertyId);
+    cacheService.clear();
+    
+    res.json({ success: true, message: 'Database reset successfully' });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -799,17 +836,22 @@ router.get('/data-health/:propertyId', (req: Request, res: Response) => {
 // =====================================================
 
 // Log event
-router.post('/telemetry', (req: Request, res: Response) => {
+router.post('/telemetry', async (req: Request, res: Response) => {
   try {
     const { propertyId, eventType, eventData } = req.body;
     
-    database.insertLog({
-      id: nanoid(),
-      property_id: propertyId,
-      event_type: eventType,
-      event_data: JSON.stringify(eventData || {}),
-      created_at: new Date().toISOString(),
-    });
+    // Verificar si la tabla existe antes de insertar, o manejar el error silenciosamente
+    try {
+      await database.insertLog({
+        id: uuidv4(),
+        property_id: propertyId,
+        event_type: eventType,
+        event_data: JSON.stringify(eventData || {}),
+        created_at: new Date().toISOString(),
+      });
+    } catch (dbError) {
+      console.warn('⚠️ Telemetry log failed (table might not exist):', dbError);
+    }
     
     res.json({ success: true });
   } catch (error: any) {

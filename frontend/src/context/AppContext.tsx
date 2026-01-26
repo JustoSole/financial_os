@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { getProperty, getMetrics, getActions, trackEvent } from '../api';
 import { setGlobalCurrency } from '../utils/formatters';
+import { useAuth } from './AuthContext';
 
 interface Property {
   id: string;
@@ -37,6 +38,7 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: ReactNode }) {
+  const { session } = useAuth();
   const [property, setProperty] = useState<Property | null>(null);
   const [metrics, setMetrics] = useState<any | null>(null);
   const [actions, setActions] = useState<any[] | null>(null);
@@ -62,6 +64,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const refreshProperty = async (): Promise<Property | null> => {
+    if (!session) return null;
+    
     try {
       const res = await getProperty();
       if (res.success && res.data) {
@@ -80,7 +84,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const refreshData = async () => {
-    if (!property) return;
+    if (!property || !session) return;
     
     setLoading(true);
     try {
@@ -103,6 +107,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     async function init() {
+      if (!session) {
+        setProperty(null);
+        setMetrics(null);
+        setActions(null);
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
       try {
         const loadedProperty = await refreshProperty();
         if (loadedProperty?.id) {
@@ -115,13 +128,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
       }
     }
     init();
-  }, []);
+  }, [session]);
 
   useEffect(() => {
-    if (property) {
+    if (property && session) {
       refreshData();
     }
-  }, [property, dateRange]);
+  }, [property, dateRange, session]);
 
   return (
     <AppContext.Provider
@@ -149,4 +162,3 @@ export function useApp() {
   }
   return context;
 }
-

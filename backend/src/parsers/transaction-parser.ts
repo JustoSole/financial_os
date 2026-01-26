@@ -1,4 +1,4 @@
-import { parseCSV, normalizeDecimal, normalizeDateTime, findColumn } from './csv-parser';
+import { parseCSV, normalizeDecimal, normalizeDateTime, findColumn, generateRowHash } from './csv-parser';
 import { ParsedTransaction } from './types';
 
 // =====================================================
@@ -104,6 +104,8 @@ export function parseTransactionReport(content: string): {
         description: descriptionCol ? row[descriptionCol] || null : null,
         notes: notesCol ? row[notesCol] || null : null,
         txnSource: txnSourceCol ? row[txnSourceCol] || null : null,
+        // Natural key for UPSERT (Issue B)
+        rowHash: generateRowHash(row)
       });
     } catch (e) {
       warnings.push(`Error procesando fila: ${e}`);

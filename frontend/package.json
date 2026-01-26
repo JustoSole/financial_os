@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@financial-os/shared": "*",
+    "@supabase/supabase-js": "^2.91.1",
     "framer-motion": "^12.27.3",
     "lucide-react": "^0.303.0",
     "react": "^18.2.0",

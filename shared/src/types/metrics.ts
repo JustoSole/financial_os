@@ -468,6 +468,7 @@ export interface BusinessHealthSnapshot {
 }
 
 export interface BreakEvenAnalysis {
+  period: { days: number };
   breakEvenOccupancy: number;
   currentOccupancy: number;
   gapToBreakEven: number;

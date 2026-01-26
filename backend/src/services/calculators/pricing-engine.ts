@@ -1,106 +1,75 @@
+import { 
+  DEFAULT_CHANNEL_COMMISSIONS,
+} from '../../types';
 import database from '../../db';
-import { DEFAULT_CHANNEL_COMMISSIONS } from '../../types';
-import { getVariableCostPerNight } from '../costs-utils';
+import { CalculationEngine } from '../calculation-engine';
 
-export interface MinimumPriceResult {
-  marginPct: number;
-  avgCommissionRate: number;
-  minPrice: number;
-  components: {
-    fixedCostPerNight: number;
-    variableCostPerNight: number;
-    markupAmount: number;
-    commissionImpact: number;
+/**
+ * Pricing Engine - Minimum Price Simulation
+ */
+export async function calculateMinimumPrice(propertyId: string, marginPct: number): Promise<any> {
+  const period = { 
+    start: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().substring(0, 10),
+    end: new Date().toISOString().substring(0, 10),
+    days: 30
   };
-}
 
-export function calculateMinimumPrice(
-  propertyId: string, 
-  marginPct: number, 
-  startDateOrDays: string | number = 90,
-  endDate?: string
-): MinimumPriceResult {
-  const costSettings = database.getCostSettings(propertyId);
-  const fixedMonthly = database.getTotalMonthlyFixedCosts(propertyId);
-  const overrides = costSettings?.channel_commissions?.byChannel || {};
-  const defaultRate = costSettings?.channel_commissions?.defaultRate || 0.15;
+  const engine = new CalculationEngine(propertyId, period);
+  await engine.init();
+  
+  const profit = engine.getProfitability();
+  const structure = engine.getStructureMetrics();
+  const costs = engine.getCostBreakdown(profit.totalNights);
 
-  // 1. Get operational data
-  let startStr: string;
-  let endStr: string;
-  let days: number;
+  const roomCount = structure.roomCount || 1;
+  const fixedPerDay = costs.fixedPerDay;
+  const fixedPerRoom = fixedPerDay / roomCount;
+  const variablePerNight = costs.variablePerNight;
+  const baseCost = variablePerNight + fixedPerRoom;
 
-  if (typeof startDateOrDays === 'string' && endDate) {
-    startStr = startDateOrDays;
-    endStr = endDate;
-    const start = new Date(startStr);
-    const end = new Date(endStr);
-    days = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
-  } else {
-    days = typeof startDateOrDays === 'number' ? startDateOrDays : 90;
-    const end = new Date();
-    const start = new Date(end.getTime() - days * 24 * 60 * 60 * 1000);
-    startStr = start.toISOString().substring(0, 10);
-    endStr = end.toISOString().substring(0, 10);
-  }
+  const reservations = await database.getReservationsByProperty(propertyId);
+  const activeReservations = reservations.filter((r: any) => r.status !== 'Cancelled');
+  const channels = Array.from(new Set(activeReservations.map((r: any) => r.source || 'Directo')));
 
-  const reservations = database.getReservationsByProperty(propertyId).filter(r => {
-    if (r.status === 'Cancelled' || r.status === 'No Show') return false;
-    const checkIn = r.check_in?.substring(0, 10);
-    return checkIn >= startStr && checkIn <= endStr;
+  const simulations = channels.map(channel => {
+    const channelLower = channel.toLowerCase();
+    const isDirect = ['direct', 'walk-in', 'email', 'pagina web', 'teléfono', 'telefono', 'directo', 'website', 'phone'].includes(channelLower);
+    
+    // Usar la misma lógica de comisión que el engine
+    const defaultRate = engine['costSettings']?.channel_commissions?.defaultRate || 0;
+    const overrides = engine['costSettings']?.channel_commissions?.byChannel || {};
+    const commissionRate = isDirect ? 0 : (overrides[channelLower] || DEFAULT_CHANNEL_COMMISSIONS[channelLower] || defaultRate);
+    
+    const minPrice = (baseCost * (1 + marginPct / 100)) / (1 - commissionRate);
+
+    return {
+      channel,
+      commissionRate,
+      minPrice: Math.round(minPrice),
+      baseCost: Math.round(baseCost),
+      marginAmount: Math.round(minPrice * (1 - commissionRate) - baseCost),
+    };
   });
 
-  const totalNightsSold = reservations.reduce((sum, r) => sum + (r.room_nights || 0), 0);
-  const totalRoomRevenue = reservations.reduce((sum, r) => sum + (r.room_revenue_total || 0), 0);
+  const avgCommissionRate = simulations.length > 0 
+    ? simulations.reduce((sum, s) => sum + s.commissionRate, 0) / simulations.length 
+    : defaultRate;
 
-  // 2. Calculate Weighted Commission Rate
-  // AvgCommRate = SUM(RevenueByChannel * CommRateByChannel) / TotalRevenue
-  let totalEstimatedCommission = 0;
-  
-  // Group by channel to calculate weighted rate
-  const revenueByChannel: Record<string, number> = {};
-  for (const r of reservations) {
-    const source = r.source || 'Directo';
-    revenueByChannel[source] = (revenueByChannel[source] || 0) + (r.room_revenue_total || 0);
-  }
-
-  for (const [source, revenue] of Object.entries(revenueByChannel)) {
-    const sourceLower = source.toLowerCase();
-    const rate = overrides[sourceLower] || 
-                 overrides[source] || 
-                 DEFAULT_CHANNEL_COMMISSIONS[sourceLower] || 
-                 defaultRate;
-    totalEstimatedCommission += revenue * rate;
-  }
-
-  const avgCommRate = totalRoomRevenue > 0 ? totalEstimatedCommission / totalRoomRevenue : defaultRate;
-
-  // 3. Fixed and Variable Costs
-  const daysInMonth = 30.42;
-  const proratedFixedCosts = (fixedMonthly * days) / daysInMonth;
-  const fixedCostPerNight = totalNightsSold > 0 ? proratedFixedCosts / totalNightsSold : (fixedMonthly / daysInMonth / (costSettings?.room_count || 1));
-  
-  const { perNightTotal: totalVarPerNight } = getVariableCostPerNight(
-    costSettings,
-    totalNightsSold,
-    reservations.length
-  );
-
-  // 4. Formula: MinPrice = [(ProrratedFixedCosts/NightsSold + VariableCostPerNight) * (1 + MarginPct)] / (1 - AvgCommRate)
-  const marginMultiplier = 1 + (marginPct / 100);
-  const baseCostPerNight = fixedCostPerNight + totalVarPerNight;
-  const minPrice = (baseCostPerNight * marginMultiplier) / (1 - avgCommRate);
+  const minPriceAvg = (baseCost * (1 + marginPct / 100)) / (1 - avgCommissionRate);
 
   return {
+    baseCost: Math.round(baseCost),
+    variablePerNight: Math.round(variablePerNight),
+    fixedPerRoom: Math.round(fixedPerRoom),
     marginPct,
-    avgCommissionRate: Math.round(avgCommRate * 1000) / 1000,
-    minPrice: Math.round(minPrice),
+    avgCommissionRate,
+    minPrice: Math.round(minPriceAvg),
     components: {
-      fixedCostPerNight: Math.round(fixedCostPerNight),
-      variableCostPerNight: Math.round(totalVarPerNight),
-      markupAmount: Math.round(baseCostPerNight * (marginPct / 100)),
-      commissionImpact: Math.round(minPrice * avgCommRate)
-    }
+      fixedCostPerNight: Math.round(fixedPerRoom),
+      variableCostPerNight: Math.round(variablePerNight),
+      markupAmount: Math.round(minPriceAvg * (marginPct / 100)),
+      commissionImpact: Math.round(minPriceAvg * avgCommissionRate)
+    },
+    simulations: simulations.sort((a, b) => a.minPrice - b.minPrice),
   };
 }
-

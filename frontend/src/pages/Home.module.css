@@ -1743,6 +1743,65 @@
   box-shadow: var(--shadow-md);
 }
 
+/* Skeleton Loading */
+.skeletonTitle {
+  width: 240px;
+  height: 32px;
+  background: var(--color-bg-hover);
+  border-radius: var(--radius-md);
+  animation: pulse 2s infinite ease-in-out;
+}
+
+.skeletonPeriod {
+  width: 120px;
+  height: 20px;
+  background: var(--color-bg-hover);
+  border-radius: var(--radius-sm);
+  margin-top: 8px;
+  animation: pulse 2s infinite ease-in-out;
+}
+
+.skeletonHero {
+  width: 100%;
+  height: 220px;
+  background: var(--color-bg-hover);
+  border-radius: var(--radius-2xl);
+  margin-bottom: var(--space-6);
+  animation: pulse 2s infinite ease-in-out;
+}
+
+.skeletonCard {
+  width: 100%;
+  height: 140px;
+  background: var(--color-bg-hover);
+  border-radius: var(--radius-xl);
+  animation: pulse 2s infinite ease-in-out;
+}
+
+.skeletonSummary {
+  width: 100%;
+  height: 80px;
+  background: var(--color-bg-hover);
+  border-radius: var(--radius-xl);
+  margin-top: var(--space-6);
+  animation: pulse 2s infinite ease-in-out;
+}
+
+.skeletonSection {
+  width: 100%;
+  height: 300px;
+  background: var(--color-bg-hover);
+  border-radius: var(--radius-xl);
+  margin-top: var(--space-10);
+  animation: pulse 2s infinite ease-in-out;
+}
+
+@keyframes pulse {
+  0% { opacity: 0.6; }
+  50% { opacity: 0.3; }
+  100% { opacity: 0.6; }
+}
+
 /* =====================================================
    Onboarding Overlay - Full screen takeover
    ===================================================== */

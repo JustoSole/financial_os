@@ -1,17 +1,25 @@
 // =====================================================
 // API Client - Simple fetch wrapper for Financial OS MVS
 // =====================================================
+import { supabase } from './lib/supabase';
 
-const API_BASE = '/api';
+const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
 async function request<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<{ success: boolean; data?: T; error?: string }> {
   try {
-    const response = await fetch(`${API_BASE}${endpoint}`, {
+    // Obtener el token de sesión de Supabase
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+
+    const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`;
+
+    const response = await fetch(url, {
       headers: {
         'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
         ...options.headers,
       },
       ...options,
@@ -203,28 +211,72 @@ export const completeActionStep = (propertyId: string, actionType: string, stepI
 // Import (Section 4 PRD)
 // =====================================================
 export const validateFile = async (file: File) => {
-  const formData = new FormData();
-  formData.append('file', file);
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
 
-  const response = await fetch(`${API_BASE}/import/validate`, {
-    method: 'POST',
-    body: formData,
-  });
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
 
-  return response.json();
+    const url = `${API_BASE}/import/validate`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[validateFile] HTTP error:', response.status, errorText);
+      return { success: false, error: `Error HTTP ${response.status}` };
+    }
+
+    return response.json();
+  } catch (error: any) {
+    console.error('[validateFile] Network error:', error);
+    return { success: false, error: error.message || 'Error de conexión al servidor' };
+  }
 };
 
 export const importFile = async (propertyId: string, file: File) => {
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('propertyId', propertyId);
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('propertyId', propertyId);
 
-  const response = await fetch(`${API_BASE}/import`, {
-    method: 'POST',
-    body: formData,
-  });
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
 
-  return response.json();
+    const url = `${API_BASE}/import`;
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[importFile] HTTP error:', response.status, errorText);
+      return { success: false, error: `Error HTTP ${response.status}` };
+    }
+
+    const result = await response.json();
+    // Normalize response: check both outer and inner success
+    return {
+      success: result.success && (result.data?.success !== false),
+      data: result.data,
+      error: result.error || result.data?.error
+    };
+  } catch (error: any) {
+    console.error('[importFile] Network error:', error);
+    return { success: false, error: error.message || 'Error de conexión al servidor' };
+  }
 };
 
 export const importFiles = async (propertyId: string, files: File[]) => {
@@ -232,8 +284,16 @@ export const importFiles = async (propertyId: string, files: File[]) => {
   files.forEach((file) => formData.append('files', file));
   formData.append('propertyId', propertyId);
 
-  const response = await fetch(`${API_BASE}/import/batch`, {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+
+  const url = `${API_BASE}/import/batch`;
+
+  const response = await fetch(url, {
     method: 'POST',
+    headers: {
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+    },
     body: formData,
   });
 

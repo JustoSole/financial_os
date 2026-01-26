@@ -1,484 +1,118 @@
-# Financial OS - Especificación de Vistas y Datos v2.0
+# Financial OS - Especificación de Vistas y Datos v2.2
 
-> Documentación de alto nivel de todas las vistas, componentes y datos de la aplicación.
-> **Actualizado para Command Center Edition**
+> Documentación detallada de la interfaz de usuario, componentes y modelos de datos.
+> **Actualizado para Command Center Edition (v2.2)**
 
 ---
 
-## 🏗️ Arquitectura
+## 🏗️ Arquitectura Frontend
 
 | Capa | Stack |
 |------|-------|
-| Frontend | React 18 + TypeScript + Vite + Recharts + Tailwind |
-| Backend | Node.js + Express + TypeScript |
-| Database | JSON (In-memory con persistencia en `financial_os.json`) |
+| Framework | React 18 + TypeScript + Vite |
+| Estilos | Tailwind CSS + CSS Modules |
+| Gráficos | Recharts |
+| Estado | Context API (AuthContext, AppContext) |
+| Cliente API | Supabase Client + Fetch (Custom Wrapper) |
 
 ---
 
-## 🗺️ Navegación
+## 🗺️ Mapa de Vistas (Pages)
 
-| Ruta | Vista | Descripción |
-|------|-------|-------------|
-| `/` | **Command Center** | Dashboard principal que responde las 40 preguntas clave |
-| `/acciones` | Acciones | Lista completa de recomendaciones |
-| `/canales` | Canales | Análisis de distribución, profit per night y comisiones |
-| `/caja` | Caja | Reconciliación, A/R Aging y proyección de flujo |
-| `/rentabilidad` | Rentabilidad | P&L por reserva, break-even y análisis de patrones |
-| `/costos` | Costos | Configuración de costos operativos y room count |
-| `/importar` | Importar | Carga de reportes CSV |
-| `/configuracion` | Settings | Ajustes de propiedad y plan |
-
----
-
-## 📊 Vista: Home — Command Center (v2.2)
-
-El Command Center es la vista principal que responde a las preguntas críticas para la **toma de decisiones** en 90 segundos.
-
-### Estructura de Secciones
-
-#### 1. Banners de Estado
-*   **Data Confidence Banner:** Score (0-100) y nivel de confianza.
-*   **History Warning Banner:** Alerta de cobertura histórica insuficiente.
-*   **Demo Mode Banner:** Indica cuando se usan datos de ejemplo.
-*   **Costs Not Configured Banner:** Alerta cuando no hay costos fijos configurados.
-
-#### 2. Estado Actual
-*   **Hero Profit con Contexto:** Net Profit del período con:
-    *   Comparación inteligente vs período anterior (maneja casos sin datos)
-    *   Estado del punto de equilibrio (CUBIERTO/EN RIESGO) con noches de margen
-*   **Quick Indicators:** 3 tarjetas de estado compacto mejoradas:
-    *   **Ocupación:** Con subtítulo explicativo, semáforo y comparativa vs anterior
-    *   **Ganancia por Noche:** Con contexto "después de costos"
-    *   **Punto de Equilibrio:** Muestra ocupación actual + pp sobre/bajo el mínimo + ocupación necesaria
-*   **Period Summary Stats:** Barra horizontal con 4 KPIs del período:
-    *   Revenue (con comparativa vs anterior)
-    *   ADR (con comparativa vs anterior)
-    *   Noches vendidas
-    *   Reservas estimadas
-
-#### 3. Cobranzas Pendientes (Condicional)
-*   Solo aparece si `totalPending > $10K`
-*   Muestra: Total pendiente, vencido, próximos 7 días
-*   CTA directo a gestión de cobranzas
-
-#### 4. Canales y Distribución (Resumen)
-*   **Mix de Canales:** Barra visual con leyenda Directo vs OTAs
-*   **Alerta de dependencia:** Warning si OTA share > 70%
-*   **Best/Worst Channel:** Con subtexto "por rentabilidad/noche"
-
-#### 5. Análisis Profundo (Navegación)
-Links directos con descripción a las vistas de detalle:
-*   **Rentabilidad y P&L**
-*   **Canales Detallados**
-*   **Gestión de Costos**
+| Ruta | Vista | Propósito |
+|------|-------|-----------|
+| `/` | **Command Center** | Dashboard estratégico (Responde 40 preguntas clave) |
+| `/rentabilidad` | **Rentabilidad** | P&L por reserva, tendencias MoM/YoY y break-even |
+| `/canales` | **Canales** | Mix de distribución, comisiones y profit neto por canal |
+| `/caja` | **Caja** | Runway, reconciliación y aging de cobranzas |
+| `/acciones` | **Acciones** | Recomendaciones estratégicas con tracking de pasos |
+| `/costos` | **Costos** | Configuración V4 de costos fijos y variables |
+| `/importar` | **Importar** | Upload y validación de reportes CSV de Cloudbeds |
 
 ---
 
-## 📈 Vista: Rentabilidad
+## 📊 Detalle de Vistas Principales
 
-### Resumen del Período
-* Net Profit Total, GOPPAR (Gross Operating Profit Per Available Room), Margen Promedio y alertas de reservas no rentables.
+### 1. Command Center (Home)
+Diseñado para la toma de decisiones en 90 segundos.
+- **Hero Metrics**: Net Profit con comparativa inteligente y estado de Break-even.
+- **Status Cards**: Ocupación, ADR y Ganancia por Noche con semáforos de salud.
+- **Period Summary**: Barra de KPIs rápidos (Revenue, ADR, Noches, Reservas).
+- **Contextual Alerts**: Cobranzas pendientes (> $10k) y alertas de calidad de datos.
+- **Strategic Mix**: Visualización Directo vs OTAs con alerta de dependencia.
 
-### Sistema de Navegación por Tabs
-1.  **Umbrales:** Punto de equilibrio detallado y desgloses de costos.
-2.  **Análisis:** 
-    *   **Tendencias Históricas:** Gráficos de área de los últimos 6 meses (Revenue, Profit, Occ, ADR).
-    *   **Comparativas MoM/YoY:** Tablas detalladas de crecimiento respecto al mes y año anterior.
-3.  **Peores/Mejores:** Listado de las 20 reservas extremas.
-4.  **Patrones:** Combinaciones críticas que generan pérdida.
-5.  **Todas:** Listado completo filtrable.
+### 2. Rentabilidad y P&L
+Análisis profundo de la última línea del negocio.
+- **Reservation Drawer**: Al hacer clic en una reserva, muestra:
+    - Desglose P&L completo.
+    - **Memoria de Cálculo**: Paso a paso de cómo se llegó al resultado.
+    - **AI Insights**: Explicación de por qué la reserva fue o no rentable.
+- **Tabs de Análisis**:
+    - **Tendencias**: Gráficos históricos de 6 meses.
+    - **Comparativas**: Tablas MoM (Mes a Mes) y YoY (Año a Año).
+    - **Patrones**: Identificación de combinaciones de pérdida.
 
-### Reservation Drawer (Detalle P&L)
-Al hacer clic en una reserva, se abre un drawer con:
-*   **Resumen de Profit:** Net Profit, Profit/noche y Margen %.
-*   **Desglose P&L:** Revenue - Comisiones - Costos Variables - Costos Fijos.
-*   **Análisis Inteligente:** Explicación textual de "por qué pasó" la pérdida (ej. "Estadía corta con altos costos variables").
-*   **Memoria de Cálculo:** Listado paso a paso de todas las fórmulas aplicadas.
-*   **Confidence Badges:** Nivel de precisión del dato (Real/Estimado) y motivos de confianza.
+### 3. Gestión de Costos (V4)
+Configuración flexible sin fricción.
+- **Categorías Flexibles**: Permite agregar cualquier costo fijo o variable.
+- **Unit Economics**: Configuración de costos de limpieza por estadía vs mensuales.
+- **Comisiones**: Configuración por canal detectado automáticamente en los reportes.
+- **Break-even Preview**: Muestra el impacto inmediato de los cambios en el punto de equilibrio.
 
 ---
 
-## 📈 Vista: Canales
+## 🧩 Componentes de UI Clave
 
-### Resumen (3 cards)
-- Ingresos totales
-- Comisiones totales
-- Comisión promedio (%)
+| Componente | Descripción |
+|------------|-------------|
+| `MetricCard` | Card principal con valor, delta y badge de confianza. |
+| `StatusCard` | Indicador con semáforo (good/warning/bad) y subtexto. |
+| `ActionCard` | Card interactiva para la "Acción de la Semana". |
+| `DataConfidenceBanner` | Banner que indica el nivel de precisión de los datos (●/◐/○). |
+| `ReservationDrawer` | Panel lateral para el detalle atómico de una reserva. |
+| `BreakevenGauge` | Visualización circular del progreso hacia el punto de equilibrio. |
 
-### Visualizaciones
-- **Pie Chart:** Distribución de ingresos por canal
-- **Bar Chart:** Profit per night por canal
+---
 
-### Tabla de Detalle
-| Canal | Ingresos | Comisión | Tasa % | Noches | Profit/Noche |
-|-------|----------|----------|--------|--------|--------------|
+## 📦 Modelos de Datos (Frontend Types)
 
-### Comisiones por Defecto (Fallback)
+### CommandCenterData
 ```typescript
-{ "booking.com": 15%, "expedia": 18%, "hotels.com": 20%, 
-  "airbnb": 3%, "vrbo": 8%, "agoda": 15%, "direct": 0% }
-```
-
----
-
-## 💰 Vista: Caja
-
-### Card Principal: Días de Tranquilidad
-| Estado | Condición | Mensaje |
-|--------|-----------|---------|
-| Excellent | ∞ | "Caja creciendo, buen momento para invertir" |
-| Good | ≥60 días | "Colchón saludable" |
-| Warning | ≥30 días | "Colchón bajando, revisar egresos" |
-| Danger | <30 días | "Riesgo de caja, acción inmediata" |
-
-### Reconciliación
-- Cargado vs Cobrado con gap explicado
-
-### A/R Aging Visual
-- Buckets: Vencido / 7 días / 30 días / Futuro
-- Montos por bucket
-
-### Proyección de Flujo
-```
-Saldo inicial + Ingresos proyectados - Egresos proyectados = Flujo neto
-```
-
----
-
-## ⚙️ Vista: Costos
-
-### Secciones de Configuración
-| Sección | Contenido |
-|---------|-----------|
-| **Room Count** | Cantidad de habitaciones (crítico para cálculos) |
-| **Saldo** | Saldo inicial de caja para cálculo de runway |
-| **Variables** | Categorías flexibles (Limpieza, Lavandería, Amenities, etc.) |
-| **Fijos** | Categorías flexibles (Sueldos, Alquiler, Servicios, etc.) |
-| **OTAs** | Comisiones por canal detectado en PMS + Default |
-| **Pasarela** | Fees de cobro por método (MercadoPago, Stripe, etc.) |
-
-### Preview Instantáneo
-"Con estos costos, tu break-even es X% ocupación"
-
----
-
-## 📤 Vista: Importar
-
-### Reportes Soportados (Cloudbeds CSV)
-*   **Expanded Transaction Report with Details:** Hasta 3 años de antigüedad.
-*   **Reservations with Financials:** Hasta 3 años de antigüedad.
-*   **Channel Performance Summary:** Hasta 3 años de antigüedad.
-
-**Recomendación:** Cargar al menos los últimos **13 meses** para habilitar el análisis de tendencias y comparativas YoY.
-
-### Flujo de Importación
-1.  **Upload:** Drag & drop o selector de archivos múltiples.
-2.  **Validate:** Detección automática de tipo de reporte y validación de columnas.
-3.  **Import:** Procesamiento en background con barra de progreso por archivo.
-4.  **Complete:** Pantalla de celebración con acceso directo al Command Center.
-
-### Historial
-Lista de archivos procesados con estado, cantidad de registros, tipo detectado y fecha exacta de carga.
-
----
-
-## 🔧 Vista: Configuración
-
-### Secciones
-| Sección | Contenido |
-|---------|-----------|
-| **Propiedad** | Nombre, Moneda (USD, MXN, EUR, etc.) |
-| **Plan** | Free / Pro / Partner con features |
-| **Inbox Connect** | Email de ingesta (Pro+) |
-| **Privacidad** | Exportar datos, eliminar cuenta |
-
-### Límites por Plan
-| Feature | Free | Pro | Partner |
-|---------|------|-----|---------|
-| Propiedades | 1 | 1 | ∞ |
-| Imports/mes | 1 | ∞ | ∞ |
-| Historial | 30d | 365d | 365d |
-| Inbox Connect | ❌ | ✅ | ✅ |
-
----
-
-## 🧩 Componentes Clave
-| Componente | Props Principales |
-|------------|-------------------|
-| `MetricCard` | title, value, delta, tooltip, isEstimate, confidence, icon, prefix/suffix |
-| `ActionCard` | type, title, description, impact, confidence, steps[], priority |
-| `DataHealthBanner` | score, issues[], lastImport |
-| `DataConfidenceBanner` | confidence (level, missingForHighConfidence, missingReports) |
-| `StatusCard` | title, value, status, label, subtitle, comparison, helpKey |
-| `PeriodSummaryStats` | health, breakeven, comparisons |
-| `PeriodComparisonWidget` | comparisons (maneja casos sin datos) |
-| `KPICard` | question, value, benchmark, status, icon |
-| `BreakevenGauge` | breakEvenOccupancy, currentOccupancy, gapToBreakEven |
-| `UnitEconomicCard` | question, value, subtitle, isPositive, isCost |
-| `ChannelInsightCard` | type (best/worst/commission), title, channel, value |
-| `AgingBucket` | label, amount, status, icon |
-| `CashRunway` | runwayDays, runwayStatus |
-| `PeriodSelector` | Valores: 7, 30, 90 días, Custom |
-| `ImportWizard` | Estados: upload → validate → importing → complete |
-| `ReservationDrawer` | P&L details, Calculation Memory, AI Insights |
-
----
-
-## 📦 Modelos de Datos
-
-### Property
-```typescript
-{ id, name, currency, timezone, plan, created_at, updated_at }
-```
-
-### LedgerTransaction
-```typescript
-{ 
-  id, property_id, txn_at, reservation_number, reservation_source, 
-  txn_type, debits, credits, void_flag, refund_flag, adjustment_flag, 
-  description, notes, txn_source, source_file_id 
-}
-```
-
-### ReservationFinancial
-```typescript
-{ 
-  id, property_id, reservation_number, status, source_category, 
-  source, check_in, check_out, room_nights, room_revenue_total, 
-  taxes_total, paid_amount, balance_due, suggested_deposit, 
-  hotel_collect_flag, source_file_id 
+{
+  period: { start, end, days },
+  health: { netProfit, kpis, topAlert },
+  breakeven: { breakEvenOccupancy, currentOccupancy, gapToBreakEven },
+  unitEconomics: { profitPerNight, cpor, costMix },
+  channels: { otaDependency, bestChannel, worstChannel },
+  cash: { runwayDays, aging, reconciliationGap },
+  dataConfidence: { score, level, missingReports }
 }
 ```
 
 ### ReservationEconomics
 ```typescript
 {
-  reservationNumber, guestName, source, sourceCategory, checkIn,
-  roomNights, revenue, commissionAmount, variableCosts, 
-  fixedCostAllocated, netProfit, profitPerNight, marginPercent,
-  isUnprofitable, trust, confidence, confidenceReasons[], calcNotes[],
-  aiInsights: string[]
-}
-```
-
-### ChannelSummary
-```typescript
-{ 
-  id, property_id, source_category, source, room_nights, 
-  room_revenue_total, estimated_commission, source_file_id 
-}
-```
-
-### CostSettings (v4)
-```typescript
-{ 
-  propertyId: string, 
-  roomCount: number,
-  startingCashBalance: number,
-  // V4 flexible categories
-  variableCategories: Array<{ id: string, name: string, monthlyAmount: number }>,
-  fixedCategories: Array<{ id: string, name: string, monthlyAmount: number }>,
-  extraordinaryCosts: Array<{ id: string, name: string, amount: number, date: string }>,
-  // Commissions & fees
-  channelCommissions: { defaultRate: number, byChannel: Record<string, number> },
-  paymentFees: { enabled: boolean, defaultRate: number, byMethod: Record<string, number> }
-}
-```
-
-### CommandCenterData (v2.1)
-```typescript
-{
-  period: { start, end, days },
-  health: {
-    netProfit: { value, isPositive, trend, vsLastPeriod, vsLastPeriodPercent },
-    kpis: { occupancy, adr, revpar, goppar },
-    changes: { driver, explanation, impact },
-    topAlert: { type, title, description, severity, actionLabel, actionLink }
-  },
-  breakeven: { 
-    breakEvenOccupancy, currentOccupancy, gapToBreakEven, 
-    nightsNeededForBreakEven, nightsSoldThisPeriod, nightsGap,
-    breakEvenPrice, currentAdr, 
-    marginSimulation: { margin10, margin20, margin30 },
-    distanceToBreakEven: { inDollars, inNights, status },
-    revparDecomposition: { occupancyContribution, adrContribution, primaryDriver }
-  },
-  unitEconomics: { 
-    profitPerNight, contributionMargin, contributionMarginPercent,
-    cpor, cporBreakdown: { fixed, variable, commission },
-    costMix: { fixedPercent, variablePercent, commissionPercent },
-    costAlerts: Array<{ category, trend, changePercent }>
-  },
-  channels: { 
-    channels: Array<ChannelDetail>,
-    bestChannelByProfitPerNight, worstChannelByProfitPerNight,
-    otaDependency: { otaShare, directShare, isOverDependent },
-    avgEffectiveCommission, toxicChannel
-  },
-  cash: { 
-    charged, collected, gap, gapExplanation, totalPending, 
-    topPendingReservations, aging, runwayDays, runwayStatus,
-    cashBreakers: { refunds, voids, adjustments, total }
-  },
-  dataConfidence: { 
-    score, level, missingForHighConfidence, realMetrics, estimatedMetrics, 
-    missingReports, monthsCovered, earliestDate 
-  },
-  comparisons: { 
-    mom: { currentPeriod, previousPeriod, metrics },
-    yoy: { currentPeriod, previousPeriod, metrics }
-  },
-  weeklyAction: { title, impact, type, priority }
+  reservationNumber, guestName, checkIn, nights,
+  revenue, netProfit, marginPercent,
+  calcMemory: { steps[] },
+  aiInsights: string[],
+  trustLevel: 'real' | 'estimated'
 }
 ```
 
 ---
 
-## 🔌 API Endpoints
+## 🎨 Guía de Estilos (Design System)
 
-### Import
-- `POST /api/import/validate` - Detecta reportType + columnas + warnings
-- `POST /api/import` - Importa archivo
-- `POST /api/import/batch` - Importa múltiples CSVs simultáneamente
-- `GET /api/import/history/:propertyId` - Historial de archivos
-
-### Command Center (v2.1 - Unificado)
-- `GET /api/metrics/:propertyId/command-center?days=30` - **Todas las métricas unificadas**
-
-### Analytics & Intelligence
-- `GET /api/metrics/:propertyId/trends?months=6` - Datos para gráficos de tendencia histórica
-- `GET /api/metrics/:propertyId/projection` - Proyección de ingresos (On-the-books)
-- `GET /api/metrics/:propertyId/dow` - Performance por día de la semana
-- `GET /api/metrics/:propertyId/insights` - Insights generados por motor inteligente
-- `GET /api/metrics/:propertyId/yoy` - Comparativa Year over Year detallada
-- `GET /api/metrics/:propertyId/comparison` - Comparativa MoM detallada
-
-### Metrics & Structure
-- `GET /api/metrics/:propertyId/cash` - Runway, flujo diario y alertas
-- `GET /api/metrics/:propertyId/channels` - Desglose y mix de canales con profit real
-- `GET /api/metrics/:propertyId/structure` - Occupancy, ADR, RevPAR, GOPPAR
-- `GET /api/metrics/:propertyId/breakeven` - Break-even analysis detallado
-- `GET /api/metrics/:propertyId/ar-aging` - Aging de A/R buckets
-- `GET /api/metrics/:propertyId/reconcile` - Reconciliación Cargado vs Cobrado
-
-### Reservation Economics (P&L por Reserva)
-- `GET /api/metrics/:propertyId/reservation-economics` - Summary de rentabilidad del período
-- `GET /api/metrics/:propertyId/reservation-economics/list` - Listado filtrable (unprofitableOnly, source, nightsBucket)
-- `GET /api/metrics/:propertyId/reservation-economics/:resNumber` - **Detalle P&L único con memoria de cálculo**
-- `GET /api/data-health/:propertyId` - Score y issues de calidad de datos
-
-### Costs & Settings
-- `GET /api/costs/:propertyId` - Configuración de costos con calculated values
-- `GET /api/costs/:propertyId/channels` - Canales detectados en PMS para configuración
-- `PUT /api/costs/:propertyId` - Actualizar configuración V4 (Flexible Categories)
-
----
-
-## 🎨 Design System
-
-### Colores Principales
-| Variable | Valor | Uso |
-|----------|-------|-----|
-| `--color-primary` | #0f766e | Acciones, éxito, brand |
-| `--color-accent` | #f97316 | Highlights, CTAs |
-| `--color-success` | #059669 | Positivo, profit |
-| `--color-error` | #dc2626 | Errores, negativos, alerts |
-| `--color-warning` | #d97706 | Advertencias |
-| `--color-info` | #0284c7 | Información |
-| `--color-text` | #1c1917 | Texto principal |
-| `--color-bg` | #fafaf9 | Fondo |
+### Semántica de Colores
+- **Éxito/Profit**: `#059669` (Emerald 600)
+- **Error/Pérdida**: `#dc2626` (Red 600)
+- **Advertencia**: `#d97706` (Amber 600)
+- **Marca/Acciones**: `#0f766e` (Teal 700)
 
 ### Tipografía
-- Sans: Plus Jakarta Sans
-- Mono: JetBrains Mono (valores numéricos)
-
-### Badges
-| Clase | Color | Uso |
-|-------|-------|-----|
-| `.badge-success` | Verde | Éxito, alta confianza |
-| `.badge-warning` | Amarillo | Estimado, media confianza |
-| `.badge-error` | Rojo | Error, baja confianza |
-| indicador de confianza | ●/◐/○ | Nivel visual de precisión |
-| `.badge-info` | Azul | Información |
-| `.badge-neutral` | Gris | Plan Free |
-| `.badge--estimated` | Amarillo | Métrica estimada |
-| `.badge--real` | Verde | Métrica real |
-
-### Status Colors para KPIs
-| Status | Color | Uso |
-|--------|-------|-----|
-| `good` | Verde border-left | KPI saludable |
-| `warning` | Amarillo border-left | KPI en zona de riesgo |
-| `bad` | Rojo border-left | KPI crítico |
-
-### Command Center Classes
-```css
-.command-center              /* Container principal */
-.command-section             /* Cada sección con fondo blanco */
-.section-header              /* Header con icono y título */
-.hero-profit                 /* Métrica hero grande */
-.kpi-grid                    /* Grid de 4 KPIs */
-.kpi-card                    /* Card individual de KPI */
-.breakeven-grid              /* Grid de break-even */
-.breakeven-gauge             /* Gauge central */
-.margin-simulation           /* Simulador de margen */
-.unit-economics-grid         /* Grid de unit economics */
-.channel-insights            /* Grid de insights de canales */
-.channel-table               /* Tabla de canales */
-.ota-dependency              /* Barra de dependencia OTA */
-.toxic-channel               /* Alerta de canal tóxico */
-.reconciliation              /* Reconciliación cargado/cobrado */
-.ar-aging                    /* Aging buckets */
-.cash-runway                 /* Card de runway */
-.period-summary              /* Barra de resumen del período */
-.collections-alert           /* Alerta de cobranzas pendientes */
-.confidence-banner           /* Banner de confianza de datos */
-.top-alert                   /* Alerta principal */
-.quick-actions               /* Links rápidos */
-```
+- **Títulos/Cuerpo**: `Plus Jakarta Sans`
+- **Datos Numéricos**: `JetBrains Mono` (para alineación perfecta en tablas)
 
 ---
-
-## 📄 Estructura CSV (Columnas Clave)
-
-El sistema utiliza un mapeo flexible para detectar las columnas, pero estas son las principales que busca en cada reporte:
-
-### 1. Expanded Transaction Report with Details
-* **Fecha:** `Transaction Date Time - Property` (o similar)
-* **Reserva:** `Reservation Number`, `Reservation Source`
-* **Monto:** `Debits`, `Credits`
-* **Flags:** `Void Flag`, `Refund Flag`, `Adjustment Flag`
-
-### 2. Reservations with Financials
-* **Reserva:** `Reservation Number`, `Reservation Status`
-* **Fechas:** `Check-In Date`, `Check-Out Date`
-* **Métricas:** `Room Nights`, `Room Revenue Total`
-* **Pagos:** `Reservation Paid Amount`, `Reservation Balance Due`, `Suggested Deposit`
-
-### 3. Channel Performance Summary
-* **Canal:** `Reservation Source`, `Reservation Source Category`
-* **Métricas:** `Room Nights - sum`, `Room Revenue Total - sum`
-* **Comisión:** `Estimated Commission - sum`
-
----
-
-## 📊 Telemetría
-| Evento | Trigger |
-|--------|---------|
-| `view_home` | Carga Command Center |
-| `view_import` | Carga importación |
-| `view_profitability` | Carga rentabilidad |
-| `view_channels` | Carga canales |
-| `view_cash` | Carga caja |
-| `command_center_loaded` | Command Center cargado completo |
-| `weekly_action_clicked` | Click en acción semanal |
-| `breakeven_simulation_used` | Uso del simulador de margen |
-| `import_started` | Inicia import |
-| `import_success/failed` | Resultado import |
-| `costs_updated` | Guarda costos |
-| `action_checked` | Completa paso de acción |
-| `reservation_drawer_opened` | Abre detalle de reserva |
-
----
-
-*Financial OS v2.1 — Command Center Edition*
+*Financial OS v2.2 — Especificación de Frontend*

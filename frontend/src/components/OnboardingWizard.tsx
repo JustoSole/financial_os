@@ -12,10 +12,12 @@ import {
   X,
   AlertCircle,
   TrendingUp,
-  Zap
+  Zap,
+  Bed
 } from 'lucide-react';
 import { validateFile, importFiles, updateCosts, trackEvent, getCosts } from '../api';
 import { useApp } from '../context/AppContext';
+import { markOnboardingCompleted } from '../utils/onboarding';
 import styles from './OnboardingWizard.module.css';
 
 type WizardStep = 'welcome' | 'upload' | 'costs' | 'complete';
@@ -58,6 +60,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
   const [importComplete, setImportComplete] = useState(false);
   
   // Costs state - simplified
+  const [roomCount, setRoomCount] = useState(0);
   const [cashBalance, setCashBalance] = useState(0);
   const [cleaningCost, setCleaningCost] = useState(0);
   const [monthlySalaries, setMonthlySalaries] = useState(0);
@@ -77,6 +80,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
     try {
       const res = await getCosts(property.id);
       if (res.success && res.data) {
+        setRoomCount(res.data.room_count || 0);
         setCashBalance(res.data.starting_cash_balance || 0);
         if (res.data.variable_costs?.cleaningPerStay) {
           setCleaningCost(res.data.variable_costs.cleaningPerStay);
@@ -211,6 +215,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
     
     try {
       const costsData = {
+        roomCount,
         startingCashBalance: cashBalance,
         cleaningPerStay: cleaningCost,
         fixedCategories: [
@@ -233,10 +238,19 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
 
   const handleComplete = async () => {
     if (property?.id) {
+      markOnboardingCompleted(property.id);
       trackEvent(property.id, 'onboarding_complete');
     }
     await refreshProperty();
     await refreshData();
+    onComplete();
+  };
+  
+  const handleSkipWithDemo = () => {
+    if (property?.id) {
+      markOnboardingCompleted(property.id);
+      trackEvent(property.id, 'onboarding_skipped_demo');
+    }
     onComplete();
   };
 
@@ -354,7 +368,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
 
           <button 
             className={styles.btnDemo}
-            onClick={onComplete}
+            onClick={handleSkipWithDemo}
           >
             Explorar con datos demo →
           </button>
@@ -556,6 +570,28 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
           </div>
 
           <div className={styles.costsForm}>
+            {/* Room Count */}
+            <div className={styles.costSection}>
+              <div className={styles.costSectionHeader}>
+                <Bed size={20} />
+                <div>
+                  <h3>Cantidad de habitaciones</h3>
+                  <p>Total de habitaciones disponibles para vender</p>
+                </div>
+              </div>
+              <div className={styles.costInput}>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={roomCount > 0 ? roomCount.toString() : ''}
+                  onChange={(e) => setRoomCount(parseInt(e.target.value.replace(/\D/g, '')) || 0)}
+                  placeholder="0"
+                  style={{ textAlign: 'center', maxWidth: '100px' }}
+                />
+                <span className={styles.costSuffix}>habitaciones</span>
+              </div>
+            </div>
+
             {/* Cash Balance */}
             <div className={styles.costSection}>
               <div className={styles.costSectionHeader}>
@@ -735,7 +771,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
           </div>
 
           <button 
-            className={styles.btnPrimary}
+            className={`${styles.btnPrimary} ${styles.btnPrimaryStandalone}`}
             onClick={handleComplete}
           >
             Ver mi Dashboard

@@ -46,7 +46,7 @@ export const DEFAULT_CHANNEL_COMMISSIONS: Record<string, number> = {
   'travel agency': 0.10,
   
   // Default fallback
-  'default': 0.15,
+  'default': 0,
 };
 
 // =====================================================
@@ -129,7 +129,7 @@ export function categorizeChannel(source: string): ChannelCategory {
 export function getChannelCommissionRate(
   source: string,
   overrides?: Record<string, number>,
-  defaultRate: number = 0.15
+  defaultRate: number = 0
 ): number {
   const sourceLower = source.toLowerCase().trim();
   

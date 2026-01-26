@@ -1,304 +1,127 @@
-import { nanoid } from 'nanoid';
+import { 
+  ReportType, 
+  VariableCostsInput,
+  FixedCostsInput,
+  ChannelCommissions,
+  PaymentFees,
+  calculateTotalFixedCosts,
+} from '../types';
 import database from '../db';
-import cacheService from './cache-service';
-import { ReportType } from '../types';
-import {
-  parseCSV,
-  detectReportType,
-  validateReport,
-  parseTransactionReport,
-  parseReservationsReport,
-  parseChannelReport,
-  detectCurrency,
-  DetectedCurrency,
-} from '../parsers';
+import { parseCSV, detectReportType, validateReport } from '../parsers';
+import { processTransactions } from './import-service-transactions';
+import { processReservations } from './import-service-reservations';
+import { processChannels } from './import-service-channels';
+import { cacheService } from './cache-service';
+import logger from './logger';
 
-// =====================================================
-// Import Service - Handles CSV uploads for MVS
-// Supports 3 report types:
-// 1. Expanded Transaction Report with Details
-// 2. Reservations with Financials
-// 3. Channel Performance Summary
-// =====================================================
-
-const PARSER_VERSION = '1.1.0';
-
-export interface ImportResult {
-  success: boolean;
-  fileId: string;
-  reportType: ReportType | 'unknown';
-  rowsProcessed: number;
-  rowsSkipped: number;
-  warnings: string[];
-  errors: string[];
-  detectedCurrency?: DetectedCurrency;
-}
-
-export async function importCSV(
-  propertyId: string,
-  filename: string,
-  content: string
-): Promise<ImportResult> {
-  const fileId = nanoid();
-  const result: ImportResult = {
-    success: false,
-    fileId,
-    reportType: 'unknown',
-    rowsProcessed: 0,
-    rowsSkipped: 0,
-    warnings: [],
-    errors: [],
-  };
-
+/**
+ * Import Service - Handles CSV parsing and data ingestion
+ */
+export async function importCSV(propertyId: string, filename: string, content: string): Promise<any> {
+  logger.info('IMPORT', `Starting import for file: ${filename}`, { propertyId });
   try {
-    // Parse and detect type
-    const parsed = parseCSV(content);
-    if (parsed.errors.length > 0) {
-      result.errors.push(...parsed.errors.map(e => e.message));
-      return result;
+    const parseResult = parseCSV(content);
+    logger.debug('IMPORT', `CSV Parsed. Rows found: ${parseResult.data.length}. Delimiter: ${parseResult.meta.delimiter}`);
+    
+    if (parseResult.errors.length > 0 && parseResult.data.length === 0) {
+      logger.error('IMPORT', 'Parse errors detected', parseResult.errors);
+      return { success: false, error: 'Error al leer el archivo CSV', details: parseResult.errors };
     }
 
-    const headers = parsed.data.length > 0 ? Object.keys(parsed.data[0]) : [];
+    const headers = Object.keys(parseResult.data[0] || {});
+    logger.debug('IMPORT', 'Detected Headers', headers);
+    
     const reportType = detectReportType(headers);
-    result.reportType = reportType;
+    logger.info('IMPORT', `Detected Report Type: ${reportType}`);
 
     if (reportType === 'unknown') {
-      result.errors.push(
-        'No se pudo identificar el tipo de reporte. ' +
-        'Verificá que sea uno de estos reportes de Cloudbeds:\n' +
-        '• Expanded Transaction Report with Details\n' +
-        '• Reservations with Financials\n' +
-        '• Channel Performance Summary'
-      );
-      return result;
+      logger.error('IMPORT', 'Unknown report type for headers', { headers, sample: parseResult.data[0] });
+      return { 
+        success: false, 
+        error: 'No se pudo identificar el reporte. Asegurate de exportar el reporte de Cloudbeds en formato "Table" o "Details Only" y que las columnas no hayan sido modificadas.', 
+        details: { headers, sample: parseResult.data[0] } 
+      };
     }
 
-    // Detect currency from the data
-    const detectedCurrency = detectCurrency(parsed.data, reportType);
-    result.detectedCurrency = detectedCurrency;
+    const validation = validateReport(parseResult.data, reportType);
+    logger.info('IMPORT', `Validation result: ${validation.isValid ? 'VALID' : 'INVALID'}`);
     
-    // Update property currency if detected and different from current
-    if (detectedCurrency !== 'unknown') {
-      const property = database.getProperty();
-      if (property && property.currency !== detectedCurrency) {
-        database.updateProperty(propertyId, {
-          currency: detectedCurrency,
-          updated_at: new Date().toISOString(),
-        });
-        result.warnings.push(`Moneda detectada automáticamente: ${detectedCurrency}`);
-      }
+    if (!validation.isValid) {
+      logger.error('IMPORT', 'Missing columns', validation.missingRequired);
+      const missingNames = validation.missingRequired.join(', ');
+      return { 
+        success: false, 
+        error: `Al reporte le faltan columnas obligatorias: ${missingNames}. Por favor, volvé a exportar el reporte original de Cloudbeds sin modificar los encabezados.`,
+        details: validation
+      };
     }
 
-    // Create import file record
-    database.insertImportFile({
-      id: fileId,
-      property_id: propertyId,
-      report_type: reportType,
-      filename,
-      uploaded_at: new Date().toISOString(),
-      rows: parsed.data.length,
-      warnings_count: 0,
-      status: 'processing',
-      parser_version: PARSER_VERSION,
-    });
-
-    // Process based on type
-    switch (reportType) {
-      case 'expanded_transactions':
-        await processTransactions(propertyId, fileId, content, result);
-        break;
-      case 'reservations_financials':
-        await processReservations(propertyId, fileId, content, result);
-        break;
-      case 'channel_performance':
-        await processChannels(propertyId, fileId, content, result);
-        break;
-      default:
-        result.errors.push(`Tipo de reporte no soportado: ${reportType}`);
-    }
-
-    // Update file status
-    const status = result.errors.length === 0 ? 'processed' : 'failed';
-    database.updateImportFile(fileId, {
-      status,
-      warnings_count: result.warnings.length,
-      error_message: result.errors.join('; ') || null,
-    });
-
-    result.success = result.errors.length === 0;
-
-    // Log import
-    logImport(propertyId, result.success ? 'import_success' : 'import_failed', {
-      fileId,
+    // Registrar inicio de importación
+    const importFile = await database.insertImportFile({
+      propertyId,
       reportType,
-      rowsProcessed: result.rowsProcessed,
-      errors: result.errors,
+      filename,
+      rows: parseResult.data.length,
+      warningsCount: validation.warnings.length,
+      status: 'processing',
+      parserVersion: '2.0'
     });
 
-    // Clear cache after successful import
-    if (result.success) {
+    let result;
+    try {
+      if (reportType === 'expanded_transactions') {
+        logger.info('IMPORT', 'Processing Transactions...');
+        result = await processTransactions(propertyId, importFile.id, parseResult.data);
+      } else if (reportType === 'reservations_financials') {
+        logger.info('IMPORT', 'Processing Reservations...');
+        result = await processReservations(propertyId, importFile.id, parseResult.data);
+      } else if (reportType === 'channel_performance') {
+        logger.info('IMPORT', 'Processing Channels...');
+        result = await processChannels(propertyId, importFile.id, parseResult.data);
+      }
+
+      await database.updateImportFile(importFile.id, { status: 'processed' });
+      logger.success('IMPORT', `Successfully imported ${parseResult.data.length} rows of type ${reportType}`);
+      
+      // Invalidar caché tras importación exitosa (Issue D)
       cacheService.clear();
+
+      return { 
+        success: true, 
+        reportType, 
+        rowCount: parseResult.data.length,
+        warnings: validation.warnings 
+      };
+    } catch (processError: any) {
+      logger.error('IMPORT', 'Processing error', processError);
+      await database.updateImportFile(importFile.id, { status: 'failed' });
+      return { success: false, error: processError.message || 'Error al procesar los datos' };
+    }
+  } catch (error: any) {
+    logger.error('IMPORT', 'Critical import error', error);
+    return { success: false, error: error.message || 'Error interno al procesar el archivo' };
+  }
+}
+
+export function validateCSV(content: string): any {
+  try {
+    const parseResult = parseCSV(content);
+    if (parseResult.data.length === 0) {
+      return { success: false, error: 'El archivo está vacío' };
     }
 
-  } catch (error: any) {
-    result.errors.push(`Error interno: ${error.message}`);
-    logImport(propertyId, 'import_failed', { error: error.message });
-  }
+    const headers = Object.keys(parseResult.data[0]);
+    const reportType = detectReportType(headers);
+    const validation = validateReport(parseResult.data, reportType as ReportType);
 
-  return result;
-}
-
-// =====================================================
-// Process Expanded Transaction Report with Details
-// =====================================================
-async function processTransactions(
-  propertyId: string,
-  fileId: string,
-  content: string,
-  result: ImportResult
-) {
-  const { transactions, warnings, errors } = parseTransactionReport(content);
-  result.warnings.push(...warnings);
-  result.errors.push(...errors);
-
-  if (errors.length > 0) return;
-
-  const records = transactions.map(txn => ({
-    id: nanoid(),
-    property_id: propertyId,
-    txn_at: txn.txnAt,
-    reservation_number: txn.reservationNumber,
-    reservation_source: txn.reservationSource,
-    txn_type: txn.txnType,
-    debits: txn.debits,
-    credits: txn.credits,
-    void_flag: txn.voidFlag,
-    refund_flag: txn.refundFlag,
-    adjustment_flag: txn.adjustmentFlag,
-    description: txn.description,
-    notes: txn.notes,
-    txn_source: txn.txnSource,
-    source_file_id: fileId,
-    created_at: new Date().toISOString(),
-  }));
-
-  database.insertTransactions(records);
-  result.rowsProcessed = transactions.length;
-  result.rowsSkipped = 0;
-}
-
-// =====================================================
-// Process Reservations with Financials
-// =====================================================
-async function processReservations(
-  propertyId: string,
-  fileId: string,
-  content: string,
-  result: ImportResult
-) {
-  const { reservations, warnings, errors } = parseReservationsReport(content);
-  result.warnings.push(...warnings);
-  result.errors.push(...errors);
-
-  if (errors.length > 0) return;
-
-  const records = reservations.map(res => ({
-    id: nanoid(),
-    property_id: propertyId,
-    reservation_number: res.reservationNumber,
-    guest_name: res.guestName,
-    status: res.status,
-    source_category: res.sourceCategory,
-    source: res.source,
-    check_in: res.checkIn,
-    check_out: res.checkOut,
-    room_nights: res.roomNights,
-    room_revenue_total: res.roomRevenueTotal,
-    taxes_total: res.taxesTotal,
-    paid_amount: res.paidAmount,
-    balance_due: res.balanceDue,
-    suggested_deposit: res.suggestedDeposit,
-    hotel_collect_flag: res.hotelCollectFlag,
-    source_file_id: fileId,
-    created_at: new Date().toISOString(),
-  }));
-
-  database.insertReservations(records);
-  result.rowsProcessed = reservations.length;
-}
-
-// =====================================================
-// Process Channel Performance Summary
-// =====================================================
-async function processChannels(
-  propertyId: string,
-  fileId: string,
-  content: string,
-  result: ImportResult
-) {
-  const { channels, warnings, errors } = parseChannelReport(content);
-  result.warnings.push(...warnings);
-  result.errors.push(...errors);
-
-  if (errors.length > 0) return;
-
-  const records = channels.map(ch => ({
-    id: nanoid(),
-    property_id: propertyId,
-    source_category: ch.sourceCategory,
-    source: ch.source,
-    room_nights: ch.roomNights,
-    room_revenue_total: ch.roomRevenueTotal,
-    estimated_commission: ch.estimatedCommission,
-    source_file_id: fileId,
-    created_at: new Date().toISOString(),
-  }));
-
-  database.insertChannels(records);
-  result.rowsProcessed = channels.length;
-}
-
-// =====================================================
-// Logging
-// =====================================================
-function logImport(propertyId: string, eventType: string, data: any) {
-  database.insertLog({
-    id: nanoid(),
-    property_id: propertyId,
-    event_type: eventType,
-    event_data: JSON.stringify(data),
-    created_at: new Date().toISOString(),
-  });
-}
-
-// =====================================================
-// Validate without importing
-// =====================================================
-export function validateCSV(content: string): {
-  reportType: ReportType | 'unknown';
-  isValid: boolean;
-  detectedColumns: string[];
-  missingRequired: string[];
-  warnings: string[];
-  preview: Record<string, any>[];
-} {
-  const parsed = parseCSV(content);
-  const headers = parsed.data.length > 0 ? Object.keys(parsed.data[0]) : [];
-  const reportType = detectReportType(headers);
-
-  if (reportType === 'unknown') {
-    return {
-      reportType: 'unknown',
-      isValid: false,
-      detectedColumns: headers,
-      missingRequired: [],
-      warnings: [
-        'No se reconoce el formato del reporte. ' +
-        'Asegurate de exportar como "Table" o "Details Only" en formato CSV.'
-      ],
-      preview: parsed.data.slice(0, 5),
+    return { 
+      success: true, 
+      isValid: validation.isValid,  // Frontend expects "isValid"
+      reportType, 
+      validation,
+      missingRequired: validation.missingRequired,
     };
+  } catch (error: any) {
+    return { success: false, error: error.message };
   }
-
-  return validateReport(parsed.data, reportType);
 }

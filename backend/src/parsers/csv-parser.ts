@@ -11,21 +11,31 @@ interface ParseOptions {
 }
 
 export function parseCSV(content: string, options: ParseOptions = {}): Papa.ParseResult<Record<string, string>> {
-  // Auto-detect delimiter by checking first line
-  const firstLine = content.split('\n')[0] || '';
+  // Cloudbeds CSVs often have a BOM or weird encoding. 
+  // Let's ensure we have a clean string.
+  const cleanContent = content.replace(/^\uFEFF/, '').trim();
+  
+  const lines = cleanContent.split(/\r?\n/);
+  const firstLine = lines[0] || '';
+  
+  // Cloudbeds uses semicolon in many regions, comma in others.
   const semicolonCount = (firstLine.match(/;/g) || []).length;
   const commaCount = (firstLine.match(/,/g) || []).length;
   const delimiter = semicolonCount > commaCount ? ';' : ',';
 
-  const result = Papa.parse<Record<string, string>>(content, {
+  console.log(`[CSV-PARSER] Parsing. Delimiter: "${delimiter}", Headers: ${firstLine.substring(0, 100)}...`);
+
+  return Papa.parse<Record<string, string>>(cleanContent, {
     header: true,
     delimiter,
     skipEmptyLines: true,
-    transformHeader: (header) => header.trim().toLowerCase(),
+    transformHeader: (header) => {
+      // Cloudbeds headers can have spaces, special chars, and case differences.
+      // We normalize to lowercase and remove non-alphanumeric for matching.
+      return header.trim().toLowerCase();
+    },
     transform: (value) => value.trim(),
   });
-
-  return result;
 }
 
 // Normalize decimal format (European 1.234,56 → 1234.56)
@@ -239,6 +249,16 @@ const COLUMN_MAPPINGS: Record<string, string[]> = {
     'hotel collect booking flag', 
     'cobro del hotel'
   ],
+  'estimated_commission': [
+    'estimated commission',
+    'estimated commission - sum',
+    'comisión estimada'
+  ],
+  'grand_total': [
+    'grand total',
+    'grand total - sum',
+    'total general'
+  ],
   
   // === Channel Performance Summary ===
   'source_category': [
@@ -252,15 +272,10 @@ const COLUMN_MAPPINGS: Record<string, string[]> = {
     'fuente',
     'canal'
   ],
-  'estimated_commission': [
-    'estimated commission - sum',
-    'estimated commission',
-    'comisión estimada'
-  ],
-  'grand_total': [
-    'grand total - sum',
-    'grand total',
-    'total general'
+  'room_count': [
+    'room count',
+    'room count - sum',
+    'habitaciones'
   ],
 };
 
@@ -287,52 +302,24 @@ export function findColumn(headers: string[], targetField: string): string | nul
 // =====================================================
 
 export function detectReportType(headers: string[]): ReportType | 'unknown' {
-  const lowerHeaders = headers.map(h => h.toLowerCase());
-  
-  // Check for Expanded Transaction Report indicators
-  const hasDebitsCredits = lowerHeaders.some(h => h.includes('debits')) && 
-                           lowerHeaders.some(h => h.includes('credits'));
-  const hasTxnType = lowerHeaders.some(h => h.includes('transaction type'));
-  const hasVoidFlag = lowerHeaders.some(h => h.includes('void flag'));
-  
-  // Check for Reservations with Financials indicators
-  const hasBalanceDue = lowerHeaders.some(h => h.includes('balance due'));
-  const hasPaidAmount = lowerHeaders.some(h => h.includes('paid amount'));
-  const hasSuggestedDeposit = lowerHeaders.some(h => h.includes('suggested deposit'));
-  
-  // Check for Channel Performance Summary indicators
-  const hasRoomNightsSum = lowerHeaders.some(h => h.includes('room nights - sum'));
-  const hasRevenueSum = lowerHeaders.some(h => h.includes('room revenue total - sum'));
-  const hasEstCommSum = lowerHeaders.some(h => h.includes('estimated commission - sum'));
-  
-  // Score each type
-  let scores = {
-    expanded_transactions: 0,
-    reservations_financials: 0,
-    channel_performance: 0,
-  };
+  const h = headers.map(h => h.toLowerCase());
   
   // Expanded Transaction Report
-  if (hasDebitsCredits) scores.expanded_transactions += 5;
-  if (hasTxnType) scores.expanded_transactions += 3;
-  if (hasVoidFlag) scores.expanded_transactions += 2;
+  if (h.includes('debits') || h.includes('credits') || h.includes('transaction type')) {
+    return 'expanded_transactions';
+  }
   
   // Reservations with Financials
-  if (hasBalanceDue) scores.reservations_financials += 4;
-  if (hasPaidAmount) scores.reservations_financials += 3;
-  if (hasSuggestedDeposit) scores.reservations_financials += 3;
+  if (h.includes('reservation number') && (h.includes('check-in date') || h.includes('room nights'))) {
+    return 'reservations_financials';
+  }
   
-  // Channel Performance Summary
-  if (hasRoomNightsSum) scores.channel_performance += 4;
-  if (hasRevenueSum) scores.channel_performance += 4;
-  if (hasEstCommSum) scores.channel_performance += 3;
-  
-  // Return highest scoring type
-  const maxScore = Math.max(...Object.values(scores));
-  if (maxScore === 0) return 'unknown';
-  
-  const winner = Object.entries(scores).find(([_, score]) => score === maxScore);
-  return (winner?.[0] as ReportType) || 'unknown';
+  // Channel Performance
+  if (h.includes('reservation source') && h.includes('room revenue total - sum')) {
+    return 'channel_performance';
+  }
+
+  return 'unknown';
 }
 
 // =====================================================
@@ -466,6 +453,20 @@ export function detectCurrency(data: Record<string, string>[], reportType: Repor
 }
 
 /**
+ * Genera un hash simple para el contenido de una fila para detectar duplicados
+ */
+export function generateRowHash(row: Record<string, string>): string {
+  const str = JSON.stringify(row);
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  return Math.abs(hash).toString(16);
+}
+
+/**
  * Obtiene el símbolo de moneda para display
  */
 export function getCurrencySymbol(currency: DetectedCurrency): string {
@@ -487,47 +488,76 @@ export function getCurrencySymbol(currency: DetectedCurrency): string {
 
 export function validateReport(
   data: Record<string, string>[],
-  reportType: ReportType
+  reportType: ReportType | 'unknown'
 ): ValidationResult {
   const headers = data.length > 0 ? Object.keys(data[0]) : [];
-  const warnings: string[] = [];
   const missingRequired: string[] = [];
-  
-  const requiredFields: Record<ReportType, string[]> = {
-    expanded_transactions: ['txn_datetime', 'debits', 'credits'],
-    reservations_financials: ['reservation_number', 'reservation_paid_amount', 'reservation_balance_due'],
-    channel_performance: ['source', 'room_revenue_total'],
-  };
-  
-  const required = requiredFields[reportType] || [];
-  
-  for (const field of required) {
-    const column = findColumn(headers, field);
-    if (!column) {
-      missingRequired.push(field);
+  const warnings: string[] = [];
+
+  if (data.length === 0) {
+    return {
+      isValid: false,
+      reportType,
+      detectedColumns: headers,
+      missingRequired: ['El archivo está vacío'],
+      warnings: [],
+      preview: []
+    };
+  }
+
+  if (reportType === 'unknown') {
+    return {
+      isValid: false,
+      reportType,
+      detectedColumns: headers,
+      missingRequired: ['No se pudo detectar el tipo de reporte de Cloudbeds'],
+      warnings: [],
+      preview: data.slice(0, 5)
+    };
+  }
+
+  // Validaciones específicas por tipo
+  if (reportType === 'expanded_transactions') {
+    if (!findColumn(headers, 'debits') && !findColumn(headers, 'credits')) {
+      missingRequired.push('Faltan columnas de montos (Debits/Credits)');
+    }
+    if (!findColumn(headers, 'txn_datetime')) {
+      missingRequired.push('Falta columna de fecha de transacción');
+    }
+  } else if (reportType === 'reservations_financials') {
+    if (!findColumn(headers, 'reservation_number')) {
+      missingRequired.push('Falta columna de número de reserva');
+    }
+    if (!findColumn(headers, 'check_in_date')) {
+      missingRequired.push('Falta columna de fecha de check-in');
+    }
+    if (!findColumn(headers, 'room_revenue_total')) {
+      missingRequired.push('Falta columna de ingresos por habitación');
     }
   }
+
+  // Validación de integridad de datos (ej. valores negativos inesperados o fechas inválidas)
+  const sample = data.slice(0, 20);
+  let invalidDataCount = 0;
   
-  // Check data quality
-  if (data.length === 0) {
-    warnings.push('El archivo está vacío');
-  } else if (data.length < 3) {
-    warnings.push('Muy pocos datos - verificá que exportaste el reporte completo');
+  if (reportType === 'reservations_financials') {
+    const revenueCol = findColumn(headers, 'room_revenue_total');
+    sample.forEach(row => {
+      const val = revenueCol ? normalizeDecimal(row[revenueCol]) : 0;
+      if (isNaN(val)) invalidDataCount++;
+    });
   }
-  
-  // Detect currency
-  const detectedCurrency = detectCurrency(data, reportType);
-  if (detectedCurrency !== 'unknown') {
-    warnings.push(`Moneda detectada: ${detectedCurrency}`);
+
+  if (invalidDataCount > sample.length * 0.5) {
+    warnings.push('Se detectaron muchos valores numéricos inválidos. Verificá el formato del CSV.');
   }
-  
+
   return {
     isValid: missingRequired.length === 0,
     reportType,
     detectedColumns: headers,
     missingRequired,
     warnings,
-    preview: data.slice(0, 5),
-    detectedCurrency,
+    preview: data.slice(0, 5)
   };
 }

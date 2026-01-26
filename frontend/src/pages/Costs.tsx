@@ -74,14 +74,17 @@ const generateId = () => Math.random().toString(36).substring(2, 9);
 
 // Formatea un número con puntos como separadores de miles (formato español)
 const formatNumberWithDots = (value: number): string => {
-  if (value === 0) return '';
+  if (value === 0) return '0';
+  if (isNaN(value)) return '0';
   return value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 };
 
 // Parsea un string con formato español (acepta puntos como separadores de miles)
 const parseIntegerInput = (value: string) => {
+  if (!value) return 0;
   const digitsOnly = value.replace(/[^\d]/g, '');
-  return digitsOnly ? Number(digitsOnly) : 0;
+  const parsed = digitsOnly ? Number(digitsOnly) : 0;
+  return isNaN(parsed) ? 0 : parsed;
 };
 
 // Formatea el valor para mostrar en inputs con formato español
@@ -594,7 +597,7 @@ export default function Costs() {
                   type="text"
                   inputMode="numeric"
                   pattern="[0-9]*"
-                  value={formatNumericInputValue(startingCashBalance)}
+                  value={formatNumericInputValue(startingCashBalance || 0)}
                   onChange={(e) => setStartingCashBalance(parseIntegerInput(e.target.value))}
                   placeholder="0"
                 />
@@ -624,7 +627,7 @@ export default function Costs() {
                   type="text"
                   inputMode="numeric"
                   pattern="[0-9]*"
-                  value={formatNumericInputValue(cleaningPerStay)}
+                  value={formatNumericInputValue(cleaningPerStay || 0)}
                   onChange={(e) => setCleaningPerStay(parseIntegerInput(e.target.value))}
                   placeholder="0"
                 />
@@ -672,7 +675,7 @@ export default function Costs() {
                           type="text"
                           inputMode="numeric"
                           pattern="[0-9]*"
-                          value={formatNumericInputValue(cat.monthlyAmount)}
+                          value={formatNumericInputValue(cat.monthlyAmount || 0)}
                           onChange={(e) => updateVariableCategory(cat.id, parseIntegerInput(e.target.value))}
                           placeholder="0"
                         />
@@ -751,7 +754,7 @@ export default function Costs() {
                           type="text"
                           inputMode="numeric"
                           pattern="[0-9]*"
-                          value={formatNumericInputValue(cat.monthlyAmount)}
+                          value={formatNumericInputValue(cat.monthlyAmount || 0)}
                           onChange={(e) => updateFixedCategory(cat.id, parseIntegerInput(e.target.value))}
                           placeholder="0"
                         />
@@ -865,7 +868,7 @@ export default function Costs() {
                         type="text"
                         inputMode="numeric"
                         pattern="[0-9]*"
-                        value={formatNumericInputValue(newExtraordinaryAmount)}
+                        value={formatNumericInputValue(newExtraordinaryAmount || 0)}
                         onChange={(e) => setNewExtraordinaryAmount(parseIntegerInput(e.target.value))}
                         placeholder="0"
                       />
@@ -928,7 +931,7 @@ export default function Costs() {
                               <div className={styles.inputCurrency}>
                                 <input
                                   type="number"
-                                  value={Math.round(rate * 1000) / 10}
+                                  value={isNaN(rate) ? 0 : Math.round(rate * 1000) / 10}
                                   onChange={(e) => updateChannelRate(channel.name, Number(e.target.value) / 100)}
                                   style={{ width: '60px' }}
                                 />
@@ -952,7 +955,7 @@ export default function Costs() {
                   <div className={styles.inputCurrency}>
                     <input
                       type="number"
-                      value={Math.round(channelCommissions.defaultRate * 1000) / 10}
+                      value={isNaN(channelCommissions.defaultRate) ? 0 : Math.round(channelCommissions.defaultRate * 1000) / 10}
                       onChange={(e) => setChannelCommissions(prev => ({ 
                         ...prev, 
                         defaultRate: Number(e.target.value) / 100 
@@ -991,7 +994,7 @@ export default function Costs() {
                         <div className={styles.inputCurrency}>
                           <input
                             type="number"
-                            value={Math.round(rate * 1000) / 10}
+                            value={isNaN(rate) ? 0 : Math.round(rate * 1000) / 10}
                             onChange={(e) => updatePaymentRate(method, Number(e.target.value) / 100)}
                             style={{ width: '60px' }}
                           />

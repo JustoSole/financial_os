@@ -4,6 +4,7 @@ import { useApp } from '../context/AppContext';
 import { getCommandCenter } from '../api';
 import { PeriodSelector, HelpTooltip, OnboardingWizard } from '../components';
 import { formatCurrency, formatCurrencyShort } from '../utils/formatters';
+import { isOnboardingCompleted, markOnboardingCompleted, resetOnboarding } from '../utils/onboarding';
 import {
   TrendingUp,
   TrendingDown,
@@ -74,7 +75,26 @@ export default function Home() {
   // Check URL for forced onboarding (useful for demos)
   const urlParams = new URLSearchParams(window.location.search);
   const forceOnboarding = urlParams.get('setup') === '1';
-  const [showOnboarding, setShowOnboarding] = useState(forceOnboarding);
+  const resetOnboardingFlag = urlParams.get('reset_onboarding') === '1';
+  
+  // Initialize showOnboarding based on URL params and persistent state
+  const [showOnboarding, setShowOnboarding] = useState(() => {
+    if (forceOnboarding) return true;
+    if (property?.id && isOnboardingCompleted(property.id)) return false;
+    return true; // Default to showing onboarding until we check data
+  });
+
+  // Handle reset onboarding URL param (for testing/demo)
+  useEffect(() => {
+    if (resetOnboardingFlag && property?.id) {
+      resetOnboarding(property.id);
+      // Remove the query param from URL
+      const url = new URL(window.location.href);
+      url.searchParams.delete('reset_onboarding');
+      window.history.replaceState({}, '', url.toString());
+      setShowOnboarding(true);
+    }
+  }, [resetOnboardingFlag, property?.id]);
 
   useEffect(() => {
     async function load() {
@@ -90,14 +110,31 @@ export default function Home() {
 
       if (commandRes.success) {
         setData(commandRes.data);
-        // Show onboarding if no real data (unless forced via URL)
-        if (!forceOnboarding) {
+        
+        // Determine if we should show onboarding
+        // Priority: 1) URL force, 2) Already completed (persisted), 3) Check data
+        if (forceOnboarding) {
+          setShowOnboarding(true);
+        } else if (isOnboardingCompleted(property.id)) {
+          // User already completed onboarding, don't show it again
+          setShowOnboarding(false);
+        } else {
+          // First time - check if there's real data
           const hasRealData = commandRes.data?.health && 
             commandRes.data?.health?.kpis?.occupancy?.value > 0;
           setShowOnboarding(!hasRealData);
+          
+          // If there's real data, mark onboarding as implicitly completed
+          // (they might have imported data through other means)
+          if (hasRealData) {
+            markOnboardingCompleted(property.id);
+          }
         }
       } else {
-        setShowOnboarding(true);
+        // API error - only show onboarding if not completed before
+        if (!isOnboardingCompleted(property.id)) {
+          setShowOnboarding(true);
+        }
       }
 
       setLoading(false);
@@ -106,28 +143,58 @@ export default function Home() {
   }, [property?.id, dateRange, forceOnboarding]);
 
   const handleOnboardingComplete = async () => {
-    setShowOnboarding(false);
-    await refreshProperty();
-    await refreshData();
-    // Reload data
+    // Mark onboarding as completed in persistent storage
     if (property?.id) {
-      const startStr = dateRange.start.toISOString().substring(0, 10);
-      const endStr = dateRange.end.toISOString().substring(0, 10);
-      const commandRes = await getCommandCenter(property.id, startStr, endStr);
-      if (commandRes.success) setData(commandRes.data);
+      markOnboardingCompleted(property.id);
+    }
+    
+    // Set loading to true while we refresh everything
+    setLoading(true);
+    setShowOnboarding(false);
+    
+    try {
+      await refreshProperty();
+      await refreshData();
+      
+      // Reload data
+      if (property?.id) {
+        const startStr = dateRange.start.toISOString().substring(0, 10);
+        const endStr = dateRange.end.toISOString().substring(0, 10);
+        const commandRes = await getCommandCenter(property.id, startStr, endStr);
+        if (commandRes.success) setData(commandRes.data);
+      }
+    } catch (error) {
+      console.error('Error refreshing after onboarding:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
   if (loading) {
     return (
-      <div className={styles.commandCenterLoading}>
-        <Loader2 className="spin" size={48} />
-        <p>Analizando tu negocio...</p>
+      <div className={styles.commandCenter}>
+        <header className={styles.commandCenterHeader}>
+          <div className={styles.skeletonTitle} />
+          <div className={styles.skeletonPeriod} />
+        </header>
+        
+        <div className={styles.skeletonHero} />
+        
+        <div className={styles.quickIndicators}>
+          <div className={styles.skeletonCard} />
+          <div className={styles.skeletonCard} />
+          <div className={styles.skeletonCard} />
+        </div>
+        
+        <div className={styles.skeletonSummary} />
+        
+        <div className={styles.skeletonSection} />
       </div>
     );
   }
 
   const hasData = data && data.health;
+  const dataConfidence = data?.dataConfidence;
 
   if (!hasData || showOnboarding) {
     return (
@@ -152,46 +219,24 @@ export default function Home() {
 
       {/* Data Confidence Banner */}
       <DataConfidenceBanner 
-        confidence={data.dataConfidence} 
+        confidence={dataConfidence} 
         onAction={() => window.location.href = '/importar'} 
       />
 
-      {/* Demo Mode Banner */}
-      {data.dataConfidence.score >= 90 && (
-        <div style={{ 
-          marginBottom: 'var(--space-6)',
-          padding: 'var(--space-3) var(--space-4)', 
-          background: 'var(--color-primary-subtle)', 
-          borderRadius: 'var(--radius-md)',
-          fontSize: 'var(--text-sm)',
-          color: 'var(--color-primary)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 'var(--space-3)',
-          border: '1px solid var(--color-primary-light)'
-        }}>
-          <Zap size={18} fill="currentColor" />
-          <div>
-            <strong>Modo Demo Activo:</strong> Estás viendo datos de ejemplo para explorar la herramienta. 
-            <Link to="/importar" style={{ marginLeft: 'var(--space-2)', fontWeight: 600, textDecoration: 'underline' }}>
-              Cargá tus propios reportes aquí
-            </Link>
-          </div>
-        </div>
-      )}
+      {/* Demo Mode Banner - Removed */}
 
       {/* Costs Not Configured Banner */}
       <CostsNotConfiguredBanner unitEconomics={data.unitEconomics} />
 
       {/* History Coverage Banner - New */}
-      {data.dataConfidence.monthsCovered <= 1 && (
+      {dataConfidence?.monthsCovered !== undefined && dataConfidence.monthsCovered <= 1 && (
         <div className={styles.historyWarningBanner}>
           <div className={styles.historyWarningIcon}>
             <Clock size={20} />
           </div>
           <div className={styles.historyWarningContent}>
             <strong>Análisis histórico limitado</strong>
-            <p>Solo detectamos {data.dataConfidence.monthsCovered === 0 ? 'que no hay' : '1'} mes de datos. Importá meses anteriores para habilitar comparativas MoM y YoY.</p>
+            <p>Solo detectamos {dataConfidence.monthsCovered === 0 ? 'que no hay' : '1'} mes de datos. Importá meses anteriores para habilitar comparativas MoM y YoY.</p>
           </div>
           <button 
             onClick={() => window.location.href = '/importar'} 
@@ -286,7 +331,7 @@ export default function Home() {
             subtitle={`necesitás ${data.breakeven.breakEvenOccupancy.toFixed(0)}% para cubrir costos`}
             helpKey="breakeven_occupancy"
           />
-              </div>
+        </div>
 
         {/* Period Summary Stats */}
         <PeriodSummaryStats 
@@ -478,6 +523,8 @@ function StatusCard({
 
 function DataConfidenceBanner({ confidence, onAction }: { confidence: any; onAction: () => void }) {
   if (!confidence || confidence.level === 'high') return null;
+  const score = typeof confidence.score === 'number' ? confidence.score : 0;
+  const missing = Array.isArray(confidence.missingForHighConfidence) ? confidence.missingForHighConfidence : [];
   
   return (
     <div className={`confidence-banner confidence-banner--${confidence.level}`}>
@@ -486,10 +533,10 @@ function DataConfidenceBanner({ confidence, onAction }: { confidence: any; onAct
       </div>
       <div className="confidence-banner__content">
         <strong>
-          Confianza de datos: {confidence.level === 'low' ? 'BAJA' : 'MEDIA'} ({confidence.score}/100)
+          Confianza de datos: {confidence.level === 'low' ? 'BAJA' : 'MEDIA'} ({score}/100)
         </strong>
         <p>
-          {confidence.missingForHighConfidence.slice(0, 2).join(' • ')}
+          {missing.slice(0, 2).join(' • ')}
         </p>
       </div>
       <button 
