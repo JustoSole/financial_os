@@ -1,18 +1,130 @@
-import { supabase } from './supabase-client';
+import { supabase, createAuthenticatedClient, hasServiceRoleKey } from './supabase-client';
+import { SupabaseClient } from '@supabase/supabase-js';
 import { 
   ReportType, 
   calculateTotalFixedCosts,
 } from '../types';
 
 /**
+ * Context para operaciones que requieren autenticación.
+ * Permite pasar un cliente autenticado para operaciones con RLS.
+ */
+let _authContext: { client: SupabaseClient } | null = null;
+
+/**
+ * Establece el contexto de autenticación para operaciones posteriores.
+ * Usado cuando necesitamos bypasear RLS con el token del usuario.
+ */
+export function setAuthContext(accessToken: string | null) {
+  if (accessToken && !hasServiceRoleKey) {
+    _authContext = { client: createAuthenticatedClient(accessToken) };
+  } else {
+    _authContext = null;
+  }
+}
+
+/**
+ * Limpia el contexto de autenticación.
+ */
+export function clearAuthContext() {
+  _authContext = null;
+}
+
+/**
+ * Obtiene el cliente Supabase apropiado.
+ * Si hay un contexto autenticado y no tenemos SERVICE_ROLE_KEY, usa ese.
+ * De lo contrario, usa el cliente global.
+ */
+function getClient(): SupabaseClient {
+  // Siempre usar el cliente principal (que usa SERVICE_ROLE_KEY) para evitar problemas de RLS
+  return supabase;
+}
+
+/**
  * Supabase implementation of the Database interface
  */
 export const supabaseDatabase = {
   // =====================================================
+  // Data Access (Pure)
+  // =====================================================
+  getImportFiles: async (propertyId: string) => {
+    const { data, error } = await getClient()
+      .from('import_files')
+      .select('*')
+      .eq('property_id', propertyId)
+      .eq('status', 'processed');
+    
+    if (error) return [];
+    return data;
+  },
+
+  getAllReservations: async (propertyId: string) => {
+    // Supabase por defecto limita a 1000 registros. Usamos paginación para traer todos.
+    const PAGE_SIZE = 1000;
+    let allData: any[] = [];
+    let from = 0;
+    let hasMore = true;
+    
+    while (hasMore) {
+      const { data, error } = await getClient()
+        .from('reservation_financials')
+        .select('*')
+        .eq('property_id', propertyId)
+        .range(from, from + PAGE_SIZE - 1)
+        .order('check_in', { ascending: false }); // Ordenar por check_in desc para priorizar recientes
+      
+      if (error) {
+        console.error('Error fetching reservations:', error);
+        break;
+      }
+      
+      if (data && data.length > 0) {
+        allData = allData.concat(data);
+        from += PAGE_SIZE;
+        hasMore = data.length === PAGE_SIZE; // Si devuelve menos de PAGE_SIZE, no hay más
+      } else {
+        hasMore = false;
+      }
+    }
+    
+    if (allData.length > 0) {
+      console.log(`[DB] Sample reservation: ${allData[0].reservation_number}, CheckIn: ${allData[0].check_in}, Status: ${allData[0].status}`);
+    }
+    
+    console.log(`[DB] Fetched ${allData.length} total reservations from DB for property ${propertyId}`);
+    return allData;
+  },
+
+  getLastImport: async (propertyId: string) => {
+    const { data, error } = await getClient()
+      .from('import_files')
+      .select('uploaded_at')
+      .eq('property_id', propertyId)
+      .eq('status', 'processed')
+      .order('uploaded_at', { ascending: false })
+      .limit(1)
+      .single();
+    
+    if (error) return null;
+    return data?.uploaded_at || null;
+  },
+
+  resetDatabase: async (propertyId: string) => {
+    // Implement database reset logic here
+    // This is a placeholder for the actual implementation
+    const { error: error1 } = await getClient().from('ledger_transactions').delete().eq('property_id', propertyId);
+    if (error1) throw error1;
+    const { error: error2 } = await getClient().from('reservation_financials').delete().eq('property_id', propertyId);
+    if (error2) throw error2;
+    const { error: error4 } = await getClient().from('import_files').delete().eq('property_id', propertyId);
+    if (error4) throw error4;
+  },
+
+  // =====================================================
   // Properties
   // =====================================================
   getProperty: async () => {
-    const { data, error } = await supabase
+    const { data, error } = await getClient()
       .from('properties')
       .select('*')
       .limit(1)
@@ -23,7 +135,7 @@ export const supabaseDatabase = {
   },
 
   getPropertyByUser: async (userId: string) => {
-    const { data, error } = await supabase
+    const { data, error } = await getClient()
       .from('properties')
       .select('*')
       .eq('user_id', userId)
@@ -35,7 +147,7 @@ export const supabaseDatabase = {
   },
   
   getPropertyById: async (id: string) => {
-    const { data, error } = await supabase
+    const { data, error } = await getClient()
       .from('properties')
       .select('*')
       .eq('id', id)
@@ -46,7 +158,7 @@ export const supabaseDatabase = {
   },
   
   insertProperty: async (property: any) => {
-    const { data, error } = await supabase
+    const { data, error } = await getClient()
       .from('properties')
       .insert(property)
       .select()
@@ -57,7 +169,7 @@ export const supabaseDatabase = {
   },
   
   updateProperty: async (id: string, updates: any) => {
-    const { data, error } = await supabase
+    const { data, error } = await getClient()
       .from('properties')
       .update(updates)
       .eq('id', id)
@@ -72,7 +184,7 @@ export const supabaseDatabase = {
   // Import Files
   // =====================================================
   insertImportFile: async (file: any) => {
-    const { data, error } = await supabase
+    const { data, error } = await getClient()
       .from('import_files')
       .insert({
         property_id: file.propertyId,
@@ -86,21 +198,27 @@ export const supabaseDatabase = {
       .select()
       .single();
     
-    if (error) throw error;
+    if (error) {
+      console.error('Error inserting import file:', error);
+      throw error;
+    }
     return data;
   },
   
   updateImportFile: async (id: string, updates: any) => {
-    const { error } = await supabase
+    const { error } = await getClient()
       .from('import_files')
       .update(updates)
       .eq('id', id);
     
-    if (error) throw error;
+    if (error) {
+      console.error('Error updating import file:', error);
+      throw error;
+    }
   },
   
   getImportFilesByProperty: async (propertyId: string, limit: number = 20) => {
-    const { data, error } = await supabase
+    const { data, error } = await getClient()
       .from('import_files')
       .select('*')
       .eq('property_id', propertyId)
@@ -112,7 +230,7 @@ export const supabaseDatabase = {
   },
   
   hasReportType: async (propertyId: string, reportType: ReportType): Promise<boolean> => {
-    const { count, error } = await supabase
+    const { count, error } = await getClient()
       .from('import_files')
       .select('*', { count: 'exact', head: true })
       .eq('property_id', propertyId)
@@ -124,7 +242,7 @@ export const supabaseDatabase = {
   },
 
   getLastImportByType: async (propertyId: string, reportType: ReportType): Promise<string | null> => {
-    const { data, error } = await supabase
+    const { data, error } = await getClient()
       .from('import_files')
       .select('uploaded_at')
       .eq('property_id', propertyId)
@@ -174,18 +292,25 @@ export const supabaseDatabase = {
       description: t.description,
       notes: t.notes,
       txn_source: t.txnSource,
-      row_hash: t.rowHash // Added for UPSERT
+      row_hash: t.rowHash
     }));
 
-    const { error } = await supabase
+    // UPSERT basado en property_id y row_hash para evitar duplicados exactos
+    const { error } = await getClient()
       .from('ledger_transactions')
-      .upsert(formatted, { onConflict: 'property_id, row_hash' }); // Robust UPSERT (Issue B)
+      .upsert(formatted, { 
+        onConflict: 'property_id, row_hash',
+        ignoreDuplicates: false // Queremos actualizar si algo cambió pero el hash es igual (aunque el hash debería cambiar si algo cambia)
+      });
     
-    if (error) throw error;
+    if (error) {
+      console.error('Error inserting transactions:', error);
+      throw error;
+    }
   },
   
   clearTransactionsByFile: async (fileId: string) => {
-    const { error } = await supabase
+    const { error } = await getClient()
       .from('ledger_transactions')
       .delete()
       .eq('source_file_id', fileId);
@@ -208,12 +333,13 @@ export const supabaseDatabase = {
       adjustment_flag: t.adjustmentFlag,
       description: t.description,
       notes: t.notes,
-      txn_source: t.txnSource
+      txn_source: t.txnSource,
+      row_hash: t.rowHash
     }));
 
     // We use a single RPC call if we want true atomicity for delete + insert
     // For now, we'll use the existing methods but wrapped in a way that suggests atomicity
-    const { error: deleteError } = await supabase
+    const { error: deleteError } = await getClient()
       .from('ledger_transactions')
       .delete()
       .eq('source_file_id', fileId);
@@ -221,7 +347,7 @@ export const supabaseDatabase = {
     if (deleteError) throw deleteError;
 
     if (formatted.length > 0) {
-      const { error: insertError } = await supabase
+      const { error: insertError } = await getClient()
         .from('ledger_transactions')
         .insert(formatted);
       
@@ -230,26 +356,50 @@ export const supabaseDatabase = {
   },
 
   getTransactionsByProperty: async (propertyId: string, startDate?: string, endDate?: string) => {
-    let query = supabase
-      .from('ledger_transactions')
-      .select('*')
-      .eq('property_id', propertyId);
+    // Supabase por defecto limita a 1000 registros. Usamos paginación.
+    const PAGE_SIZE = 1000;
+    let allData: any[] = [];
+    let from = 0;
+    let hasMore = true;
     
-    if (startDate) query = query.gte('txn_at', startDate);
-    if (endDate) query = query.lte('txn_at', endDate);
+    while (hasMore) {
+      let query = getClient()
+        .from('ledger_transactions')
+        .select('*')
+        .eq('property_id', propertyId)
+        .range(from, from + PAGE_SIZE - 1)
+        .order('txn_at', { ascending: false });
+      
+      // Ensure we are comparing just the date part if the column is a timestamp
+      if (startDate) query = query.gte('txn_at', `${startDate}T00:00:00`);
+      if (endDate) query = query.lte('txn_at', `${endDate}T23:59:59`);
+      
+      const { data, error } = await query;
+      
+      if (error) {
+        console.error('Error fetching transactions:', error);
+        break;
+      }
+      
+      if (data && data.length > 0) {
+        allData = allData.concat(data);
+        from += PAGE_SIZE;
+        hasMore = data.length === PAGE_SIZE;
+      } else {
+        hasMore = false;
+      }
+    }
     
-    const { data, error } = await query;
-    if (error) return [];
-    return data;
+    return allData;
   },
 
   sumCredits: async (propertyId: string, startDate: string, endDate: string): Promise<number> => {
-    const { data, error } = await supabase
+    const { data, error } = await getClient()
       .from('ledger_transactions')
       .select('credits')
       .eq('property_id', propertyId)
-      .gte('txn_at', startDate)
-      .lte('txn_at', endDate)
+      .gte('txn_at', `${startDate}T00:00:00`)
+      .lte('txn_at', `${endDate}T23:59:59`)
       .eq('void_flag', false);
     
     if (error) return 0;
@@ -257,24 +407,24 @@ export const supabaseDatabase = {
   },
 
   sumDebits: async (propertyId: string, startDate: string, endDate: string): Promise<number> => {
-    const { data, error } = await supabase
+    const { data, error } = await getClient()
       .from('ledger_transactions')
       .select('debits')
       .eq('property_id', propertyId)
-      .gte('txn_at', startDate)
-      .lte('txn_at', endDate);
+      .gte('txn_at', `${startDate}T00:00:00`)
+      .lte('txn_at', `${endDate}T23:59:59`);
     
     if (error) return 0;
     return data.reduce((sum, t) => sum + (Number(t.debits) || 0), 0);
   },
 
   getDailyFlow: async (propertyId: string, startDate: string, endDate: string) => {
-    const { data, error } = await supabase
+    const { data, error } = await getClient()
       .from('ledger_transactions')
       .select('txn_at, credits, debits')
       .eq('property_id', propertyId)
-      .gte('txn_at', startDate)
-      .lte('txn_at', endDate);
+      .gte('txn_at', `${startDate}T00:00:00`)
+      .lte('txn_at', `${endDate}T23:59:59`);
     
     if (error) return [];
     
@@ -297,12 +447,12 @@ export const supabaseDatabase = {
   },
 
   getAlerts: async (propertyId: string, startDate: string, endDate: string) => {
-    const { data, error } = await supabase
+    const { data, error } = await getClient()
       .from('ledger_transactions')
       .select('*')
       .eq('property_id', propertyId)
-      .gte('txn_at', startDate)
-      .lte('txn_at', endDate)
+      .gte('txn_at', `${startDate}T00:00:00`)
+      .lte('txn_at', `${endDate}T23:59:59`)
       .or('refund_flag.eq.true,adjustment_flag.eq.true');
     
     if (error) return [];
@@ -354,15 +504,21 @@ export const supabaseDatabase = {
       hotel_collect_flag: r.hotelCollectFlag
     }));
 
-    const { error } = await supabase
+    // UPSERT basado en property_id y reservation_number
+    const { error } = await getClient()
       .from('reservation_financials')
-      .upsert(formatted, { onConflict: 'property_id, reservation_number' });
+      .upsert(formatted, { 
+        onConflict: 'property_id, reservation_number'
+      });
     
-    if (error) throw error;
+    if (error) {
+      console.error('Error inserting reservations:', error);
+      throw error;
+    }
   },
 
   clearReservationsByFile: async (fileId: string) => {
-    const { error } = await supabase
+    const { error } = await getClient()
       .from('reservation_financials')
       .delete()
       .eq('source_file_id', fileId);
@@ -390,7 +546,7 @@ export const supabaseDatabase = {
       hotel_collect_flag: r.hotelCollectFlag
     }));
 
-    const { error: deleteError } = await supabase
+    const { error: deleteError } = await getClient()
       .from('reservation_financials')
       .delete()
       .eq('source_file_id', fileId);
@@ -398,7 +554,7 @@ export const supabaseDatabase = {
     if (deleteError) throw deleteError;
 
     if (formatted.length > 0) {
-      const { error: insertError } = await supabase
+      const { error: insertError } = await getClient()
         .from('reservation_financials')
         .insert(formatted);
       
@@ -407,17 +563,39 @@ export const supabaseDatabase = {
   },
 
   getReservationsByProperty: async (propertyId: string) => {
-    const { data, error } = await supabase
-      .from('reservation_financials')
-      .select('*')
-      .eq('property_id', propertyId);
+    // Supabase por defecto limita a 1000 registros. Usamos paginación.
+    const PAGE_SIZE = 1000;
+    let allData: any[] = [];
+    let from = 0;
+    let hasMore = true;
     
-    if (error) return [];
-    return data;
+    while (hasMore) {
+      const { data, error } = await getClient()
+        .from('reservation_financials')
+        .select('*')
+        .eq('property_id', propertyId)
+        .range(from, from + PAGE_SIZE - 1)
+        .order('check_in', { ascending: false });
+      
+      if (error) {
+        console.error('Error fetching reservations:', error);
+        break;
+      }
+      
+      if (data && data.length > 0) {
+        allData = allData.concat(data);
+        from += PAGE_SIZE;
+        hasMore = data.length === PAGE_SIZE;
+      } else {
+        hasMore = false;
+      }
+    }
+    
+    return allData;
   },
 
   getReservationsWithBalance: async (propertyId: string, minBalance: number = 0) => {
-    const { data, error } = await supabase
+    const { data, error } = await getClient()
       .from('reservation_financials')
       .select('*')
       .eq('property_id', propertyId)
@@ -429,7 +607,7 @@ export const supabaseDatabase = {
   },
 
   getTotalBalanceDue: async (propertyId: string): Promise<number> => {
-    const { data, error } = await supabase
+    const { data, error } = await getClient()
       .from('reservation_financials')
       .select('balance_due')
       .eq('property_id', propertyId)
@@ -440,7 +618,7 @@ export const supabaseDatabase = {
   },
 
   getDepositGaps: async (propertyId: string) => {
-    const { data, error } = await supabase
+    const { data, error } = await getClient()
       .from('reservation_financials')
       .select('*')
       .eq('property_id', propertyId)
@@ -457,103 +635,8 @@ export const supabaseDatabase = {
       .sort((a, b) => b.deposit_gap - a.deposit_gap);
   },
 
-  // =====================================================
-  // Channel Summaries
-  // =====================================================
-  insertChannels: async (channels: any[]) => {
-    const formatted = channels.map(c => ({
-      property_id: c.propertyId,
-      source_file_id: c.sourceFileId,
-      source_category: c.sourceCategory,
-      source: c.source,
-      room_nights: c.roomNights,
-      room_revenue_total: c.roomRevenueTotal,
-      estimated_commission: c.estimatedCommission
-    }));
-
-    const { error } = await supabase
-      .from('channel_summaries')
-      .insert(formatted);
-    
-    if (error) throw error;
-  },
-
-  clearChannelsByFile: async (fileId: string) => {
-    const { error } = await supabase
-      .from('channel_summaries')
-      .delete()
-      .eq('source_file_id', fileId);
-    
-    if (error) throw error;
-  },
-
-  replaceChannelsByFile: async (fileId: string, channels: any[]) => {
-    const formatted = channels.map(c => ({
-      property_id: c.propertyId,
-      source_file_id: c.sourceFileId,
-      source_category: c.sourceCategory,
-      source: c.source,
-      room_nights: c.roomNights,
-      room_revenue_total: c.roomRevenueTotal,
-      estimated_commission: c.estimatedCommission
-    }));
-
-    const { error: deleteError } = await supabase
-      .from('channel_summaries')
-      .delete()
-      .eq('source_file_id', fileId);
-    
-    if (deleteError) throw deleteError;
-
-    if (formatted.length > 0) {
-      const { error: insertError } = await supabase
-        .from('channel_summaries')
-        .insert(formatted);
-      
-      if (insertError) throw insertError;
-    }
-  },
-
-  getChannelsByProperty: async (propertyId: string) => {
-    const { data, error } = await supabase
-      .from('channel_summaries')
-      .select('*')
-      .eq('property_id', propertyId);
-    
-    if (error) return [];
-    return data;
-  },
-
-  getChannelSummary: async (propertyId: string) => {
-    const { data, error } = await supabase
-      .from('channel_summaries')
-      .select('*')
-      .eq('property_id', propertyId);
-    
-    if (error) return [];
-    
-    const summary: Record<string, any> = {};
-    for (const c of data) {
-      const key = c.source;
-      if (!summary[key]) {
-        summary[key] = {
-          source: c.source,
-          source_category: c.source_category,
-          room_nights: 0,
-          room_revenue_total: 0,
-          estimated_commission: 0,
-        };
-      }
-      summary[key].room_nights += Number(c.room_nights) || 0;
-      summary[key].room_revenue_total += Number(c.room_revenue_total) || 0;
-      summary[key].estimated_commission += Number(c.estimated_commission) || 0;
-    }
-    
-    return Object.values(summary).sort((a: any, b: any) => b.room_revenue_total - a.room_revenue_total);
-  },
-
-  getChannelSummaryFromReservations: async (propertyId: string, startDate: string, endDate: string) => {
-    const { data, error } = await supabase
+  getChannelSummary: async (propertyId: string, startDate: string, endDate: string) => {
+    const { data, error } = await getClient()
       .from('reservation_financials')
       .select('*')
       .eq('property_id', propertyId)
@@ -586,7 +669,7 @@ export const supabaseDatabase = {
   // Cost Settings
   // =====================================================
   getCostSettings: async (propertyId: string) => {
-    const { data, error } = await supabase
+    const { data, error } = await getClient()
       .from('cost_settings')
       .select('*')
       .eq('property_id', propertyId)
@@ -597,7 +680,7 @@ export const supabaseDatabase = {
   },
   
   upsertCostSettings: async (propertyId: string, settings: any) => {
-    const { data, error } = await supabase
+    const { data, error } = await getClient()
       .from('cost_settings')
       .upsert({
         property_id: propertyId,
@@ -625,7 +708,7 @@ export const supabaseDatabase = {
     const startStr = startDate.toISOString().substring(0, 10);
     const endStr = endDate.toISOString().substring(0, 10);
     
-    const { data, error } = await supabase
+    const { data, error } = await getClient()
       .from('reservation_financials')
       .select('room_nights')
       .eq('property_id', propertyId)
@@ -648,7 +731,7 @@ export const supabaseDatabase = {
   },
 
   getTotalMonthlyFixedCosts: async (propertyId: string): Promise<number> => {
-    const { data: costs } = await supabase
+    const { data: costs } = await getClient()
       .from('cost_settings')
       .select('fixed_categories, fixed_costs')
       .eq('property_id', propertyId)
@@ -668,7 +751,7 @@ export const supabaseDatabase = {
   },
 
   getTotalMonthlyVariableCosts: async (propertyId: string): Promise<number> => {
-    const { data: costs } = await supabase
+    const { data: costs } = await getClient()
       .from('cost_settings')
       .select('variable_categories, variable_costs')
       .eq('property_id', propertyId)
@@ -690,7 +773,7 @@ export const supabaseDatabase = {
   },
 
   getChannelsFromPMS: async (propertyId: string) => {
-    const { data, error } = await supabase
+    const { data, error } = await getClient()
       .from('reservation_financials')
       .select('source, source_category, room_revenue_total')
       .eq('property_id', propertyId);
@@ -720,7 +803,7 @@ export const supabaseDatabase = {
   // Action Completions
   // =====================================================
   insertActionCompletion: async (completion: any) => {
-    const { error } = await supabase
+    const { error } = await getClient()
       .from('action_completions')
       .insert({
         property_id: completion.propertyId,
@@ -734,7 +817,7 @@ export const supabaseDatabase = {
   
   getCompletedSteps: async (propertyId: string, daysBack: number = 30) => {
     const cutoff = new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000).toISOString();
-    const { data, error } = await supabase
+    const { data, error } = await getClient()
       .from('action_completions')
       .select('*')
       .eq('property_id', propertyId)
@@ -748,7 +831,7 @@ export const supabaseDatabase = {
   // Import Log
   // =====================================================
   insertLog: async (log: any) => {
-    const { error } = await supabase
+    const { error } = await getClient()
       .from('import_log')
       .insert({
         id: log.id,
@@ -763,95 +846,115 @@ export const supabaseDatabase = {
       throw error;
     }
   },
+
+  // =====================================================
+  // Data Range Detection (para resolver desfase de fechas)
+  // =====================================================
   
-  getLastImport: async (propertyId: string) => {
-    const { data, error } = await supabase
-      .from('import_files')
-      .select('uploaded_at')
+  /**
+   * Obtiene información de salud de datos para determinar qué reportes faltan.
+   * Usado por el servicio de acciones para sugerir mejoras en la calidad de datos.
+   */
+  getDataHealth: async (propertyId: string): Promise<{ score: number; issues: string[] }> => {
+    const issues: string[] = [];
+    let score = 100;
+    
+    // Verificar si hay reservaciones
+    const { count: resCount } = await getClient()
+      .from('reservation_financials')
+      .select('*', { count: 'exact', head: true })
+      .eq('property_id', propertyId);
+    
+    if (!resCount || resCount === 0) {
+      issues.push('Importar reporte "Reservations with Financials"');
+      score -= 40;
+    }
+    
+    // Verificar si hay transacciones
+    const { count: txnCount } = await getClient()
+      .from('ledger_transactions')
+      .select('*', { count: 'exact', head: true })
+      .eq('property_id', propertyId);
+    
+    if (!txnCount || txnCount === 0) {
+      issues.push('Importar reporte "Expanded Transaction Report"');
+      score -= 40;
+    }
+    
+    // Verificar si hay costos configurados
+    const { data: costs } = await getClient()
+      .from('cost_settings')
+      .select('fixed_costs, variable_costs')
       .eq('property_id', propertyId)
-      .eq('status', 'processed')
-      .order('uploaded_at', { ascending: false })
-      .limit(1)
       .single();
     
-    if (error) return null;
-    return data?.uploaded_at || null;
+    const hasFixedCosts = costs?.fixed_costs && (
+      costs.fixed_costs.salaries > 0 || 
+      costs.fixed_costs.rent > 0 || 
+      costs.fixed_costs.utilities > 0
+    );
+    
+    if (!hasFixedCosts) {
+      issues.push('Configurar costos fijos mensuales');
+      score -= 20;
+    }
+    
+    return { score: Math.max(0, score), issues };
   },
-  
-  // =====================================================
-  // Data Health Check
-  // =====================================================
-  getDataHealth: async (propertyId: string) => {
-    const { data: files, error } = await supabase
-      .from('import_files')
-      .select('report_type, status, uploaded_at')
-      .eq('property_id', propertyId)
-      .eq('status', 'processed');
-    
-    if (error) return { score: 0, level: 'faltan', issues: ['Error cargando salud de datos'] };
 
-    const hasTransactions = files.some(f => f.report_type === 'expanded_transactions');
-    const hasReservations = files.some(f => f.report_type === 'reservations_financials');
-    const hasChannels = files.some(f => f.report_type === 'channel_performance');
-    
-    const lastImport = files.sort((a, b) => new Date(b.uploaded_at).getTime() - new Date(a.uploaded_at).getTime())[0];
-    
-    const { data: propertyReservations } = await supabase
+  /**
+   * Obtiene el rango de fechas de los datos disponibles.
+   * Esto es crucial para cuando los datos importados son históricos
+   * y no coinciden con el período actual (últimos 30 días).
+   * 
+   * IMPORTANTE: Para determinar el "último mes" de datos reales, 
+   * priorizamos las transacciones sobre las reservaciones, ya que las 
+   * reservaciones pueden tener fechas futuras que no representan el estado actual.
+   */
+  getDataDateRange: async (propertyId: string): Promise<{ 
+    reservations: { min: string | null; max: string | null };
+    transactions: { min: string | null; max: string | null };
+  }> => {
+    // Obtener rango de reservaciones (basado en check_in y check_out)
+    const { data: resData } = await getClient()
       .from('reservation_financials')
-      .select('check_in')
-      .eq('property_id', propertyId);
-
-    let monthsCovered = 0;
-    let earliestDate = null;
-    let latestDate = null;
-
-    if (propertyReservations && propertyReservations.length > 0) {
-      const dates = propertyReservations
-        .map(r => r.check_in)
-        .filter(Boolean)
-        .sort();
-      
-      if (dates.length > 0) {
-        earliestDate = dates[0];
-        latestDate = dates[dates.length - 1];
-        const start = new Date(earliestDate);
-        const end = new Date(latestDate);
-        monthsCovered = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()) + 1;
-      }
-    }
-
-    let score = 100;
-    const issues: string[] = [];
+      .select('check_in, check_out')
+      .eq('property_id', propertyId)
+      .not('status', 'in', '("Cancelled","No Show")');
     
-    if (!hasTransactions) { score -= 40; issues.push('Sin Transactions: Falta Expanded Transaction Report'); }
-    if (!hasReservations) { score -= 30; issues.push('Sin Performance: Falta Reservations with Financials'); }
-    if (!hasChannels) { score -= 20; issues.push('Sin Canales: Falta Channel Performance Summary'); }
+    let resMin: string | null = null;
+    let resMax: string | null = null;
     
-    if (lastImport) {
-      const daysSince = (Date.now() - new Date(lastImport.uploaded_at).getTime()) / (24 * 60 * 60 * 1000);
-      if (daysSince > 7) { score -= 10; issues.push('Datos >7 días: El último reporte importado es antiguo'); }
-    }
-
-    if (monthsCovered < 3 && hasReservations) {
-      issues.push(`Poca historia: Solo tenés ${monthsCovered} ${monthsCovered === 1 ? 'mes' : 'meses'} de datos`);
+    if (resData && resData.length > 0) {
+      const checkIns = resData.map(r => r.check_in).filter(Boolean).sort();
+      const checkOuts = resData.map(r => r.check_out).filter(Boolean).sort();
+      resMin = checkIns[0] || null;
+      resMax = checkOuts[checkOuts.length - 1] || null;
     }
     
-    let level: 'completos' | 'parciales' | 'faltan';
-    if (score >= 80) level = 'completos';
-    else if (score >= 50) level = 'parciales';
-    else level = 'faltan';
+    // Obtener rango de transacciones
+    const { data: txnMinData } = await getClient()
+      .from('ledger_transactions')
+      .select('txn_at')
+      .eq('property_id', propertyId)
+      .order('txn_at', { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    
+    const { data: txnMaxData } = await getClient()
+      .from('ledger_transactions')
+      .select('txn_at')
+      .eq('property_id', propertyId)
+      .order('txn_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
     
     return {
-      score: Math.max(0, score),
-      level,
-      issues,
-      lastImport: lastImport?.uploaded_at || null,
-      hasExpandedTransactions: hasTransactions,
-      hasReservationsFinancials: hasReservations,
-      hasChannelPerformance: hasChannels,
-      monthsCovered,
-      earliestDate,
-      latestDate,
+      reservations: { min: resMin, max: resMax },
+      transactions: { 
+        min: txnMinData?.txn_at?.substring(0, 10) || null, 
+        max: txnMaxData?.txn_at?.substring(0, 10) || null 
+      }
     };
   }
 };

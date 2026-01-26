@@ -47,6 +47,22 @@ interface ComparisonData {
   };
 }
 
+interface ProjectionMetrics {
+  projectedRevenue: number;
+  projectedOccupancy: number;
+  avgBookingWindow: number;
+  totalOTB: number;
+  estimatedMonthEnd: number;
+}
+
+interface HomeMetricsData {
+  period: { start: string; end: string; days: number };
+  cobrado: { value: number; trust: string };
+  cargado: { value: number; trust: string };
+  pendiente: { value: number; trust: string };
+  projections?: ProjectionMetrics;
+}
+
 interface CommandCenterData {
   period: { start: string; end: string; days: number };
   health: any;
@@ -60,6 +76,7 @@ interface CommandCenterData {
     yoy: ComparisonData | null;
   };
   weeklyAction: any;
+  homeMetrics?: HomeMetricsData;
 }
 
 // =====================================================
@@ -239,7 +256,7 @@ export default function Home() {
           </div>
           <div className={styles.historyWarningContent}>
             <strong>Análisis histórico limitado</strong>
-            <p>Solo detectamos {dataConfidence.monthsCovered === 0 ? 'que no hay' : '1'} mes de datos. Importá meses anteriores para habilitar comparativas MoM y YoY.</p>
+            <p>Solo detectamos {dataConfidence.monthsCovered === 0 ? 'que no hay' : '1'} mes de datos. Importá meses anteriores para habilitar comparativas históricas.</p>
           </div>
           <button 
             onClick={() => window.location.href = '/importar'} 
@@ -258,6 +275,42 @@ export default function Home() {
           title="Estado Actual" 
           subtitle="Lo que necesitás saber para decidir hoy"
         />
+        
+        {/* Projections Mirror Section - New */}
+        {data.homeMetrics?.projections && (
+          <div className={styles.projectionsGrid}>
+            <div className={styles.projectionCard}>
+              <div className={styles.projectionHeader}>
+                <Clock size={16} />
+                <span>Próximos {data.period.days} días (Proyección)</span>
+              </div>
+              <div className={styles.projectionMain}>
+                <div className={styles.projectionItem}>
+                  <span className={styles.projectionLabel}>Ingresos Proyectados</span>
+                  <span className={styles.projectionValue}>{formatCurrencyShort(data.homeMetrics.projections.projectedRevenue)}</span>
+                </div>
+                <div className={styles.projectionItem}>
+                  <span className={styles.projectionLabel}>Ocupación Proyectada</span>
+                  <span className={styles.projectionValue}>{Math.round(data.homeMetrics.projections.projectedOccupancy * 100)}%</span>
+                </div>
+              </div>
+              <div className={styles.projectionFooter}>
+                <span>Estimado Cierre de Mes: <strong>{formatCurrencyShort(data.homeMetrics.projections.estimatedMonthEnd)}</strong></span>
+              </div>
+            </div>
+
+            <div className={styles.projectionHighlights}>
+              <div className={styles.highlightMini}>
+                <span className={styles.highlightMiniLabel}>Anticipación (Booking Window)</span>
+                <span className={styles.highlightMiniValue}>{data.homeMetrics.projections.avgBookingWindow} días</span>
+              </div>
+              <div className={styles.highlightMini}>
+                <span className={styles.highlightMiniLabel}>Total On-the-Books (OTB)</span>
+                <span className={styles.highlightMiniValue}>{formatCurrencyShort(data.homeMetrics.projections.totalOTB)}</span>
+              </div>
+            </div>
+          </div>
+        )}
         
         {/* Top Alert */}
         {data.health.topAlert && (

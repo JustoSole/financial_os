@@ -90,22 +90,6 @@ export interface ReservationFinancial {
 }
 
 // =====================================================
-// Channel Summary (from Channel Performance Summary)
-// =====================================================
-
-export interface ChannelSummary {
-  id: string;
-  propertyId: string;
-  sourceCategory: ChannelCategory | null;
-  source: string;
-  roomNights: number;
-  roomRevenueTotal: number;
-  estimatedCommission: number;
-  sourceFileId: string;
-  createdAt: string;
-}
-
-// =====================================================
 // Cost Settings (V4 - Flexible Categories)
 // =====================================================
 

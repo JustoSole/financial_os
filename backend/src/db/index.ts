@@ -1,11 +1,19 @@
 import { 
   ReportType, 
 } from '../types';
-import { supabaseDatabase } from './supabase-adapter';
+import { supabaseDatabase, setAuthContext, clearAuthContext } from './supabase-adapter';
+
+// Re-export auth context functions for use in routes
+export { setAuthContext, clearAuthContext };
 
 // =====================================================
 // Database Interface
 // =====================================================
+
+export interface DataDateRange {
+  reservations: { min: string | null; max: string | null };
+  transactions: { min: string | null; max: string | null };
+}
 
 export interface DatabaseOperations {
   getProperty: () => Promise<any>;
@@ -16,6 +24,7 @@ export interface DatabaseOperations {
   insertImportFile: (file: any) => Promise<any>;
   updateImportFile: (id: string, updates: any) => Promise<void>;
   getImportFilesByProperty: (propertyId: string, limit?: number) => Promise<any[]>;
+  getImportFiles: (propertyId: string) => Promise<any[]>;
   hasReportType: (propertyId: string, reportType: ReportType) => Promise<boolean>;
   getLastImportByType: (propertyId: string, reportType: ReportType) => Promise<string | null>;
   insertTransactions: (transactions: any[]) => Promise<void>;
@@ -28,14 +37,11 @@ export interface DatabaseOperations {
   insertReservations: (reservations: any[]) => Promise<void>;
   clearReservationsByFile: (fileId: string) => Promise<void>;
   getReservationsByProperty: (propertyId: string) => Promise<any[]>;
+  getAllReservations: (propertyId: string) => Promise<any[]>;
   getReservationsWithBalance: (propertyId: string, minBalance?: number) => Promise<any[]>;
   getTotalBalanceDue: (propertyId: string) => Promise<number>;
   getDepositGaps: (propertyId: string) => Promise<any[]>;
-  insertChannels: (channels: any[]) => Promise<void>;
-  clearChannelsByFile: (fileId: string) => Promise<void>;
-  getChannelsByProperty: (propertyId: string) => Promise<any[]>;
-  getChannelSummary: (propertyId: string) => Promise<any[]>;
-  getChannelSummaryFromReservations: (propertyId: string, startDate: string, endDate: string) => Promise<any[]>;
+  getChannelSummary: (propertyId: string, startDate: string, endDate: string) => Promise<any[]>;
   getCostSettings: (propertyId: string) => Promise<any>;
   upsertCostSettings: (propertyId: string, settings: any) => Promise<any>;
   getOccupancyStats: (propertyId: string, days?: number) => Promise<any>;
@@ -47,6 +53,8 @@ export interface DatabaseOperations {
   insertLog: (log: any) => Promise<void>;
   getLastImport: (propertyId: string) => Promise<string | null>;
   getDataHealth: (propertyId: string) => Promise<any>;
+  getDataDateRange: (propertyId: string) => Promise<DataDateRange>;
+  resetDatabase: (propertyId: string) => Promise<void>;
 }
 
 // Always use Supabase as the database provider

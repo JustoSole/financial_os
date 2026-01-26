@@ -46,7 +46,6 @@ export interface DataHealthScore {
   lastImport: string | null;
   hasExpandedTransactions: boolean;
   hasReservationsFinancials: boolean;
-  hasChannelPerformance: boolean;
   monthsCovered: number;
   earliestDate: string | null;
   latestDate: string | null;
@@ -55,6 +54,14 @@ export interface DataHealthScore {
 // =====================================================
 // Home Metrics (Dashboard)
 // =====================================================
+
+export interface ProjectionMetrics {
+  projectedRevenue: number;
+  projectedOccupancy: number;
+  avgBookingWindow: number;
+  totalOTB: number;
+  estimatedMonthEnd: number;
+}
 
 export interface HomeMetrics {
   period: DatePeriod;
@@ -66,6 +73,7 @@ export interface HomeMetrics {
     suggestion: string;
   };
   dataHealth: DataHealthScore;
+  projections?: ProjectionMetrics;
 }
 
 // =====================================================

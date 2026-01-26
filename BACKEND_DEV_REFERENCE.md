@@ -24,8 +24,7 @@ El esquema relacional está optimizado para los reportes de Cloudbeds y el aisla
 | `properties` | Entidad principal (Hotel). Vinculada a un `user_id` de Auth. |
 | `import_files` | Registro de archivos CSV subidos para auditoría. |
 | `ledger_transactions` | Datos del *Expanded Transaction Report* (Caja y flujo). |
-| `reservation_financials` | Datos del *Reservations with Financials* (P&L y cobranzas). |
-| `channel_summaries` | Datos del *Channel Performance Summary* (Mix de canales). |
+| `reservation_financials` | Datos del *Reservations with Financials* (P&L, cobranzas y mix de canales). |
 | `cost_settings` | Configuración de costos V4 (Flexible Categories en `JSONB`). |
 | `action_completions` | Tracking de pasos completados en recomendaciones. |
 

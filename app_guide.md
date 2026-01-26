@@ -10,7 +10,6 @@
 
 * **Expanded Transaction Report with Details** (ledger / caja real)
 * **Reservations with Financials** (unidad económica = reserva)
-* **Channel Performance Summary** (mix por canal)
 
 2. **Etiqueta de confianza obligatoria** en cada número: `Real / Estimado / Incompleto` + Nivel de Confianza (●/◐/○).
 
@@ -284,8 +283,7 @@ Un dueño de hotel siempre se pregunta:
 Penalizaciones:
 
 * Falta Expanded Transactions: −40
-* Falta Reservations with Financials: −30
-* Falta Channel Performance Summary: −20
+* Falta Reservations with Financials: −50
 * Último import > 7 días: −10
 * **Cobertura histórica insuficiente (< 3 meses):** Indica que las comparativas MoM/YoY serán limitadas o nulas.
 

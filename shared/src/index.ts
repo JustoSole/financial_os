@@ -115,11 +115,6 @@ export const UI_COPY = {
         description: 'Unidad económica por reserva.',
         required: true,
       },
-      channel_performance: {
-        name: 'Channel Performance Summary',
-        description: 'Mix por canal con revenue y comisiones.',
-        required: false,
-      },
     },
   },
 };

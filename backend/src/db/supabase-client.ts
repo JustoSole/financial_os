@@ -1,16 +1,39 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
 const supabaseUrl = process.env.SUPABASE_URL || '';
-const supabaseAnonKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '';
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || '';
 
-if (!supabaseUrl || !supabaseAnonKey) {
+// Usar SERVICE_ROLE_KEY si está disponible (bypassa RLS), sino ANON_KEY
+const supabaseKey = supabaseServiceKey || supabaseAnonKey;
+
+if (!supabaseUrl || !supabaseKey) {
   console.warn('⚠️ Supabase credentials missing in .env');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Cliente principal - usa SERVICE_ROLE_KEY si está disponible
+export const supabase = createClient(supabaseUrl, supabaseKey);
+
+// Indica si estamos usando SERVICE_ROLE_KEY (bypassa RLS)
+export const hasServiceRoleKey = !!supabaseServiceKey;
+
+/**
+ * Crea un cliente Supabase autenticado con el token JWT del usuario.
+ * Esto es necesario cuando usamos ANON_KEY y las tablas tienen RLS.
+ * El cliente hereda el contexto auth del usuario para que las políticas RLS funcionen.
+ */
+export function createAuthenticatedClient(accessToken: string): SupabaseClient {
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    global: {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    },
+  });
+}
 
 /**
  * Helper to get the current property ID from the request or context.

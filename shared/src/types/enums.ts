@@ -30,8 +30,7 @@ export type PlanType = 'free' | 'pro';
 /** Supported report types from Cloudbeds */
 export type ReportType = 
   | 'expanded_transactions' 
-  | 'reservations_financials' 
-  | 'channel_performance';
+  | 'reservations_financials';
 
 /** Data health level */
 export type DataHealthLevel = 'completos' | 'parciales' | 'faltan';

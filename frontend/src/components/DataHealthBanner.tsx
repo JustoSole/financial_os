@@ -42,9 +42,8 @@ export default function DataHealthBanner({ score, issues }: DataHealthBannerProp
 
   // Calculate suggestions
   const suggestions = [
-    { text: 'Subir Expanded Transactions', points: 40, done: score >= 50 },
-    { text: 'Subir Reservations Report', points: 35, done: score >= 85 },
-    { text: 'Subir Channel Performance', points: 10, done: !issues.includes('Sin datos de Channel Performance') },
+    { text: 'Subir Expanded Transactions', points: 50, done: score >= 50 },
+    { text: 'Subir Reservations Report', points: 50, done: score >= 100 },
   ].filter(s => !s.done);
 
   // Don't show banner if excellent

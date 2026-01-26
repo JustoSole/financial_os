@@ -2,9 +2,8 @@ export * from './csv-parser';
 export * from './types';
 export * from './transaction-parser';
 export * from './reservation-parser';
-export * from './channel-parser';
 
-import { findColumn, normalizeDecimal, normalizeDateTime, normalizeDate } from './csv-parser';
+import { findColumn, normalizeDecimal, normalizeDateTime, normalizeDate, generateRowHash } from './csv-parser';
 
 // =====================================================
 // Wrapper functions for pre-parsed data (used by import-service)
@@ -57,6 +56,7 @@ export function parseTransactions(data: Record<string, string>[], propertyId: st
       description: descriptionCol ? row[descriptionCol] || null : null,
       notes: notesCol ? row[notesCol] || null : null,
       txnSource: txnSourceCol ? row[txnSourceCol] || null : null,
+      rowHash: generateRowHash(row)
     });
   }
   
@@ -87,10 +87,32 @@ export function parseReservations(data: Record<string, string>[], propertyId: st
   const reservations: any[] = [];
   const seen = new Set<string>();
   
+  console.log(`[PARSER] Starting parseReservations for ${data.length} rows. ResNumCol: ${reservationNumCol}, CheckInCol: ${checkInCol}`);
+
   for (const row of data) {
-    const resNum = reservationNumCol ? extractResNum(row[reservationNumCol]) : null;
-    if (!resNum || seen.has(resNum)) continue;
+    const rawResNum = row[reservationNumCol!];
+    const resNum = reservationNumCol ? extractResNum(rawResNum) : null;
+    
+    if (!resNum) {
+      if (rawResNum && rawResNum.trim() !== '') {
+        // console.log(`[PARSER] Row skipped: No resNum extracted from "${rawResNum}"`);
+      }
+      continue;
+    }
+
+    if (seen.has(resNum)) continue;
     seen.add(resNum);
+    
+    // Validar que tengamos fechas básicas
+    const rawCheckIn = row[checkInCol!];
+    const rawCheckOut = row[checkOutCol!];
+    const checkIn = normalizeDate(rawCheckIn);
+    const checkOut = normalizeDate(rawCheckOut);
+    
+    if (!checkIn || !checkOut) {
+      console.log(`[PARSER] Row skipped: Invalid dates for ${resNum}. In: ${rawCheckIn}, Out: ${rawCheckOut}`);
+      continue;
+    }
     
     reservations.push({
       propertyId,
@@ -100,8 +122,8 @@ export function parseReservations(data: Record<string, string>[], propertyId: st
       status: statusCol ? row[statusCol] || 'Unknown' : 'Unknown',
       sourceCategory: sourceCategoryCol ? row[sourceCategoryCol] || null : null,
       source: sourceCol ? row[sourceCol] || null : null,
-      checkIn: checkInCol ? normalizeDate(row[checkInCol]) : null,
-      checkOut: checkOutCol ? normalizeDate(row[checkOutCol]) : null,
+      checkIn,
+      checkOut,
       roomNights: roomNightsCol ? Math.round(normalizeDecimal(row[roomNightsCol])) : 0,
       roomRevenueTotal: roomRevenueCol ? normalizeDecimal(row[roomRevenueCol]) : 0,
       taxesTotal: taxesCol ? normalizeDecimal(row[taxesCol]) : 0,
@@ -112,39 +134,8 @@ export function parseReservations(data: Record<string, string>[], propertyId: st
     });
   }
   
+  console.log(`[PARSER] Finished parseReservations. Extracted ${reservations.length} valid reservations.`);
   return reservations;
-}
-
-/**
- * Parse channels from already-parsed CSV data
- */
-export function parseChannels(data: Record<string, string>[], propertyId: string, fileId: string) {
-  const headers = data.length > 0 ? Object.keys(data[0]) : [];
-  
-  const sourceCategoryCol = findColumn(headers, 'source_category');
-  const sourceCol = findColumn(headers, 'source');
-  const roomNightsCol = findColumn(headers, 'room_nights');
-  const roomRevenueCol = findColumn(headers, 'room_revenue_total');
-  const estimatedCommissionCol = findColumn(headers, 'estimated_commission');
-  
-  const channels: any[] = [];
-  
-  for (const row of data) {
-    const source = sourceCol ? row[sourceCol]?.trim() : null;
-    if (!source) continue;
-    
-    channels.push({
-      propertyId,
-      sourceFileId: fileId,
-      sourceCategory: sourceCategoryCol ? row[sourceCategoryCol] || null : null,
-      source,
-      roomNights: roomNightsCol ? Math.round(normalizeDecimal(row[roomNightsCol])) : 0,
-      roomRevenueTotal: roomRevenueCol ? normalizeDecimal(row[roomRevenueCol]) : 0,
-      estimatedCommission: estimatedCommissionCol ? normalizeDecimal(row[estimatedCommissionCol]) : 0,
-    });
-  }
-  
-  return channels;
 }
 
 // Helper functions
@@ -156,11 +147,30 @@ function parseBool(value: string | undefined): boolean {
 
 function extractResNum(value: string | undefined): string | null {
   if (!value) return null;
-  if (value.includes('cloudbeds.com') && value.includes('/reservations/')) {
-    const match = value.match(/\/reservations\/(\d+)/);
+  
+  const strValue = String(value);
+
+  // Si es una URL de Cloudbeds
+  if (strValue.includes('cloudbeds.com') && strValue.includes('/reservations/')) {
+    const match = strValue.match(/\/reservations\/(\d+)/);
     if (match) return match[1];
   }
-  const cleaned = value.trim();
+  
+  // Si contiene una URL pero no el patrón estándar, intentar extraer cualquier número largo
+  if (strValue.includes('http')) {
+    const match = strValue.match(/(\d{8,})/); // IDs de Cloudbeds suelen ser largos
+    if (match) return match[1];
+  }
+
+  const cleaned = strValue.trim();
+  if (/^\d+$/.test(cleaned)) {
+    return cleaned;
+  }
+
+  // Fallback para cualquier número largo en el string
+  const numMatch = cleaned.match(/(\d{8,})/);
+  if (numMatch) return numMatch[1];
+
   return cleaned || null;
 }
 

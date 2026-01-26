@@ -89,7 +89,7 @@ export default function Channels() {
         <EmptyState
           icon={<Target size={40} />}
           title="Sin datos de canales"
-          description="Importá el Reservations Report o Channel Performance para ver este análisis."
+          description="Importá el Reservations Report para ver este análisis."
           action={{ label: 'Importar datos', to: '/importar' }}
         />
       </div>

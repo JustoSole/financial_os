@@ -1,7 +1,8 @@
-import { useState, useCallback } from 'react';
-import { Upload, FileText, CheckCircle, AlertCircle, X, ExternalLink, Loader2 } from 'lucide-react';
+import { useState, useCallback, useEffect } from 'react';
+import { Upload, FileText, CheckCircle, AlertCircle, X, ExternalLink, Loader2, ArrowRight, Zap, Search, Filter, Download, ChevronDown, ChevronUp, Copy, Check } from 'lucide-react';
 import { validateFile, importFiles, trackEvent } from '../api';
 import { useApp } from '../context/AppContext';
+import styles from '../pages/Import.module.css';
 
 interface FileInfo {
   file: File;
@@ -15,30 +16,50 @@ interface FileInfo {
 
 const REPORT_TYPES = {
   expanded_transactions: {
-    name: 'Transactions Report',
+    name: 'Expanded Transaction Report with Details',
     description: 'Incluye todos los cargos y pagos',
     antiquity: 'Hasta 3 años',
     required: true,
+    searchTerm: 'Expanded Transaction Report with Details',
   },
   reservations_financials: {
-    name: 'Reservations Report',
+    name: 'Reservations with Financials',
     description: 'Reservas con datos financieros',
     antiquity: 'Hasta 3 años',
-    required: false,
-  },
-  channel_performance: {
-    name: 'Channel Performance',
-    description: 'Comisiones por canal',
-    antiquity: 'Hasta 3 años',
-    required: false,
+    required: true,
+    searchTerm: 'Reservations with Financials',
   },
 };
 
-export default function ImportWizard() {
+// Cloudbeds reports base URL - users will need to be logged in
+// The URL will redirect to their property automatically when logged in
+const CLOUDBEDS_REPORTS_URL = 'https://hotels.cloudbeds.com/#/insights/cloudbeds-reports';
+const getReportSearchUrl = (searchTerm: string) => {
+  return `${CLOUDBEDS_REPORTS_URL}?search_term=${encodeURIComponent(searchTerm)}`;
+};
+
+interface ImportWizardProps {
+  onComplete?: () => void;
+  variant?: 'default' | 'onboarding';
+}
+
+export default function ImportWizard({ onComplete, variant = 'default' }: ImportWizardProps) {
   const { property, refreshData } = useApp();
   const [files, setFiles] = useState<FileInfo[]>([]);
   const [step, setStep] = useState<'upload' | 'validate' | 'importing' | 'complete'>('upload');
   const [dragActive, setDragActive] = useState(false);
+  const [showInstructions, setShowInstructions] = useState(variant === 'onboarding');
+  const [copiedLink, setCopiedLink] = useState<string | null>(null);
+
+  const copyToClipboard = async (text: string, id: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedLink(id);
+      setTimeout(() => setCopiedLink(null), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
 
   const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -56,23 +77,29 @@ export default function ImportWizard() {
     setDragActive(false);
     
     const droppedFiles = Array.from(e.dataTransfer.files).filter(
-      (f) => f.name.endsWith('.csv') || f.type === 'text/csv'
+      (f) => f.name.toLowerCase().endsWith('.csv') || f.type === 'text/csv'
     );
     
     if (droppedFiles.length > 0) {
       addFiles(droppedFiles);
     }
-  }, []);
+  }, [files]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = Array.from(e.target.files || []);
     if (selectedFiles.length > 0) {
       addFiles(selectedFiles);
     }
+    e.target.value = '';
   };
 
   const addFiles = async (newFiles: File[]) => {
-    const fileInfos: FileInfo[] = newFiles.map((file) => ({
+    const existingNames = files.map(f => f.file.name);
+    const uniqueNewFiles = newFiles.filter(f => !existingNames.includes(f.name));
+    
+    if (uniqueNewFiles.length === 0) return;
+
+    const fileInfos: FileInfo[] = uniqueNewFiles.map((file) => ({
       file,
       status: 'validating',
     }));
@@ -80,12 +107,10 @@ export default function ImportWizard() {
     setFiles((prev) => [...prev, ...fileInfos]);
     setStep('validate');
     
-    // Validate each file
-    for (let i = 0; i < fileInfos.length; i++) {
+    for (const fileInfo of fileInfos) {
       try {
-        const result = await validateFile(fileInfos[i].file);
+        const result = await validateFile(fileInfo.file);
         
-        // Check currency mismatch (Currency Lock feature)
         const detectedCurrency = result.data?.detectedCurrency;
         const propertyCurrency = property?.currency || 'ARS';
         const currencyMismatch = detectedCurrency && 
@@ -94,9 +119,8 @@ export default function ImportWizard() {
         
         setFiles((prev) => {
           const updated = [...prev];
-          const idx = prev.findIndex((f) => f.file === fileInfos[i].file);
+          const idx = updated.findIndex((f) => f.file.name === fileInfo.file.name);
           if (idx !== -1) {
-            // Si hay mismatch de moneda, marcar como inválido
             const isValid = result.success && result.data?.isValid && !currencyMismatch;
             
             updated[idx] = {
@@ -105,7 +129,7 @@ export default function ImportWizard() {
               reportType: result.data?.reportType,
               error: currencyMismatch 
                 ? `⚠️ MONEDA INCORRECTA: El archivo parece estar en ${detectedCurrency} pero tu propiedad está configurada en ${propertyCurrency}. Esto causaría análisis incorrectos.`
-                : result.data?.missingRequired?.join(', '),
+                : result.data?.missingRequired?.join(', ') || result.error,
               warnings: result.data?.warnings,
               detectedCurrency,
               currencyMismatch,
@@ -116,7 +140,7 @@ export default function ImportWizard() {
       } catch (err: any) {
         setFiles((prev) => {
           const updated = [...prev];
-          const idx = prev.findIndex((f) => f.file === fileInfos[i].file);
+          const idx = updated.findIndex((f) => f.file.name === fileInfo.file.name);
           if (idx !== -1) {
             updated[idx] = {
               ...updated[idx],
@@ -131,10 +155,13 @@ export default function ImportWizard() {
   };
 
   const removeFile = (index: number) => {
-    setFiles((prev) => prev.filter((_, i) => i !== index));
-    if (files.length <= 1) {
+    setFiles((prev) => {
+      const updated = prev.filter((_, i) => i !== index);
+      if (updated.length === 0) {
       setStep('upload');
     }
+      return updated;
+    });
   };
 
   const handleImport = async () => {
@@ -156,20 +183,29 @@ export default function ImportWizard() {
       );
       
       setFiles((prev) =>
-        prev.map((f, i) => {
+        prev.map((f) => {
           if (f.status !== 'importing') return f;
-          const importResult = result.data?.results?.[i];
+          
+          const importResult = result.data?.results?.find((r: any) => r.filename === f.file.name || r.reportType === f.reportType);
+          const isFileSuccess = importResult?.success || (result.success && !importResult?.error);
+          
           return {
             ...f,
-            status: importResult?.success ? 'success' : 'error',
-            error: importResult?.errors?.join(', '),
+            status: isFileSuccess ? 'success' : 'error',
+            error: importResult?.error || (importResult?.errors && importResult.errors.join(', ')) || result.error,
             warnings: importResult?.warnings,
           };
         })
       );
       
-      setStep('complete');
-      await refreshData();
+      // Solo pasar a 'complete' si al menos un archivo tuvo éxito
+      const anySuccess = result.success || (result.data?.results?.some((r: any) => r.success));
+      if (anySuccess) {
+        setStep('complete');
+        await refreshData();
+      } else {
+        setStep('validate'); // Volver a validación para que el usuario vea los errores
+      }
       
       trackEvent(property.id, result.success ? 'import_success' : 'import_failed', {
         results: result.data?.results,
@@ -178,37 +214,132 @@ export default function ImportWizard() {
       setFiles((prev) =>
         prev.map((f) => (f.status === 'importing' ? { ...f, status: 'error', error: err.message } : f))
       );
-      setStep('complete');
+      setStep('validate');
     }
   };
 
   const validCount = files.filter((f) => f.status === 'valid' || f.status === 'success').length;
-  const hasRequired = files.some((f) => f.reportType === 'expanded_transactions' && f.status !== 'invalid');
+  
+  // Requirement logic: Onboarding requires both reports.
+  const isOnboarding = variant === 'onboarding';
+  const hasTransactions = files.some((f) => f.reportType === 'expanded_transactions' && (f.status === 'valid' || f.status === 'success'));
+  const hasReservations = files.some((f) => f.reportType === 'reservations_financials' && (f.status === 'valid' || f.status === 'success'));
+  const hasRequired = !isOnboarding || (hasTransactions && hasReservations);
 
   return (
-    <div className="import-wizard">
-      {/* Instructions panel */}
-      <div className="import-instructions">
-        <h4>Cómo exportar desde Cloudbeds</h4>
-        <ol>
-          <li>Abrí el reporte en Cloudbeds</li>
-          <li>Si el reporte no muestra todo, hacé clic en "Run" o "Generar"</li>
-          <li>Exportá como <strong>Table</strong> o <strong>Details Only</strong> en formato <strong>CSV</strong></li>
-          <li>Subí el archivo aquí</li>
-        </ol>
-        <a
-          href="https://myfrontdesk.cloudbeds.com/hc/en-us/articles/6979595895451-How-to-export-reports"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="help-link"
+    <div className={`${styles.importWizard} ${variant === 'onboarding' ? styles.onboardingVariant : ''}`}>
+      
+      {/* Instructions Section */}
+      <div className={styles.instructionsSection}>
+        <button 
+          className={styles.instructionsToggle}
+          onClick={() => setShowInstructions(!showInstructions)}
+          type="button"
         >
-          Ver guía completa <ExternalLink size={14} />
-        </a>
+          <div className={styles.instructionsToggleContent}>
+            <Search size={18} />
+            <span>¿Cómo encuentro los reportes en Cloudbeds?</span>
+          </div>
+          {showInstructions ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+        </button>
+
+        {showInstructions && (
+          <div className={styles.instructionsContent}>
+            {/* Step 1: Find Reports */}
+            <div className={styles.instructionStep}>
+              <div className={styles.instructionStepNumber}>1</div>
+              <div className={styles.instructionStepContent}>
+                <h4>Buscá los reportes en Cloudbeds</h4>
+                <p>Andá a <strong>Cloudbeds Reports</strong> y buscá cada reporte por su nombre:</p>
+                
+                <div className={styles.reportLinks}>
+                  {Object.entries(REPORT_TYPES).map(([key, info]) => (
+                    <div key={key} className={styles.reportLinkItem}>
+                      <div className={styles.reportLinkInfo}>
+                        <span className={styles.reportLinkName}>{info.searchTerm}</span>
+                      </div>
+                      <div className={styles.reportLinkActions}>
+                        <a 
+                          href={getReportSearchUrl(info.searchTerm)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className={styles.reportLinkBtn}
+                        >
+                          <ExternalLink size={14} />
+                          Abrir
+                        </a>
+                        <button
+                          type="button"
+                          className={styles.reportCopyBtn}
+                          onClick={() => copyToClipboard(info.searchTerm, key)}
+                          title="Copiar nombre"
+                        >
+                          {copiedLink === key ? <Check size={14} /> : <Copy size={14} />}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Step 2: Configure Filters */}
+            <div className={styles.instructionStep}>
+              <div className={styles.instructionStepNumber}>2</div>
+              <div className={styles.instructionStepContent}>
+                <h4>Configurá los filtros de fecha</h4>
+                <p>En cada reporte, agregá estos dos filtros en <strong>"Check-In Date"</strong>:</p>
+                
+                <div className={styles.filterConfig}>
+                  <div className={styles.filterItem}>
+                    <Filter size={16} />
+                    <div className={styles.filterDetails}>
+                      <span className={styles.filterField}>Check-In Date</span>
+                      <span className={styles.filterOperator}>mayor o igual a</span>
+                      <span className={styles.filterValue}>3 Años Antes De Hoy</span>
+                    </div>
+                  </div>
+                  <div className={styles.filterItem}>
+                    <Filter size={16} />
+                    <div className={styles.filterDetails}>
+                      <span className={styles.filterField}>Check-In Date</span>
+                      <span className={styles.filterOperator}>menor o igual a</span>
+                      <span className={styles.filterValue}>3 Años Después De Hoy</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className={styles.filterTip}>
+                  <Zap size={14} />
+                  <span>Esto garantiza que tengas suficiente historial para análisis precisos</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Step 3: Export */}
+            <div className={styles.instructionStep}>
+              <div className={styles.instructionStepNumber}>3</div>
+              <div className={styles.instructionStepContent}>
+                <h4>Exportá como CSV</h4>
+                <p>Hacé clic en <strong>"Export"</strong> y seleccioná:</p>
+                <ul className={styles.exportOptions}>
+                  <li>
+                    <Download size={14} />
+                    <span>Formato: <strong>CSV</strong></span>
+                  </li>
+                  <li>
+                    <CheckCircle size={14} />
+                    <span>Vista: <strong>"Table"</strong> o <strong>"Details Only"</strong></span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Upload area */}
       <div
-        className={`upload-dropzone ${dragActive ? 'active' : ''} ${files.length > 0 ? 'has-files' : ''}`}
+        className={`${styles.dropzone} ${dragActive ? styles.dropzoneActive : ''} ${files.length > 0 ? styles.dropzoneHasFiles : ''}`}
         onDragEnter={handleDrag}
         onDragLeave={handleDrag}
         onDragOver={handleDrag}
@@ -220,29 +351,24 @@ export default function ImportWizard() {
           accept=".csv,text/csv"
           multiple
           onChange={handleFileSelect}
-          className="file-input"
+          className={styles.fileInput}
         />
         
         {files.length === 0 ? (
-          <label htmlFor="file-input" className="upload-content">
-            <div className="upload-icon">
+          <label htmlFor="file-input" className={styles.dropzoneContent}>
+            <div className={styles.dropzoneIcon}>
               <Upload size={32} />
             </div>
-            <div className="upload-text">
-              <span className="upload-title">Arrastrá tus archivos CSV aquí</span>
-              <span className="upload-subtitle">o hacé clic para seleccionar</span>
-            </div>
-            <div className="upload-formats">
-              Formatos aceptados: CSV (Table o Details Only)
-            </div>
+            <div className={styles.dropzoneTitle}>Arrastrá tus archivos CSV aquí</div>
+            <div className={styles.dropzoneSubtitle}>o hacé clic para seleccionar</div>
           </label>
         ) : (
-          <div className="files-list">
+          <div className={styles.filesList}>
             {files.map((fileInfo, index) => (
-              <div key={index} className={`file-item ${fileInfo.status}`}>
-                <div className="file-icon">
+              <div key={index} className={`${styles.fileItem} ${styles[fileInfo.status]}`}>
+                <div className={styles.fileIcon}>
                   {fileInfo.status === 'validating' || fileInfo.status === 'importing' ? (
-                    <Loader2 size={20} className="spinner" />
+                    <Loader2 size={20} className={styles.spin} />
                   ) : fileInfo.status === 'valid' || fileInfo.status === 'success' ? (
                     <CheckCircle size={20} />
                   ) : fileInfo.status === 'invalid' || fileInfo.status === 'error' ? (
@@ -251,9 +377,9 @@ export default function ImportWizard() {
                     <FileText size={20} />
                   )}
                 </div>
-                <div className="file-info">
-                  <span className="file-name">{fileInfo.file.name}</span>
-                  <span className="file-meta">
+                <div className={styles.fileInfo}>
+                  <span className={styles.fileName}>{fileInfo.file.name}</span>
+                  <span className={styles.fileMeta}>
                     {fileInfo.currencyMismatch
                       ? fileInfo.error
                       : fileInfo.reportType && REPORT_TYPES[fileInfo.reportType as keyof typeof REPORT_TYPES]
@@ -266,12 +392,12 @@ export default function ImportWizard() {
                   </span>
                 </div>
                 {fileInfo.warnings && fileInfo.warnings.length > 0 && (
-                  <span className="file-warnings" title={fileInfo.warnings.join('\n')}>
+                  <span className={styles.badge} style={{ background: '#fef3c7', color: '#b45309' }}>
                     {fileInfo.warnings.length} advertencia{fileInfo.warnings.length > 1 ? 's' : ''}
                   </span>
                 )}
                 <button
-                  className="file-remove"
+                  className={styles.fileRemove}
                   onClick={() => removeFile(index)}
                   disabled={fileInfo.status === 'importing'}
                 >
@@ -280,7 +406,7 @@ export default function ImportWizard() {
               </div>
             ))}
             
-            <label htmlFor="file-input" className="add-more-btn">
+            <label htmlFor="file-input" className={styles.addMoreBtn}>
               <Upload size={16} />
               Agregar más archivos
             </label>
@@ -288,23 +414,24 @@ export default function ImportWizard() {
         )}
       </div>
 
-      {/* Required reports checklist */}
-      <div className="reports-checklist">
+      <div className={styles.reportChecklist}>
         <h4>Reportes necesarios</h4>
-        <div className="checklist-items">
+        <div className={styles.checklistItems}>
           {Object.entries(REPORT_TYPES).map(([key, info]) => {
-            const hasReport = files.some((f) => f.reportType === key && f.status !== 'invalid');
+            const hasReport = files.some((f) => f.reportType === key && (f.status === 'valid' || f.status === 'success'));
+            const isRequiredForThisVariant = variant === 'onboarding' ? info.required : false;
+            
             return (
-              <div key={key} className={`checklist-item ${hasReport ? 'complete' : ''}`}>
-                <div className={`checklist-icon ${hasReport ? 'checked' : ''}`}>
-                  {hasReport && <CheckCircle size={14} />}
+              <div key={key} className={`${styles.checklistItem} ${hasReport ? styles.complete : ''}`}>
+                <div className={styles.checklistIcon}>
+                  {hasReport ? <CheckCircle size={18} /> : <div className={styles.checkNumber}>{Object.keys(REPORT_TYPES).indexOf(key) + 1}</div>}
                 </div>
-                <div className="checklist-content">
-                  <span className="checklist-name">
+                <div className={styles.checklistContent}>
+                  <strong>
                     {info.name}
-                    {info.required && <span className="required-badge">Obligatorio</span>}
-                  </span>
-                  <span className="checklist-desc">{info.description} • <strong>{info.antiquity}</strong></span>
+                    {isRequiredForThisVariant && <span className={styles.badge} style={{ marginLeft: '8px', background: '#fee2e2', color: '#ef4444' }}>Obligatorio</span>}
+                  </strong>
+                  <span>{info.description} • {info.antiquity}</span>
                 </div>
               </div>
             );
@@ -312,23 +439,29 @@ export default function ImportWizard() {
         </div>
       </div>
 
-      {/* Actions */}
-      <div className="import-actions">
+      <div className={styles.stepActions} style={{ marginTop: 'var(--space-6)' }}>
         {step === 'complete' ? (
-          <div className="import-success-celebration animate-fade-in">
-            <div className="celebration-icon">
+          <div className={styles.completeState} style={{ width: '100%' }}>
+            <div className={styles.completeIcon}>
               <CheckCircle size={48} />
             </div>
             <h3>¡Datos actualizados con éxito! 🎉</h3>
             <p>Hemos procesado tus reportes y encontramos nuevos insights para tu hotel.</p>
             
-            <div className="success-next-steps">
-              <a href="/" className="btn btn-primary btn-lg">
+            <div className={styles.completeActions}>
+              {onComplete ? (
+                <button onClick={onComplete} className={styles.btnPrimary}>
+                  Continuar
+                  <ArrowRight size={18} />
+                </button>
+              ) : (
+                <button onClick={() => window.location.href = '/'} className={styles.btnPrimary}>
                 Ver mi Dashboard
-                <ExternalLink size={18} />
-              </a>
+                  <ArrowRight size={18} />
+                </button>
+              )}
               <button
-                className="btn btn-secondary"
+                className={styles.btnSecondary}
                 onClick={() => {
                   setFiles([]);
                   setStep('upload');
@@ -340,387 +473,32 @@ export default function ImportWizard() {
           </div>
         ) : (
           <button
-            className="btn btn-primary btn-lg"
+            className={styles.btnPrimary}
             onClick={handleImport}
-            disabled={validCount === 0 || step === 'importing'}
+            disabled={validCount === 0 || step === 'importing' || !hasRequired}
+            style={{ width: variant === 'onboarding' ? '100%' : 'auto' }}
           >
             {step === 'importing' ? (
               <>
-                <Loader2 size={18} className="spinner" />
+                <Loader2 size={18} className={styles.spin} />
                 Importando...
               </>
             ) : (
               <>
                 Importar {validCount} archivo{validCount !== 1 ? 's' : ''}
+                <ArrowRight size={18} />
               </>
             )}
           </button>
         )}
-        
-        {!hasRequired && files.length > 0 && (
-          <p className="import-warning">
-            <AlertCircle size={14} />
-            Falta el reporte de Transacciones (obligatorio)
-          </p>
-        )}
       </div>
 
-      <style>{`
-        .import-wizard {
-          max-width: 700px;
-        }
-
-        .import-instructions {
-          background: var(--color-bg);
-          border-radius: var(--radius-lg);
-          padding: var(--space-5);
-          margin-bottom: var(--space-6);
-        }
-
-        .import-instructions h4 {
-          font-size: 0.9375rem;
-          margin-bottom: var(--space-3);
-        }
-
-        .import-instructions ol {
-          list-style-position: inside;
-          color: var(--color-text-secondary);
-          font-size: 0.875rem;
-          line-height: 1.8;
-        }
-
-        .import-instructions strong {
-          color: var(--color-text);
-        }
-
-        .help-link {
-          display: inline-flex;
-          align-items: center;
-          gap: var(--space-1);
-          margin-top: var(--space-3);
-          font-size: 0.875rem;
-        }
-
-        .upload-dropzone {
-          border: 2px dashed var(--color-border);
-          border-radius: var(--radius-lg);
-          background: var(--color-bg-card);
-          transition: all var(--transition-fast);
-          min-height: 200px;
-        }
-
-        .upload-dropzone.active {
-          border-color: var(--color-primary);
-          background: var(--color-primary-subtle);
-        }
-
-        .upload-dropzone.has-files {
-          border-style: solid;
-        }
-
-        .file-input {
-          display: none;
-        }
-
-        .upload-content {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          padding: var(--space-10);
-          cursor: pointer;
-          text-align: center;
-        }
-
-        .upload-icon {
-          width: 64px;
-          height: 64px;
-          background: var(--color-primary-subtle);
-          border-radius: var(--radius-xl);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: var(--color-primary);
-          margin-bottom: var(--space-4);
-        }
-
-        .upload-title {
-          font-size: 1rem;
-          font-weight: 600;
-          color: var(--color-text);
-          display: block;
-        }
-
-        .upload-subtitle {
-          font-size: 0.875rem;
-          color: var(--color-text-secondary);
-        }
-
-        .upload-formats {
-          margin-top: var(--space-4);
-          font-size: 0.8125rem;
-          color: var(--color-text-muted);
-        }
-
-        .files-list {
-          padding: var(--space-4);
-          display: flex;
-          flex-direction: column;
-          gap: var(--space-2);
-        }
-
-        .file-item {
-          display: flex;
-          align-items: center;
-          gap: var(--space-3);
-          padding: var(--space-3) var(--space-4);
-          background: var(--color-bg);
-          border-radius: var(--radius-md);
-          border: 1px solid var(--color-border);
-        }
-
-        .file-item.valid,
-        .file-item.success {
-          border-color: var(--color-success);
-          background: var(--color-primary-subtle);
-        }
-
-        .file-item.invalid,
-        .file-item.error {
-          border-color: var(--color-error);
-          background: #fef2f2;
-        }
-
-        .file-icon {
-          color: var(--color-text-muted);
-          flex-shrink: 0;
-        }
-
-        .file-item.valid .file-icon,
-        .file-item.success .file-icon {
-          color: var(--color-success);
-        }
-
-        .file-item.invalid .file-icon,
-        .file-item.error .file-icon {
-          color: var(--color-error);
-        }
-
-        .file-info {
-          flex: 1;
-          min-width: 0;
-        }
-
-        .file-name {
-          display: block;
-          font-size: 0.875rem;
-          font-weight: 500;
-          color: var(--color-text);
-          white-space: nowrap;
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-
-        .file-meta {
-          font-size: 0.8125rem;
-          color: var(--color-text-secondary);
-        }
-
-        .file-item.invalid .file-meta,
-        .file-item.error .file-meta {
-          color: var(--color-error);
-        }
-
-        .file-item.invalid .file-meta {
-          font-size: 0.75rem;
-          line-height: 1.4;
-          max-width: 350px;
-        }
-
-        .file-warnings {
-          font-size: 0.75rem;
-          color: #b45309;
-          background: #fef3c7;
-          padding: var(--space-1) var(--space-2);
-          border-radius: var(--radius-sm);
-        }
-
-        .file-remove {
-          background: none;
-          border: none;
-          padding: var(--space-2);
-          cursor: pointer;
-          color: var(--color-text-muted);
-          border-radius: var(--radius-sm);
-          transition: all var(--transition-fast);
-        }
-
-        .file-remove:hover {
-          background: var(--color-bg-hover);
-          color: var(--color-error);
-        }
-
-        .add-more-btn {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: var(--space-2);
-          padding: var(--space-3);
-          border: 1px dashed var(--color-border);
-          border-radius: var(--radius-md);
-          color: var(--color-text-secondary);
-          font-size: 0.875rem;
-          cursor: pointer;
-          transition: all var(--transition-fast);
-        }
-
-        .add-more-btn:hover {
-          border-color: var(--color-primary);
-          color: var(--color-primary);
-        }
-
-        .reports-checklist {
-          margin-top: var(--space-6);
-          background: var(--color-bg-card);
-          border: 1px solid var(--color-border);
-          border-radius: var(--radius-lg);
-          padding: var(--space-5);
-        }
-
-        .reports-checklist h4 {
-          font-size: 0.875rem;
-          margin-bottom: var(--space-4);
-        }
-
-        .checklist-items {
-          display: flex;
-          flex-direction: column;
-          gap: var(--space-3);
-        }
-
-        .checklist-item {
-          display: flex;
-          align-items: flex-start;
-          gap: var(--space-3);
-        }
-
-        .checklist-icon {
-          width: 20px;
-          height: 20px;
-          border: 2px solid var(--color-border);
-          border-radius: var(--radius-sm);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          flex-shrink: 0;
-          margin-top: 2px;
-          transition: all var(--transition-fast);
-        }
-
-        .checklist-icon.checked {
-          background: var(--color-success);
-          border-color: var(--color-success);
-          color: white;
-        }
-
-        .checklist-content {
-          flex: 1;
-        }
-
-        .checklist-name {
-          font-size: 0.875rem;
-          font-weight: 500;
-          color: var(--color-text);
-          display: flex;
-          align-items: center;
-          gap: var(--space-2);
-        }
-
-        .required-badge {
-          font-size: 0.6875rem;
-          font-weight: 600;
-          color: var(--color-error);
-          background: #fef2f2;
-          padding: 2px 6px;
-          border-radius: var(--radius-sm);
-        }
-
-        .checklist-desc {
-          font-size: 0.8125rem;
-          color: var(--color-text-secondary);
-        }
-
-        .import-actions {
-          margin-top: var(--space-6);
-          display: flex;
-          flex-direction: column;
-          align-items: stretch;
-          gap: var(--space-3);
-        }
-
-        .import-success-celebration {
-          background: var(--color-bg-hover);
-          border: 1px solid var(--color-success);
-          border-radius: var(--radius-2xl);
-          padding: var(--space-10);
-          text-align: center;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: var(--space-4);
-        }
-
-        .celebration-icon {
-          width: 80px;
-          height: 80px;
-          background: #dcfce7;
-          color: var(--color-success);
-          border-radius: var(--radius-full);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          margin-bottom: var(--space-2);
-          box-shadow: 0 8px 24px rgba(22, 163, 74, 0.15);
-        }
-
-        .import-success-celebration h3 {
-          font-size: var(--text-xl);
-          font-weight: 800;
-          color: var(--color-text);
-          margin: 0;
-        }
-
-        .import-success-celebration p {
-          font-size: var(--text-base);
-          color: var(--color-text-secondary);
-          max-width: 400px;
-          margin: 0;
-        }
-
-        .success-next-steps {
-          display: flex;
-          gap: var(--space-4);
-          margin-top: var(--space-6);
-        }
-
-        .import-warning {
-          display: flex;
-          align-items: center;
-          gap: var(--space-2);
-          font-size: 0.875rem;
-          color: var(--color-warning);
-        }
-
-        .spinner {
-          animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
+      {!hasRequired && files.length > 0 && step !== 'complete' && (
+        <div className={styles.warningBox}>
+          <AlertCircle size={14} />
+          <span>Faltan reportes obligatorios para configurar tu cuenta ({!hasTransactions ? 'Transacciones' : ''}{!hasTransactions && !hasReservations ? ' y ' : ''}{!hasReservations ? 'Reservas' : ''})</span>
+        </div>
+      )}
     </div>
   );
 }
-

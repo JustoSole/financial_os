@@ -1,51 +1,23 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { 
-  Upload, 
   CheckCircle, 
-  FileText, 
   ArrowRight, 
   ArrowLeft,
   Sparkles,
   DollarSign,
-  Building2,
-  Loader2,
-  X,
-  AlertCircle,
   TrendingUp,
   Zap,
+  Loader2,
+  Building2,
   Bed
 } from 'lucide-react';
-import { validateFile, importFiles, updateCosts, trackEvent, getCosts } from '../api';
+import { updateCosts, trackEvent, getCosts } from '../api';
 import { useApp } from '../context/AppContext';
 import { markOnboardingCompleted } from '../utils/onboarding';
+import ImportWizard from './ImportWizard';
 import styles from './OnboardingWizard.module.css';
 
 type WizardStep = 'welcome' | 'upload' | 'costs' | 'complete';
-
-interface FileInfo {
-  file: File;
-  status: 'pending' | 'validating' | 'valid' | 'invalid' | 'importing' | 'success' | 'error';
-  reportType?: string;
-  error?: string;
-}
-
-const REPORT_INFO = {
-  expanded_transactions: {
-    name: 'Transacciones',
-    icon: '💳',
-    description: 'Todos los cargos y pagos'
-  },
-  reservations_financials: {
-    name: 'Reservas',
-    icon: '📅',
-    description: 'Reservas con financieros'
-  },
-  channel_performance: {
-    name: 'Canales',
-    icon: '📊',
-    description: 'Performance por canal'
-  }
-};
 
 interface OnboardingWizardProps {
   onComplete: () => void;
@@ -54,10 +26,6 @@ interface OnboardingWizardProps {
 export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
   const { property, refreshData, refreshProperty } = useApp();
   const [step, setStep] = useState<WizardStep>('welcome');
-  const [files, setFiles] = useState<FileInfo[]>([]);
-  const [dragActive, setDragActive] = useState(false);
-  const [isImporting, setIsImporting] = useState(false);
-  const [importComplete, setImportComplete] = useState(false);
   
   // Costs state - simplified
   const [roomCount, setRoomCount] = useState(0);
@@ -96,115 +64,6 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
       }
     } catch (e) {
       console.error('Error loading costs:', e);
-    }
-  };
-
-  // File handling
-  const handleDrag = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true);
-    } else if (e.type === 'dragleave') {
-      setDragActive(false);
-    }
-  }, []);
-
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-    
-    const droppedFiles = Array.from(e.dataTransfer.files).filter(
-      f => f.name.endsWith('.csv') || f.type === 'text/csv'
-    );
-    if (droppedFiles.length > 0) {
-      addFiles(droppedFiles);
-    }
-  }, []);
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selected = Array.from(e.target.files || []);
-    if (selected.length > 0) {
-      addFiles(selected);
-    }
-    // Reset input
-    e.target.value = '';
-  };
-
-  const addFiles = async (newFiles: File[]) => {
-    // Filter out duplicates
-    const existingNames = files.map(f => f.file.name);
-    const uniqueNewFiles = newFiles.filter(f => !existingNames.includes(f.name));
-    
-    const fileInfos: FileInfo[] = uniqueNewFiles.map(file => ({
-      file,
-      status: 'validating'
-    }));
-    
-    setFiles(prev => [...prev, ...fileInfos]);
-    
-    // Validate each file
-    for (const fileInfo of fileInfos) {
-      try {
-        const result = await validateFile(fileInfo.file);
-        setFiles(prev => prev.map(f => {
-          if (f.file.name === fileInfo.file.name) {
-            return {
-              ...f,
-              status: result.success && result.data?.isValid ? 'valid' : 'invalid',
-              reportType: result.data?.reportType,
-              error: result.data?.missingRequired?.join(', ') || result.error
-            };
-          }
-          return f;
-        }));
-      } catch (err: any) {
-        setFiles(prev => prev.map(f => {
-          if (f.file.name === fileInfo.file.name) {
-            return { ...f, status: 'invalid', error: err.message };
-          }
-          return f;
-        }));
-      }
-    }
-  };
-
-  const removeFile = (filename: string) => {
-    setFiles(prev => prev.filter(f => f.file.name !== filename));
-  };
-
-  const handleImport = async () => {
-    if (!property?.id) return;
-    
-    setIsImporting(true);
-    trackEvent(property.id, 'onboarding_import_started', { fileCount: files.length });
-    
-    const validFiles = files.filter(f => f.status === 'valid');
-    
-    setFiles(prev => prev.map(f => 
-      f.status === 'valid' ? { ...f, status: 'importing' } : f
-    ));
-    
-    try {
-      await importFiles(property.id, validFiles.map(f => f.file));
-      
-      setFiles(prev => prev.map(f => {
-        if (f.status === 'importing') {
-          return { ...f, status: 'success' };
-        }
-        return f;
-      }));
-      
-      setImportComplete(true);
-      await refreshData();
-      trackEvent(property.id, 'onboarding_import_success');
-    } catch (err: any) {
-      setFiles(prev => prev.map(f => 
-        f.status === 'importing' ? { ...f, status: 'error', error: err.message } : f
-      ));
-    } finally {
-      setIsImporting(false);
     }
   };
 
@@ -257,16 +116,6 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
       trackEvent(property.id, 'onboarding_skipped_demo');
     }
     onComplete();
-  };
-
-  const validFilesCount = files.filter(f => f.status === 'valid' || f.status === 'success').length;
-  const hasTransactions = files.some(f => f.reportType === 'expanded_transactions' && f.status !== 'invalid');
-  
-  // Check which reports we have
-  const reportStatus = {
-    transactions: files.find(f => f.reportType === 'expanded_transactions'),
-    reservations: files.find(f => f.reportType === 'reservations_financials'),
-    channels: files.find(f => f.reportType === 'channel_performance')
   };
 
   const totalFixedCosts = monthlySalaries + monthlyRent + monthlyUtilities;
@@ -324,18 +173,18 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
             </h1>
             <p className={styles.welcomeSubtitle}>
               Conocé la <strong>rentabilidad real</strong> de tu hotel en minutos.
-              <br />Solo necesitamos 3 archivos de Cloudbeds.
+              <br />Solo necesitamos 2 archivos de Cloudbeds.
             </p>
           </div>
 
           <div className={styles.welcomeSteps}>
             <div className={styles.welcomeStep}>
               <div className={styles.welcomeStepIcon}>
-                <Upload size={24} />
+                <Zap size={24} />
               </div>
               <div className={styles.welcomeStepContent}>
                 <h3>1. Subí tus reportes</h3>
-                <p>3 archivos CSV exportados de Cloudbeds</p>
+                <p>2 archivos CSV exportados de Cloudbeds</p>
               </div>
             </div>
             <div className={styles.welcomeStep}>
@@ -385,140 +234,14 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
         <div className={styles.stepContent}>
           <div className={styles.stepHeader}>
             <h2>Subí tus reportes de Cloudbeds</h2>
-            <p>Necesitamos estos 3 archivos CSV para calcular tu rentabilidad real</p>
+            <p>Necesitamos estos 2 archivos CSV para calcular tu rentabilidad real</p>
           </div>
 
-          {/* Dropzone */}
-          <div
-            className={`${styles.dropzone} ${dragActive ? styles.dropzoneActive : ''} ${files.length > 0 ? styles.dropzoneHasFiles : ''}`}
-            onDragEnter={handleDrag}
-            onDragLeave={handleDrag}
-            onDragOver={handleDrag}
-            onDrop={handleDrop}
-          >
-            <input
-              type="file"
-              id="file-upload"
-              accept=".csv,text/csv"
-              multiple
-              onChange={handleFileSelect}
-              className={styles.fileInput}
-            />
-            
-            {files.length === 0 ? (
-              <label htmlFor="file-upload" className={styles.dropzoneContent}>
-                <div className={styles.dropzoneIcon}>
-                  <Upload size={32} />
-                </div>
-                <span className={styles.dropzoneTitle}>
-                  Arrastrá los 3 archivos CSV aquí
-                </span>
-                <span className={styles.dropzoneSubtitle}>
-                  o hacé clic para seleccionar
-                </span>
-              </label>
-            ) : (
-              <div className={styles.filesList}>
-                {files.map(f => (
-                  <div 
-                    key={f.file.name} 
-                    className={`${styles.fileItem} ${styles[f.status]}`}
-                  >
-                    <div className={styles.fileIcon}>
-                      {f.status === 'validating' || f.status === 'importing' ? (
-                        <Loader2 size={20} className={styles.spin} />
-                      ) : f.status === 'valid' || f.status === 'success' ? (
-                        <CheckCircle size={20} />
-                      ) : f.status === 'invalid' || f.status === 'error' ? (
-                        <AlertCircle size={20} />
-                      ) : (
-                        <FileText size={20} />
-                      )}
-                    </div>
-                    <div className={styles.fileInfo}>
-                      <span className={styles.fileName}>{f.file.name}</span>
-                      <span className={styles.fileMeta}>
-                        {f.reportType && REPORT_INFO[f.reportType as keyof typeof REPORT_INFO]
-                          ? `${REPORT_INFO[f.reportType as keyof typeof REPORT_INFO].icon} ${REPORT_INFO[f.reportType as keyof typeof REPORT_INFO].name}`
-                          : f.status === 'validating' ? 'Analizando...'
-                          : f.status === 'importing' ? 'Importando...'
-                          : f.error || 'Archivo no reconocido'
-                        }
-                      </span>
-                    </div>
-                    {f.status !== 'importing' && f.status !== 'success' && (
-                      <button 
-                        className={styles.fileRemove}
-                        onClick={() => removeFile(f.file.name)}
-                      >
-                        <X size={16} />
-                      </button>
-                    )}
-                  </div>
-                ))}
-                
-                <label htmlFor="file-upload" className={styles.addMoreBtn}>
-                  <Upload size={16} />
-                  Agregar más archivos
-                </label>
-              </div>
-            )}
-          </div>
+          <ImportWizard 
+            variant="onboarding" 
+            onComplete={() => setStep('costs')} 
+          />
 
-          {/* Report checklist */}
-          <div className={styles.reportChecklist}>
-            <h4>Archivos requeridos:</h4>
-            <div className={styles.checklistItems}>
-              <div className={`${styles.checklistItem} ${reportStatus.transactions?.status === 'valid' || reportStatus.transactions?.status === 'success' ? styles.complete : ''}`}>
-                <div className={styles.checklistIcon}>
-                  {reportStatus.transactions?.status === 'valid' || reportStatus.transactions?.status === 'success' ? (
-                    <CheckCircle size={18} />
-                  ) : (
-                    <span className={styles.checkNumber}>1</span>
-                  )}
-                </div>
-                <div className={styles.checklistContent}>
-                  <strong>Expanded Transaction Report with Details</strong>
-                  <span>Reportes → Expanded Transaction Report</span>
-                </div>
-              </div>
-              
-              <div className={`${styles.checklistItem} ${reportStatus.reservations?.status === 'valid' || reportStatus.reservations?.status === 'success' ? styles.complete : ''}`}>
-                <div className={styles.checklistIcon}>
-                  {reportStatus.reservations?.status === 'valid' || reportStatus.reservations?.status === 'success' ? (
-                    <CheckCircle size={18} />
-                  ) : (
-                    <span className={styles.checkNumber}>2</span>
-                  )}
-                </div>
-                <div className={styles.checklistContent}>
-                  <strong>Reservations with Financials</strong>
-                  <span>Reportes → Reservations with Financials</span>
-                </div>
-              </div>
-              
-              <div className={`${styles.checklistItem} ${reportStatus.channels?.status === 'valid' || reportStatus.channels?.status === 'success' ? styles.complete : ''}`}>
-                <div className={styles.checklistIcon}>
-                  {reportStatus.channels?.status === 'valid' || reportStatus.channels?.status === 'success' ? (
-                    <CheckCircle size={18} />
-                  ) : (
-                    <span className={styles.checkNumber}>3</span>
-                  )}
-                </div>
-                <div className={styles.checklistContent}>
-                  <strong>Channel Performance Summary</strong>
-                  <span>Reportes → Channel Performance Summary</span>
-                </div>
-              </div>
-            </div>
-            
-            <div className={styles.checklistTip}>
-              <Zap size={14} />
-              <span>Exportá cada reporte como <strong>CSV</strong> con vista <strong>"Table"</strong> o <strong>"Details Only"</strong></span>
-            </div>
-          </div>
-
-          {/* Actions */}
           <div className={styles.stepActions}>
             <button 
               className={styles.btnSecondary}
@@ -527,42 +250,7 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
               <ArrowLeft size={18} />
               Volver
             </button>
-            
-            {!importComplete ? (
-              <button 
-                className={styles.btnPrimary}
-                onClick={handleImport}
-                disabled={validFilesCount === 0 || isImporting}
-              >
-                {isImporting ? (
-                  <>
-                    <Loader2 size={18} className={styles.spin} />
-                    Importando...
-                  </>
-                ) : (
-                  <>
-                    Importar {validFilesCount} archivo{validFilesCount !== 1 ? 's' : ''}
-                    <ArrowRight size={18} />
-                  </>
-                )}
-              </button>
-            ) : (
-              <button 
-                className={styles.btnPrimary}
-                onClick={() => setStep('costs')}
-              >
-                Configurar costos
-                <ArrowRight size={18} />
-              </button>
-            )}
           </div>
-
-          {!hasTransactions && files.length > 0 && (
-            <div className={styles.warningBox}>
-              <AlertCircle size={16} />
-              <span>Necesitás al menos el reporte de <strong>Transacciones</strong> para continuar</span>
-            </div>
-          )}
         </div>
       )}
 
@@ -787,4 +475,3 @@ export default function OnboardingWizard({ onComplete }: OnboardingWizardProps) 
     </div>
   );
 }
-

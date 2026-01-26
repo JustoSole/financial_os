@@ -19,7 +19,7 @@ interface DateRange {
 }
 
 interface DateRangeInput {
-  preset: 7 | 30 | 90 | null;
+  preset: 7 | 30 | 60 | 90 | 180 | 365 | null;
   custom?: { start: Date; end: Date };
 }
 

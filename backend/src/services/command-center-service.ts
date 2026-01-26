@@ -10,7 +10,6 @@ import {
   calculateDOWPerformance,
   calculateYoYComparison
 } from './metrics-service';
-import { calculateProfitabilityMetrics } from './calculators/profit-engine';
 import { 
   CommandCenterData,
   BreakEvenAnalysis,
@@ -68,7 +67,6 @@ export async function getCommandCenterData(propertyId: string, startDateOrDays: 
     // Get base data with parallel execution for speed
     const [
       costSettings,
-      dataHealth,
       arAging,
       reconciliation,
       collections,
@@ -76,7 +74,6 @@ export async function getCommandCenterData(propertyId: string, startDateOrDays: 
       yoyComparison
     ] = await Promise.all([
       database.getCostSettings(propertyId),
-      database.getDataHealth(propertyId),
       getARAging(propertyId),
       calculateReconciliation(propertyId, startStr, endStr),
       getCollectionsData(propertyId),
@@ -86,6 +83,7 @@ export async function getCommandCenterData(propertyId: string, startDateOrDays: 
 
     const structure = engine.getStructureMetrics();
     const profitability = engine.getProfitability();
+    const dataHealth = engine.getDataHealth();
     const prevStructure = prevEngine.getStructureMetrics();
     const prevProfitability = prevEngine.getProfitability();
 
@@ -99,6 +97,9 @@ export async function getCommandCenterData(propertyId: string, startDateOrDays: 
     const comparisons = buildComparisons(comparison, yoyComparison, profitability, prevProfitability);
     const weeklyAction = buildWeeklyAction(health, breakeven, channels);
 
+    // Get Home Metrics (which now include projections)
+    const homeMetrics = engine.getHomeMetrics();
+
     return {
       period: currentPeriod,
       health,
@@ -108,7 +109,8 @@ export async function getCommandCenterData(propertyId: string, startDateOrDays: 
       cash,
       dataConfidence,
       comparisons,
-      weeklyAction
+      weeklyAction,
+      homeMetrics // New field
     };
   } catch (error) {
     console.error(`❌ Error building Command Center for ${propertyId}:`, error);
@@ -183,7 +185,8 @@ function buildHealthSnapshot(
   const vsLastPeriodPercent = prevNetProfit !== 0 ? (vsLastPeriod / Math.abs(prevNetProfit)) * 100 : 0;
 
   // Guard: Si no hay ocupación real, el profit es sospechoso
-  const hasRealData = structure.occupancyRate > 0;
+  // FIX: Considerar ocupación > 0 como dato real
+  const hasRealData = structure.occupancyRate > 0 || structure.ADR > 0;
 
   // Calculate status based on occupancy
   let occupancyStatus: 'good' | 'warning' | 'bad' = 'bad';
@@ -220,7 +223,7 @@ function buildHealthSnapshot(
       severity: 'critical',
       actionLabel: 'Importar ahora',
       actionLink: '/importar'
-    } : (collections.totalBalanceDue > 50000 ? {
+    } : (collections?.totalBalanceDue > 50000 ? {
       type: 'collections',
       title: 'Cobranzas Pendientes',
       description: `Tenés $${Math.round(collections.totalBalanceDue).toLocaleString()} por cobrar.`,
@@ -433,8 +436,8 @@ function buildComparisons(mom: any, yoy: any, currentProfitability?: any, prevPr
         occupancy: { current: mom.metrics.occupancy.current, previous: mom.metrics.occupancy.previous, changePercent: mom.metrics.occupancy.changePercent },
         revpar: { current: 0, previous: 0, changePercent: 0 }, 
         netProfit: { 
-          current: netProfitCurrent, 
-          previous: netProfitPrevious, 
+          current: Math.round(netProfitCurrent), 
+          previous: Math.round(netProfitPrevious), 
           changePercent: netProfitChangePercent 
         }
       }

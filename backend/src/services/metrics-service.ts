@@ -1,8 +1,6 @@
 import database from '../db';
 import cacheService from './cache-service';
 import { CalculationEngine } from './calculation-engine';
-import { calculateProfitabilityMetrics } from './calculators/profit-engine';
-import { calculateMinimumPrice } from './calculators/pricing-engine';
 import { 
   HomeMetrics, 
   CashMetrics, 
@@ -27,7 +25,7 @@ import { getVariableCostPerNight } from './costs-utils';
 // =====================================================
 
 export async function calculateHomeMetrics(propertyId: string, startDateOrDays: string | number = 30, endDate?: string): Promise<any> {
-  const cacheKey = `home-${propertyId}-${startDateOrDays}-${endDate || ''}`;
+  const cacheKey = `home-v2-${propertyId}-${startDateOrDays}-${endDate || ''}`;
   const cached = cacheService.get<HomeMetrics>(cacheKey);
   if (cached) return cached;
 
@@ -49,78 +47,10 @@ export async function calculateHomeMetrics(propertyId: string, startDateOrDays: 
     endStr = end.toISOString().substring(0, 10);
   }
 
-  const startDate = new Date(startStr);
-  const prevEndDate = new Date(startDate.getTime() - 1);
-  const prevStartDate = new Date(prevEndDate.getTime() - days * 24 * 60 * 60 * 1000);
-
-  const prevStartStr = prevStartDate.toISOString().substring(0, 10);
-  const prevEndStr = prevEndDate.toISOString().substring(0, 10);
-
-  // Get data health for trust levels
-  const dataHealth = await database.getDataHealth(propertyId);
-  const hasTxnData = dataHealth.hasExpandedTransactions;
-  
-  // 1. Cobrado (Real) - SUM(Credits) excluding void
-  const cobrado = await database.sumCredits(propertyId, startStr, endStr);
-  const prevCobrado = await database.sumCredits(propertyId, prevStartStr, prevEndStr);
-  
-  // 2. Cargado (Real) - SUM(Debits)
-  const cargado = await database.sumDebits(propertyId, startStr, endStr);
-  const prevCargado = await database.sumDebits(propertyId, prevStartStr, prevEndStr);
-  
-  // 3. Pendiente (Real) - SUM(balance_due) from Reservations with Financials
-  const pendiente = await database.getTotalBalanceDue(propertyId);
-  const prevPendiente = 0; 
-  
-  // 4. Ahorro potencial por mix (Estimado)
-  const ahorro = await calculateSavingsPotential(propertyId);
-  
-  // Trust levels
-  const txnTrust: TrustLevel = hasTxnData ? 'real' : 'incompleto';
-  const resTrust: TrustLevel = dataHealth.hasReservationsFinancials ? 'real' : 'incompleto';
-
-  const result: HomeMetrics = {
-    period: {
-      start: startStr,
-      end: endStr,
-      days,
-    },
-    cobrado: {
-      value: cobrado,
-      previousValue: prevCobrado > 0 ? prevCobrado : null,
-      delta: prevCobrado > 0 ? ((cobrado - prevCobrado) / prevCobrado) * 100 : null,
-      trust: txnTrust,
-      source: 'Expanded Transaction Report',
-      explainFormula: 'SUM(Credits) de todas las transacciones (excluyendo anuladas)',
-    },
-    cargado: {
-      value: cargado,
-      previousValue: prevCargado > 0 ? prevCargado : null,
-      delta: prevCargado > 0 ? ((cargado - prevCargado) / prevCargado) * 100 : null,
-      trust: txnTrust,
-      source: 'Expanded Transaction Report',
-      explainFormula: 'SUM(Debits) de todas las transacciones',
-    },
-    pendiente: {
-      value: pendiente,
-      previousValue: null,
-      delta: null,
-      trust: resTrust,
-      source: 'Reservations with Financials',
-      explainFormula: 'SUM(balance_due) de todas las reservas activas.',
-    },
-    ahorroPotencial: {
-      value: ahorro.value,
-      previousValue: null,
-      delta: null,
-      trust: 'estimado',
-      source: 'Channel Performance Summary + tasas estimadas',
-      explainFormula: ahorro.formula,
-      topChannel: ahorro.topChannel,
-      suggestion: ahorro.suggestion,
-    },
-    dataHealth,
-  };
+  // Usar CalculationEngine para unificar criterios
+  const engine = new CalculationEngine(propertyId, { start: startStr, end: endStr, days });
+  await engine.init();
+  const result = engine.getHomeMetrics();
 
   cacheService.set(cacheKey, result);
   return result;
@@ -131,13 +61,19 @@ async function calculateSavingsPotential(propertyId: string): Promise<any> {
   const defaultRate = costSettings?.default_ota_commission_rate || 0;
   const overrides = costSettings?.channel_commission_overrides || {};
   
-  const channels = await database.getChannelSummary(propertyId);
+  // Usar un rango de fechas razonable para el ahorro potencial (últimos 30 días)
+  const end = new Date();
+  const start = new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const startStr = start.toISOString().substring(0, 10);
+  const endStr = end.toISOString().substring(0, 10);
+  
+  const channels = await database.getChannelSummary(propertyId, startStr, endStr);
   
   if (channels.length === 0) {
     return {
       value: 0,
       topChannel: '-',
-      suggestion: 'Importá el Channel Performance Summary para ver tu ahorro potencial',
+      suggestion: 'Importá el Reservations Report para ver tu ahorro potencial',
       formula: 'Sin datos de canales',
     };
   }
@@ -203,46 +139,9 @@ export async function calculateCashMetrics(propertyId: string, startDateOrDays: 
     endStr = end.toISOString().substring(0, 10);
   }
   
-  const costSettings = await database.getCostSettings(propertyId);
-  const startingBalance = costSettings?.starting_cash_balance || 0;
-  
-  const dailyFlow = await database.getDailyFlow(propertyId, startStr, endStr);
-  
-  let avgNetDaily = 0;
-  if (dailyFlow.length > 0) {
-    const totalNet = dailyFlow.reduce((sum, d) => sum + d.netFlow, 0);
-    avgNetDaily = totalNet / dailyFlow.length;
-  }
-  
-  let runwayDays: number;
-  let trust: TrustLevel = 'estimado';
-  
-  if (startingBalance === 0) {
-    runwayDays = 0;
-    trust = 'incompleto';
-  } else if (avgNetDaily >= 0) {
-    runwayDays = 0; 
-  } else {
-    runwayDays = Math.floor(startingBalance / Math.abs(avgNetDaily));
-  }
-  
-  const alerts = await database.getAlerts(propertyId, startStr, endStr);
-  
-  const result: CashMetrics = {
-    period: {
-      start: startStr,
-      end: endStr,
-      days,
-    },
-    runway: {
-      days: runwayDays,
-      trust,
-      startingBalance,
-      avgNetDaily,
-    },
-    dailyFlow,
-    alerts,
-  };
+  const engine = new CalculationEngine(propertyId, { start: startStr, end: endStr, days });
+  await engine.init();
+  const result = await engine.getCashMetrics();
 
   cacheService.set(cacheKey, result);
   return result;
@@ -253,10 +152,6 @@ export async function calculateChannelMetrics(propertyId: string, startDateOrDay
   const cached = cacheService.get<ChannelMetrics>(cacheKey);
   if (cached) return cached;
 
-  const costSettings = await database.getCostSettings(propertyId);
-  const defaultRate = costSettings?.default_ota_commission_rate || 0;
-  const overrides = costSettings?.channel_commission_overrides || {};
-  
   let startStr: string;
   let endStr: string;
   let days: number;
@@ -275,117 +170,9 @@ export async function calculateChannelMetrics(propertyId: string, startDateOrDay
     endStr = end.toISOString().substring(0, 10);
   }
   
-  const channelDataFromReservations = await database.getChannelSummaryFromReservations(propertyId, startStr, endStr);
-  const staticChannelData = await database.getChannelSummary(propertyId);
-  
-  const hasReservationData = channelDataFromReservations.length > 0;
-  const channelData = hasReservationData ? channelDataFromReservations : staticChannelData;
-  
-  const totalRevenue = channelData.reduce((sum, c) => sum + c.room_revenue_total, 0);
-  
-  const directChannels = channelData.filter(c => 
-    ['direct', 'walk-in', 'email', 'pagina web', 'teléfono', 'telefono'].includes(c.source.toLowerCase()) ||
-    c.source_category?.toLowerCase() === 'direct'
-  );
-  const directRevenue = directChannels.reduce((sum, c) => sum + c.room_revenue_total, 0);
-  const directNights = directChannels.reduce((sum, c) => sum + c.room_nights, 0);
-  const directAdr = directNights > 0 ? directRevenue / directNights : 0;
-  
-  const channels = channelData.map(ch => {
-    const channelLower = ch.source.toLowerCase();
-    let effectiveRate = overrides[channelLower] || DEFAULT_CHANNEL_COMMISSIONS[channelLower] || defaultRate;
-    let isEstimated = true;
-    
-    const staticChannel = staticChannelData.find(s => s.source.toLowerCase() === channelLower);
-    if (staticChannel && staticChannel.estimated_commission > 0 && staticChannel.room_revenue_total > 0) {
-      effectiveRate = staticChannel.estimated_commission / staticChannel.room_revenue_total;
-      isEstimated = false;
-    }
-    
-    const isDirect = ['direct', 'walk-in', 'email', 'pagina web', 'teléfono', 'telefono'].includes(channelLower) ||
-      ch.source_category?.toLowerCase() === 'direct';
-    if (isDirect) {
-      effectiveRate = 0;
-      isEstimated = false;
-    }
-    
-    const commission = ch.room_revenue_total * effectiveRate;
-    const adr = ch.room_nights > 0 ? ch.room_revenue_total / ch.room_nights : 0;
-    const adrNet = adr * (1 - effectiveRate); 
-    
-    let realCostPercent = effectiveRate * 100; 
-    if (directAdr > 0 && adr > 0 && !isDirect) {
-      const adrGapPercent = ((directAdr - adr) / directAdr) * 100;
-      realCostPercent += adrGapPercent;
-    }
-    
-    return {
-      source: ch.source,
-      sourceCategory: ch.source_category || 'Otro',
-      revenue: ch.room_revenue_total,
-      revenueShare: totalRevenue > 0 ? ch.room_revenue_total / totalRevenue : 0,
-      roomNights: ch.room_nights,
-      estimatedCommission: Math.round(commission),
-      effectiveCommissionRate: effectiveRate,
-      isCommissionEstimated: isEstimated,
-      adr: Math.round(adr),
-      adrNet: Math.round(adrNet),
-      realCostPercent: Math.round(realCostPercent * 10) / 10,
-    };
-  });
-  
-  const sortedByAdrNet = [...channels].filter(c => c.roomNights > 0).sort((a, b) => b.adrNet - a.adrNet);
-  const significantChannels = sortedByAdrNet.filter(c => c.revenueShare > 0.05);
-  const bestChannel = significantChannels[0] || null;
-  const worstChannel = significantChannels[significantChannels.length - 1] || null;
-  
-  const otaRevenue = channels
-    .filter(c => c.sourceCategory.toLowerCase() === 'ota')
-    .reduce((sum, c) => sum + c.revenue, 0);
-  const otaShare = totalRevenue > 0 ? otaRevenue / totalRevenue : 0;
-  
-  const categoryRevenue: Record<string, number> = {};
-  for (const ch of channels) {
-    const cat = ch.sourceCategory;
-    categoryRevenue[cat] = (categoryRevenue[cat] || 0) + ch.revenue;
-  }
-  const topCategory = Object.entries(categoryRevenue)
-    .sort((a, b) => b[1] - a[1])[0];
-  
-  const savings = await calculateSavingsPotentialForPeriod(propertyId, channelData, defaultRate, overrides);
-  
-  const result: ChannelMetrics = {
-    period: {
-      start: startStr,
-      end: endStr,
-      days,
-    },
-    channels,
-    dependency: {
-      topChannelCategory: topCategory ? topCategory[0] : '-',
-      sharePercent: topCategory ? (topCategory[1] / totalRevenue) * 100 : 0,
-      isHighDependency: otaShare > 0.7,
-    },
-    savingsPotential: {
-      value: savings.value,
-      description: savings.suggestion,
-      trust: 'estimado',
-    },
-    insights: {
-      bestChannel: bestChannel ? {
-        name: bestChannel.source,
-        adrNet: bestChannel.adrNet,
-        reason: `Mejor ADR neto: $${bestChannel.adrNet.toLocaleString()}/noche`
-      } : null,
-      worstChannel: worstChannel && worstChannel.realCostPercent > 15 ? {
-        name: worstChannel.source,
-        adrNet: worstChannel.adrNet,
-        realCost: `Costo real: ${worstChannel.realCostPercent.toFixed(0)}% (comisión ${(worstChannel.effectiveCommissionRate * 100).toFixed(0)}% + ADR ${directAdr > worstChannel.adr ? Math.round((directAdr - worstChannel.adr) / directAdr * 100) : 0}% más bajo)`
-      } : null,
-      directAdr: Math.round(directAdr),
-    },
-    dataSource: hasReservationData ? 'reservations' : 'channel_summary',
-  };
+  const engine = new CalculationEngine(propertyId, { start: startStr, end: endStr, days });
+  await engine.init();
+  const result = engine.getChannelMetrics();
 
   cacheService.set(cacheKey, result);
   return result;
@@ -562,7 +349,9 @@ export async function calculateMoMComparison(propertyId: string, startDateOrDays
     const reservations = (await database.getReservationsByProperty(propertyId)).filter((r: any) => {
       if (r.status === 'Cancelled' || r.status === 'No Show') return false;
       const checkIn = r.check_in?.substring(0, 10);
-      return checkIn >= startStr && checkIn <= endStr;
+      const checkOut = r.check_out?.substring(0, 10);
+      // Correct inclusive logic for period filtering
+      return checkIn <= endStr && checkOut > startStr;
     });
 
     if (reservations.length === 0) return null;
@@ -735,20 +524,29 @@ export async function calculateReconciliation(propertyId: string, startDateOrDay
 
   let startStr: string;
   let endStr: string;
+  let days: number;
 
   if (typeof startDateOrDays === 'string' && endDate) {
     startStr = startDateOrDays;
     endStr = endDate;
+    const start = new Date(startStr);
+    const end = new Date(endStr);
+    days = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
   } else {
-    const days = typeof startDateOrDays === 'number' ? startDateOrDays : 30;
+    days = typeof startDateOrDays === 'number' ? startDateOrDays : 30;
     const end = new Date();
     const start = new Date(end.getTime() - days * 24 * 60 * 60 * 1000);
     startStr = start.toISOString().substring(0, 10);
     endStr = end.toISOString().substring(0, 10);
   }
 
-  const totalDebits = await database.sumDebits(propertyId, startStr, endStr);
-  const totalCredits = await database.sumCredits(propertyId, startStr, endStr);
+  const engine = new CalculationEngine(propertyId, { start: startStr, end: endStr, days });
+  await engine.init();
+  const cashMetrics = await engine.getCashMetrics();
+  const profitability = engine.getProfitability();
+
+  const totalDebits = profitability.totalRevenue; // Revenue reconocido
+  const totalCredits = cashMetrics.runway.avgNetDaily > 0 ? cashMetrics.dailyFlow.reduce((sum: number, d: any) => sum + d.credits, 0) : 0; // Simplified
   const gap = totalDebits - totalCredits;
   
   let explanation = "Balanced";
@@ -893,16 +691,41 @@ export async function getCollectionsData(propertyId: string): Promise<any> {
 }
 
 export async function getDepositGaps(propertyId: string): Promise<any> {
-  return await database.getDepositGaps(propertyId);
+  const engine = new CalculationEngine(propertyId, { 
+    start: new Date().toISOString().substring(0, 10), 
+    end: new Date().toISOString().substring(0, 10), 
+    days: 30 
+  });
+  await engine.init();
+  const reservations = engine.getReservations();
+  
+  return reservations
+    .filter(r => (Number(r.suggested_deposit) - Number(r.paid_amount)) > 0)
+    .map(r => ({
+      ...r,
+      deposit_gap: Number(r.suggested_deposit) - Number(r.paid_amount),
+    }))
+    .sort((a, b) => b.deposit_gap - a.deposit_gap);
 }
 
 export async function getChannelBreakdown(propertyId: string, days: number = 90): Promise<any> {
-  return await database.getChannelSummary(propertyId);
+  const endDate = new Date().toISOString().substring(0, 10);
+  const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().substring(0, 10);
+  const engine = new CalculationEngine(propertyId, { start: startDate, end: endDate, days });
+  await engine.init();
+  const channelMetrics = engine.getChannelMetrics();
+  return channelMetrics.channels;
 }
 
 export async function calculateConfidenceScore(propertyId: string): Promise<any> {
+  const engine = new CalculationEngine(propertyId, { 
+    start: new Date().toISOString().substring(0, 10), 
+    end: new Date().toISOString().substring(0, 10), 
+    days: 30 
+  });
+  await engine.init();
+  const dataHealth = engine.getDataHealth();
   const costSettings = await database.getCostSettings(propertyId);
-  const dataHealth = await database.getDataHealth(propertyId);
   
   const hasRoomCount = (costSettings?.room_count || 0) > 0;
   const hasReservations = dataHealth.hasReservationsFinancials;
@@ -915,17 +738,58 @@ export async function calculateConfidenceScore(propertyId: string): Promise<any>
 }
 
 export async function getProfitabilityMetrics(propertyId: string, startDateOrDays: string | number = 30, endDate?: string): Promise<any> {
-  return await calculateProfitabilityMetrics(propertyId, startDateOrDays, endDate);
+  let startStr: string;
+  let endStr: string;
+  let days: number;
+
+  if (typeof startDateOrDays === 'string' && endDate) {
+    startStr = startDateOrDays;
+    endStr = endDate;
+    const start = new Date(startStr);
+    const end = new Date(endStr);
+    days = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
+  } else {
+    days = typeof startDateOrDays === 'number' ? startDateOrDays : 30;
+    const end = new Date();
+    const start = new Date(end.getTime() - days * 24 * 60 * 60 * 1000);
+    startStr = start.toISOString().substring(0, 10);
+    endStr = end.toISOString().substring(0, 10);
+  }
+
+  const engine = new CalculationEngine(propertyId, { start: startStr, end: endStr, days });
+  await engine.init();
+  return engine.getProfitability();
 }
 
 export async function getMinimumPriceSimulation(propertyId: string, marginPct: number): Promise<any> {
-  return await calculateMinimumPrice(propertyId, marginPct);
+  const engine = new CalculationEngine(propertyId, { 
+    start: new Date().toISOString().substring(0, 10), 
+    end: new Date().toISOString().substring(0, 10), 
+    days: 30 
+  });
+  await engine.init();
+  const profitability = engine.getProfitability();
+  const structure = engine.getStructureMetrics();
+  
+  const totalNights = profitability.totalNights || 1;
+  const cpor = profitability.totalCosts / totalNights;
+  const minPrice = cpor / (1 - (marginPct / 100));
+
+  return {
+    cpor: Math.round(cpor),
+    recommendedPrice: Math.round(minPrice),
+    marginPct,
+    currentAdr: Math.round(structure.ADR)
+  };
 }
 
 export async function getDailyFlow(propertyId: string, days: number = 30): Promise<any> {
   const endDate = new Date().toISOString().substring(0, 10);
   const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().substring(0, 10);
-  return await database.getDailyFlow(propertyId, startDate, endDate);
+  const engine = new CalculationEngine(propertyId, { start: startDate, end: endDate, days });
+  await engine.init();
+  const cashMetrics = await engine.getCashMetrics();
+  return cashMetrics.dailyFlow;
 }
 
 export async function calculateDOWPerformance(propertyId: string, startDateOrDays: string | number = 90, endDate?: string): Promise<any> {
@@ -957,7 +821,9 @@ export async function calculateDOWPerformance(propertyId: string, startDateOrDay
   const reservations = (await database.getReservationsByProperty(propertyId)).filter((r: any) => {
     if (r.status === 'Cancelled' || r.status === 'No Show') return false;
     const checkIn = r.check_in?.substring(0, 10);
-    return checkIn >= startStr && checkIn <= endStr;
+    const checkOut = r.check_out?.substring(0, 10);
+    // Unified inclusive logic for period filtering (same as CalculationEngine)
+    return checkIn <= endStr && checkOut > startStr;
   });
 
   const costSettings = await database.getCostSettings(propertyId);
@@ -1051,7 +917,9 @@ export async function calculateYoYComparison(propertyId: string, startDateOrDays
     const reservations = (await database.getReservationsByProperty(propertyId)).filter((r: any) => {
       if (r.status === 'Cancelled' || r.status === 'No Show') return false;
       const checkIn = r.check_in?.substring(0, 10);
-      return checkIn >= startStr && checkIn <= endStr;
+      const checkOut = r.check_out?.substring(0, 10);
+      // Correct inclusive logic for period filtering
+      return checkIn <= endStr && checkOut > startStr;
     });
 
     if (reservations.length === 0) return null;

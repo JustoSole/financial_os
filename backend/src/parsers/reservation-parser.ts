@@ -66,8 +66,14 @@ export function parseReservationsReport(content: string): {
   for (const row of result.data) {
     try {
       // Extract reservation number
-      const reservationNumber = extractReservationNumber(row[reservationNumCol!]);
+      const rawResNum = row[reservationNumCol!];
+      const reservationNumber = extractReservationNumber(rawResNum);
+      
       if (!reservationNumber) {
+        // Log skip for debugging
+        if (rawResNum && rawResNum.trim() !== '') {
+          console.log(`[PARSER] Skipping row: Invalid reservation number "${rawResNum}"`);
+        }
         skippedInvalid++;
         continue;
       }
@@ -82,11 +88,14 @@ export function parseReservationsReport(content: string): {
       const guestName = guestNameCol ? extractGuestName(row[guestNameCol]) : null;
       
       // Parse dates
-      const checkIn = checkInCol ? normalizeDate(row[checkInCol]) : null;
-      const checkOut = checkOutCol ? normalizeDate(row[checkOutCol]) : null;
+      const rawCheckIn = row[checkInCol!];
+      const rawCheckOut = row[checkOutCol!];
+      const checkIn = normalizeDate(rawCheckIn);
+      const checkOut = normalizeDate(rawCheckOut);
       
       if (!checkIn || !checkOut) {
-        warnings.push(`Reserva ${reservationNumber}: fechas inválidas`);
+        console.log(`[PARSER] Warning: Invalid dates for res ${reservationNumber}. In: ${rawCheckIn}, Out: ${rawCheckOut}`);
+        warnings.push(`Reserva ${reservationNumber}: fechas inválidas (${rawCheckIn} / ${rawCheckOut})`);
       }
       
       // Parse amounts
@@ -96,6 +105,11 @@ export function parseReservationsReport(content: string): {
       const balanceDue = balanceDueCol ? normalizeDecimal(row[balanceDueCol]) : 0;
       const suggestedDeposit = suggestedDepositCol ? normalizeDecimal(row[suggestedDepositCol]) : 0;
       const roomNights = roomNightsCol ? Math.round(normalizeDecimal(row[roomNightsCol])) : 0;
+      
+      // LOG TEMPORAL PARA DEBUG DE MONTOS
+      if (reservationNumber === '152874952' || reservationNumber.includes('152874952')) {
+        console.log(`[PARSER] Debug Res ${reservationNumber}: Revenue=${roomRevenueTotal}, Paid=${paidAmount}, Balance=${balanceDue}`);
+      }
       
       // Parse status
       const status = statusCol ? row[statusCol] || 'Unknown' : 'Unknown';
@@ -146,20 +160,26 @@ function parseBooleanFlag(value: string | undefined): boolean {
 function extractReservationNumber(value: string | undefined): string | null {
   if (!value) return null;
   
+  const strValue = String(value);
+
   // Check if it's a URL
-  if (value.includes('cloudbeds.com') && value.includes('/reservations/')) {
-    const match = value.match(/\/reservations\/(\d+)/);
+  if (strValue.includes('cloudbeds.com') && strValue.includes('/reservations/')) {
+    const match = strValue.match(/\/reservations\/(\d+)/);
     if (match) {
       return match[1];
     }
   }
   
   // Otherwise return as-is if it looks valid
-  const cleaned = value.trim();
+  const cleaned = strValue.trim();
   if (/^\d+$/.test(cleaned)) {
     return cleaned;
   }
   
+  // If it's a long string but contains a number, try to extract it
+  const numMatch = cleaned.match(/(\d{8,})/);
+  if (numMatch) return numMatch[1];
+
   return cleaned || null;
 }
 

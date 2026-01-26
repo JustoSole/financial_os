@@ -31,6 +31,7 @@ export interface ParsedTransaction {
   description: string | null;
   notes: string | null;
   txnSource: string | null;
+  rowHash: string;
 }
 
 /**
@@ -51,15 +52,4 @@ export interface ParsedReservation {
   balanceDue: number;
   suggestedDeposit: number;
   hotelCollectFlag: boolean;
-}
-
-/**
- * Parsed from: Channel Performance Summary
- */
-export interface ParsedChannel {
-  sourceCategory: string | null;
-  source: string;
-  roomNights: number;
-  roomRevenueTotal: number;
-  estimatedCommission: number;
 }

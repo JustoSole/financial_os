@@ -21,18 +21,27 @@ export function parseCSV(content: string, options: ParseOptions = {}): Papa.Pars
   // Cloudbeds uses semicolon in many regions, comma in others.
   const semicolonCount = (firstLine.match(/;/g) || []).length;
   const commaCount = (firstLine.match(/,/g) || []).length;
-  const delimiter = semicolonCount > commaCount ? ';' : ',';
+  let delimiter = semicolonCount > commaCount ? ';' : ',';
+
+  // Si la primera línea tiene "index," o ",," es muy probable que sea coma
+  if (firstLine.includes('index,') || firstLine.includes(',,')) {
+    delimiter = ',';
+  }
 
   console.log(`[CSV-PARSER] Parsing. Delimiter: "${delimiter}", Headers: ${firstLine.substring(0, 100)}...`);
 
   return Papa.parse<Record<string, string>>(cleanContent, {
     header: true,
     delimiter,
-    skipEmptyLines: true,
+    skipEmptyLines: 'greedy', // Better handling of empty lines within multi-line fields
     transformHeader: (header) => {
       // Cloudbeds headers can have spaces, special chars, and case differences.
       // We normalize to lowercase and remove non-alphanumeric for matching.
-      return header.trim().toLowerCase();
+      return header.trim().toLowerCase()
+        .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Quitar acentos
+        .replace(/[^a-z0-9]/g, ' ') // Reemplazar caracteres especiales por espacios para facilitar matching
+        .replace(/\s+/g, ' ') // Colapsar múltiples espacios en uno solo
+        .trim();
     },
     transform: (value) => value.trim(),
   });
@@ -42,21 +51,24 @@ export function parseCSV(content: string, options: ParseOptions = {}): Papa.Pars
 export function normalizeDecimal(value: string): number {
   if (!value || value === '-' || value === '') return 0;
   
-  // Remove currency symbols and spaces
-  let cleaned = value.replace(/[$€£¥₱\s]/g, '');
+  // Remove currency symbols, spaces and any other non-numeric chars except , and .
+  let cleaned = value.replace(/[^0-9.,-]/g, '');
   
+  if (cleaned === '' || cleaned === '-') return 0;
+
   // Detect format: if has both . and , check which is decimal separator
   const lastDot = cleaned.lastIndexOf('.');
   const lastComma = cleaned.lastIndexOf(',');
   
   if (lastComma > lastDot) {
-    // European format: 1.234,56
+    // European format: 1.234,56 or 1234,56
     cleaned = cleaned.replace(/\./g, '').replace(',', '.');
   } else if (lastDot > lastComma) {
-    // US format: 1,234.56
+    // US format: 1,234.56 or 1234.56
     cleaned = cleaned.replace(/,/g, '');
   } else if (lastComma > -1 && lastDot === -1) {
-    // Only comma: could be European decimal
+    // Only comma: could be European decimal (1234,56) or US thousands (1,234)
+    // Heuristic: if it looks like a decimal (2 digits after comma), treat as decimal
     const parts = cleaned.split(',');
     if (parts.length === 2 && parts[1].length <= 2) {
       cleaned = cleaned.replace(',', '.');
@@ -80,20 +92,51 @@ export function normalizeDate(value: string): string | null {
     return cleaned.substring(0, 10);
   }
   
-  // MM/DD/YYYY or DD/MM/YYYY - assume US format as Cloudbeds default
-  const slashMatch = cleaned.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  // DD/MM/YYYY or MM/DD/YYYY
+  const slashMatch = cleaned.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
   if (slashMatch) {
-    const [, first, second, year] = slashMatch;
-    // Assume US format (MM/DD/YYYY)
-    const month = first.padStart(2, '0');
-    const day = second.padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    let [, first, second, year] = slashMatch;
+    if (year.length === 2) year = `20${year}`;
+    
+    // Heuristic: if first > 12, it must be DD/MM/YYYY
+    if (parseInt(first) > 12) {
+      return `${year}-${second.padStart(2, '0')}-${first.padStart(2, '0')}`;
+    }
+    
+    // Cloudbeds often uses YYYY-MM-DD internally, but if we see slashes,
+    // let's check if there's a property timezone or standard.
+    // For now, let's try to be smart: if second > 12, it must be MM/DD/YYYY
+    if (parseInt(second) > 12) {
+      return `${year}-${first.padStart(2, '0')}-${second.padStart(2, '0')}`;
+    }
+
+    // Default to YYYY-MM-DD if it already looks like one but with slashes (rare)
+    if (first.length === 4) {
+      return `${first}-${second.padStart(2, '0')}-${year.padStart(2, '0')}`;
+    }
+
+    // Default to MM/DD/YYYY (Cloudbeds standard for many exports)
+    return `${year}-${first.padStart(2, '0')}-${second.padStart(2, '0')}`;
+  }
+
+  // DD-MM-YYYY
+  const dashMatch = cleaned.match(/^(\d{1,2})-(\d{1,2})-(\d{2,4})/);
+  if (dashMatch) {
+    let [, first, second, year] = dashMatch;
+    if (year.length === 2) year = `20${year}`;
+    if (parseInt(first) > 12) {
+      return `${year}-${second.padStart(2, '0')}-${first.padStart(2, '0')}`;
+    }
+    return `${year}-${first.padStart(2, '0')}-${second.padStart(2, '0')}`;
   }
   
   // Try JS Date parsing as fallback
   const date = new Date(cleaned);
   if (!isNaN(date.getTime())) {
-    return date.toISOString().substring(0, 10);
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
   }
   
   return null;
@@ -137,32 +180,47 @@ export function normalizeDateTime(value: string): string | null {
 const COLUMN_MAPPINGS: Record<string, string[]> = {
   // === Expanded Transaction Report with Details ===
   'txn_datetime': [
-    'transaction date time - property', 
+    'transaction date time   property', 
     'transaction date time', 
-    'fecha de transacción',
-    'transaction date'
+    'fecha de transaccion',
+    'transaction date',
+    'fecha y hora de transaccion',
+    'fecha hora transaccion',
+    'property date time',
+    'fecha propiedad',
+    'transaction date time property'
   ],
   'reservation_number': [
     'reservation number', 
-    'número de reserva', 
-    'reserva'
+    'numero de reserva', 
+    'reserva',
+    'reserva #',
+    'reservation id',
+    'id de reserva'
   ],
   'reservation_source': [
     'reservation source', 
     'fuente de reserva',
-    'source'
+    'source',
+    'canal',
+    'fuente'
   ],
   'transaction_type': [
     'transaction type', 
-    'tipo de transacción'
+    'tipo de transaccion',
+    'tipo transaccion',
+    'type'
   ],
   'void_flag': [
     'void flag', 
-    'anulado'
+    'anulado',
+    'voided',
+    'cancelado'
   ],
   'refund_flag': [
     'refund flag', 
-    'reembolso'
+    'reembolso',
+    'refunded'
   ],
   'adjustment_flag': [
     'adjustment flag', 
@@ -170,112 +228,136 @@ const COLUMN_MAPPINGS: Record<string, string[]> = {
   ],
   'debits': [
     'debits', 
-    'débitos', 
-    'cargos'
+    'debitos', 
+    'cargos',
+    'debito',
+    'cargo'
   ],
   'credits': [
     'credits', 
-    'créditos', 
-    'abonos'
+    'creditos', 
+    'abonos',
+    'credito',
+    'abono'
   ],
   'transaction_description': [
     'transaction description', 
-    'descripción de transacción'
+    'descripcion de transaccion',
+    'descripcion',
+    'description'
   ],
   'transaction_notes': [
     'transaction notes', 
-    'notas de transacción'
+    'notas de transaccion',
+    'notas',
+    'notes'
   ],
   'transaction_source': [
     'transaction source', 
-    'fuente de transacción'
+    'fuente de transaccion',
+    'fuente transaccion'
   ],
   
   // === Reservations with Financials ===
   'primary_guest_full_name': [
     'primary guest full name',
     'guest name',
-    'nombre del huésped',
-    'huésped',
+    'nombre del huesped',
+    'huesped',
+    'nombre completo',
+    'guest'
   ],
   'reservation_status': [
     'reservation status', 
-    'estado de reserva'
+    'estado de reserva',
+    'estado',
+    'status'
   ],
   'reservation_source_category': [
     'reservation source category', 
-    'categoría de fuente'
+    'categoria de fuente',
+    'categoria fuente',
+    'source category'
   ],
   'check_in_date': [
-    'check-in date', 
     'check in date',
-    'fecha de check-in',
-    'check in'
+    'fecha de check in',
+    'check in',
+    'fecha de entrada',
+    'entrada',
+    'arrival'
   ],
   'check_out_date': [
-    'check-out date', 
     'check out date',
-    'fecha de check-out',
-    'check out'
+    'fecha de check out',
+    'check out',
+    'fecha de salida',
+    'salida',
+    'departure'
   ],
   'room_nights': [
     'room nights', 
-    'room nights - sum',
-    'noches'
+    'room nights   sum',
+    'noches',
+    'noches de estadia',
+    'nights',
+    'room nights sum'
   ],
   'room_revenue_total': [
     'room revenue total', 
-    'room revenue total - sum',
-    'ingresos por habitación'
+    'room revenue total   sum',
+    'ingresos por habitacion',
+    'revenue habitacion',
+    'room revenue',
+    'room revenue total sum'
   ],
   'total_reservation_taxes': [
     'total reservation taxes', 
-    'total reservation taxes - sum',
-    'impuestos'
+    'total reservation taxes   sum',
+    'impuestos',
+    'total impuestos',
+    'taxes',
+    'total reservation taxes sum'
   ],
   'reservation_paid_amount': [
     'reservation paid amount', 
-    'monto pagado'
+    'monto pagado',
+    'pagado',
+    'total pagado',
+    'paid'
   ],
   'reservation_balance_due': [
     'reservation balance due', 
-    'saldo pendiente'
+    'saldo pendiente',
+    'balance pendiente',
+    'saldo',
+    'balance due',
+    'balance'
   ],
   'suggested_deposit': [
     'suggested deposit', 
-    'depósito sugerido'
+    'deposito sugerido',
+    'deposito'
   ],
   'hotel_collect_booking_flag': [
     'hotel collect booking flag', 
-    'cobro del hotel'
+    'cobro del hotel',
+    'hotel collect',
+    'pago en hotel'
   ],
   'estimated_commission': [
     'estimated commission',
-    'estimated commission - sum',
-    'comisión estimada'
+    'estimated commission   sum',
+    'comision estimada',
+    'comision',
+    'estimated commission sum'
   ],
   'grand_total': [
     'grand total',
-    'grand total - sum',
-    'total general'
-  ],
-  
-  // === Channel Performance Summary ===
-  'source_category': [
-    'reservation source category',
-    'source category',
-    'categoría de fuente'
-  ],
-  'source': [
-    'reservation source',
-    'source',
-    'fuente',
-    'canal'
-  ],
-  'room_count': [
-    'room count',
-    'room count - sum',
-    'habitaciones'
+    'grand total   sum',
+    'total general',
+    'total',
+    'grand total sum'
   ],
 };
 
@@ -302,21 +384,26 @@ export function findColumn(headers: string[], targetField: string): string | nul
 // =====================================================
 
 export function detectReportType(headers: string[]): ReportType | 'unknown' {
-  const h = headers.map(h => h.toLowerCase());
+  const h = headers.map(h => h.toLowerCase().trim());
   
+  // Debug headers
+  console.log(`[CSV-PARSER] Detecting report type from headers: ${h.slice(0, 10).join(', ')}...`);
+
   // Expanded Transaction Report
-  if (h.includes('debits') || h.includes('credits') || h.includes('transaction type')) {
+  // Cloudbeds columns: "Transaction Date Time - Property", "Debits", "Credits"
+  if (h.some(col => col.includes('debits') || col.includes('credits')) && 
+      h.some(col => col.includes('transaction') || col.includes('txn'))) {
     return 'expanded_transactions';
   }
   
   // Reservations with Financials
-  if (h.includes('reservation number') && (h.includes('check-in date') || h.includes('room nights'))) {
+  // Cloudbeds columns: "Reservation Number", "Check-In Date", "Check-Out Date", "Room Revenue Total"
+  const hasReservationNum = h.some(col => col.includes('reservation number') || col.includes('reservation_number') || col === 'reserva');
+  const hasCheckIn = h.some(col => col.includes('check in') || col.includes('check_in') || col.includes('entrada'));
+  const hasRevenue = h.some(col => col.includes('revenue') || col.includes('ingresos') || col.includes('total'));
+
+  if (hasReservationNum && (hasCheckIn || hasRevenue)) {
     return 'reservations_financials';
-  }
-  
-  // Channel Performance
-  if (h.includes('reservation source') && h.includes('room revenue total - sum')) {
-    return 'channel_performance';
   }
 
   return 'unknown';
@@ -351,7 +438,7 @@ export function detectCurrency(data: Record<string, string>[], reportType: Repor
   // También recopilar valores de transacciones individuales
   const transactionValues: number[] = [];
   
-  if (reportType === 'reservations_financials' || reportType === 'channel_performance') {
+  if (reportType === 'reservations_financials') {
     const revenueCol = findColumn(headers, 'room_revenue_total');
     const nightsCol = findColumn(headers, 'room_nights');
     
@@ -552,12 +639,28 @@ export function validateReport(
     warnings.push('Se detectaron muchos valores numéricos inválidos. Verificá el formato del CSV.');
   }
 
+  // Validación de tipos de datos críticos
+  if (reportType === 'expanded_transactions') {
+    const dateCol = findColumn(headers, 'txn_datetime');
+    const invalidDates = data.slice(0, 50).filter(row => !normalizeDateTime(row[dateCol || '']));
+    if (invalidDates.length > 10) {
+      missingRequired.push('El formato de fecha de transacción no es reconocido.');
+    }
+  } else if (reportType === 'reservations_financials') {
+    const checkInCol = findColumn(headers, 'check_in_date');
+    const invalidDates = data.slice(0, 50).filter(row => !normalizeDate(row[checkInCol || '']));
+    if (invalidDates.length > 10) {
+      missingRequired.push('El formato de fecha de check-in no es reconocido.');
+    }
+  }
+
   return {
     isValid: missingRequired.length === 0,
     reportType,
     detectedColumns: headers,
     missingRequired,
     warnings,
-    preview: data.slice(0, 5)
+    preview: data.slice(0, 5),
+    detectedCurrency: detectCurrency(data, reportType as ReportType)
   };
 }

@@ -12,7 +12,7 @@ Convertimos tus reportes de Cloudbeds en decisiones de ganancia y caja, sin Exce
 
 En **menos de 5 minutos**, un hotelero puede:
 
-1. **Subir 3 CSVs** exportados desde Cloudbeds (Transactions, Reservations, Channels).
+1. **Subir 2 CSVs** exportados desde Cloudbeds (Transactions, Reservations).
 2. **Ver su Command Center** con respuestas a las 40 preguntas clave del negocio en 60 segundos.
 3. **Recibir la acción de la semana** con impacto estimado en $ y prioridad visual.
 4. **Analizar Rentabilidad Detallada**: P&L por reserva con **Memoria de Cálculo** y explicación de "por qué pasó".
@@ -78,8 +78,7 @@ El análisis detallado se distribuye en vistas especializadas para no saturar el
 Para un análisis completo (incluyendo YoY), podés subir **hasta 3 años de historia**. Recomendamos al menos **13 meses** para ver comparativas MoM/YoY precisas.
 
 1. **Expanded Transaction Report with Details** — Fuente de verdad para caja y cobranza.
-2. **Reservations with Financials** — Detalle de reservas, estados y saldos pendientes.
-3. **Channel Performance Summary** — Mix de canales y noches vendidas.
+2. **Reservations with Financials** — Detalle de reservas, estados, saldos pendientes y mix de canales.
 
 ### Cómo exportar
 1. En Cloudbeds, abrí el reporte correspondiente.

@@ -1,62 +1,64 @@
 import { 
   ReportType, 
-  VariableCostsInput,
-  FixedCostsInput,
-  ChannelCommissions,
-  PaymentFees,
-  calculateTotalFixedCosts,
 } from '../types';
 import database from '../db';
-import { parseCSV, detectReportType, validateReport } from '../parsers';
-import { processTransactions } from './import-service-transactions';
-import { processReservations } from './import-service-reservations';
-import { processChannels } from './import-service-channels';
+import { 
+  parseCSV, 
+  detectReportType, 
+  validateReport, 
+  parseTransactions, 
+  parseReservations,
+  detectCurrency
+} from '../parsers';
 import { cacheService } from './cache-service';
 import logger from './logger';
 
 /**
  * Import Service - Handles CSV parsing and data ingestion
+ * Centralized orchestration for all Cloudbeds reports.
  */
 export async function importCSV(propertyId: string, filename: string, content: string): Promise<any> {
   logger.info('IMPORT', `Starting import for file: ${filename}`, { propertyId });
+  
   try {
+    // 1. Limpieza y Parseo inicial
     const parseResult = parseCSV(content);
     logger.debug('IMPORT', `CSV Parsed. Rows found: ${parseResult.data.length}. Delimiter: ${parseResult.meta.delimiter}`);
     
     if (parseResult.errors.length > 0 && parseResult.data.length === 0) {
       logger.error('IMPORT', 'Parse errors detected', parseResult.errors);
-      return { success: false, error: 'Error al leer el archivo CSV', details: parseResult.errors };
+      return { success: false, error: 'Error al leer el archivo CSV. Verificá que el formato sea correcto.', details: parseResult.errors };
     }
 
     const headers = Object.keys(parseResult.data[0] || {});
-    logger.debug('IMPORT', 'Detected Headers', headers);
     
+    // 2. Detección de Tipo de Reporte y Moneda
     const reportType = detectReportType(headers);
-    logger.info('IMPORT', `Detected Report Type: ${reportType}`);
+    const detectedCurrency = detectCurrency(parseResult.data, reportType as ReportType);
+    
+    logger.info('IMPORT', `Detected: Type=${reportType}, Currency=${detectedCurrency}`);
 
     if (reportType === 'unknown') {
-      logger.error('IMPORT', 'Unknown report type for headers', { headers, sample: parseResult.data[0] });
+      logger.error('IMPORT', 'Unknown report type', { headers });
       return { 
         success: false, 
-        error: 'No se pudo identificar el reporte. Asegurate de exportar el reporte de Cloudbeds en formato "Table" o "Details Only" y que las columnas no hayan sido modificadas.', 
-        details: { headers, sample: parseResult.data[0] } 
+        error: 'No se pudo identificar el reporte. Asegurate de usar los reportes originales de Cloudbeds.', 
+        details: { headers } 
       };
     }
 
+    // 3. Validación de Columnas
     const validation = validateReport(parseResult.data, reportType);
-    logger.info('IMPORT', `Validation result: ${validation.isValid ? 'VALID' : 'INVALID'}`);
-    
     if (!validation.isValid) {
-      logger.error('IMPORT', 'Missing columns', validation.missingRequired);
-      const missingNames = validation.missingRequired.join(', ');
+      logger.error('IMPORT', 'Validation failed', validation.missingRequired);
       return { 
         success: false, 
-        error: `Al reporte le faltan columnas obligatorias: ${missingNames}. Por favor, volvé a exportar el reporte original de Cloudbeds sin modificar los encabezados.`,
+        error: `Al reporte le faltan columnas obligatorias: ${validation.missingRequired.join(', ')}`,
         details: validation
       };
     }
 
-    // Registrar inicio de importación
+    // 4. Registrar inicio en DB
     const importFile = await database.insertImportFile({
       propertyId,
       reportType,
@@ -64,42 +66,55 @@ export async function importCSV(propertyId: string, filename: string, content: s
       rows: parseResult.data.length,
       warningsCount: validation.warnings.length,
       status: 'processing',
-      parserVersion: '2.0'
+      parserVersion: '3.0'
     });
 
-    let result;
     try {
+      let count = 0;
+      const batchSize = 1000;
+
+      // 5. Transformación y Carga por Lotes
       if (reportType === 'expanded_transactions') {
-        logger.info('IMPORT', 'Processing Transactions...');
-        result = await processTransactions(propertyId, importFile.id, parseResult.data);
+        const transactions = parseTransactions(parseResult.data, propertyId, importFile.id);
+        console.log(`[IMPORT] Parsed ${transactions.length} transactions. Starting database upload...`);
+        for (let i = 0; i < transactions.length; i += batchSize) {
+          const batch = transactions.slice(i, i + batchSize);
+          await database.insertTransactions(batch);
+        }
+        count = transactions.length;
       } else if (reportType === 'reservations_financials') {
-        logger.info('IMPORT', 'Processing Reservations...');
-        result = await processReservations(propertyId, importFile.id, parseResult.data);
-      } else if (reportType === 'channel_performance') {
-        logger.info('IMPORT', 'Processing Channels...');
-        result = await processChannels(propertyId, importFile.id, parseResult.data);
+        const reservations = parseReservations(parseResult.data, propertyId, importFile.id);
+        console.log(`[IMPORT] Parsed ${reservations.length} reservations. Starting database upload...`);
+        for (let i = 0; i < reservations.length; i += batchSize) {
+          const batch = reservations.slice(i, i + batchSize);
+          await database.insertReservations(batch);
+        }
+        count = reservations.length;
       }
 
+      // 6. Finalización
       await database.updateImportFile(importFile.id, { status: 'processed' });
-      logger.success('IMPORT', `Successfully imported ${parseResult.data.length} rows of type ${reportType}`);
+      logger.success('IMPORT', `Successfully imported ${count} records from ${filename}`);
       
-      // Invalidar caché tras importación exitosa (Issue D)
+      // Invalidar caché
       cacheService.clear();
 
       return { 
         success: true, 
         reportType, 
-        rowCount: parseResult.data.length,
+        rowCount: count,
+        detectedCurrency,
         warnings: validation.warnings 
       };
+
     } catch (processError: any) {
       logger.error('IMPORT', 'Processing error', processError);
       await database.updateImportFile(importFile.id, { status: 'failed' });
-      return { success: false, error: processError.message || 'Error al procesar los datos' };
+      return { success: false, error: processError.message || 'Error al procesar los datos en la base de datos' };
     }
   } catch (error: any) {
     logger.error('IMPORT', 'Critical import error', error);
-    return { success: false, error: error.message || 'Error interno al procesar el archivo' };
+    return { success: false, error: error.message || 'Error interno del servidor al procesar el archivo' };
   }
 }
 
@@ -116,7 +131,7 @@ export function validateCSV(content: string): any {
 
     return { 
       success: true, 
-      isValid: validation.isValid,  // Frontend expects "isValid"
+      isValid: validation.isValid,
       reportType, 
       validation,
       missingRequired: validation.missingRequired,

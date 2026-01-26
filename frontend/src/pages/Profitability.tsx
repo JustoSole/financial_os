@@ -20,10 +20,11 @@ import {
   HelpTooltip,
   ComparisonSection,
   TrendChart,
+  EmptyState,
 } from '../components';
 import type { ReservationEconomicsData } from '../components';
 import { formatCurrency, formatCurrencyShort, formatPercent } from '../utils/formatters';
-import { Target, Shield, Info, TrendingUp, BarChart3 } from 'lucide-react';
+import { Target, Shield, Info, TrendingUp, BarChart3, Database } from 'lucide-react';
 import styles from './Profitability.module.css';
 
 
@@ -83,6 +84,38 @@ export default function Profitability() {
   const [breakEven, setBreakEven] = useState<any>(null);
   const [trends, setTrends] = useState<any | null>(null);
   const [selectedMetric, setSelectedMetric] = useState<'revenue' | 'adr' | 'occupancy' | 'revpar' | 'netProfit'>('revenue');
+
+  // Transform backend trends to TrendChart format
+  const formattedTrends = useMemo(() => {
+    try {
+      if (!trends || !trends.points || !Array.isArray(trends.points)) return null;
+      
+      const metrics = ['revenue', 'adr', 'occupancy', 'revpar', 'netProfit'];
+      const result: any = {};
+      
+      metrics.forEach(metric => {
+        result[metric] = trends.points.map((p: any) => {
+          if (!p || !p.date) return null;
+          
+          // Ensure date is valid for parsing
+          const dateStr = p.date.includes('-') ? p.date : `${p.date.substring(0,4)}-${p.date.substring(4,6)}`;
+          const label = new Date(dateStr + '-02').toLocaleDateString('es-AR', { month: 'short' });
+          
+          return {
+            month: p.date,
+            label: label !== 'Invalid Date' ? label : p.date,
+            value: Number(p[metric]) || 0
+          };
+        }).filter(Boolean);
+      });
+      
+      return result;
+    } catch (err) {
+      console.error('Error formatting trends:', err);
+      return null;
+    }
+  }, [trends]);
+
   const [comparisons, setComparisons] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<TabType>('thresholds');
@@ -208,13 +241,27 @@ export default function Profitability() {
     return <LoadingState message="Analizando rentabilidad..." />;
   }
 
-  if (!summary) {
+  if (!summary || summary.totalReservations === 0) {
     return (
-      <div className="page-empty">
-        <p>
-          No hay datos de reservas para analizar. Importá el reporte "Reservations with
-          Financials".
-        </p>
+      <div className={styles.page}>
+        <div className="page-header">
+          <div>
+            <h1 className="page-title">
+              Rentabilidad por Reserva
+              <HelpTooltip termKey="unitEconomics" size="md" />
+            </h1>
+            <p className="page-subtitle">Ganancia o pérdida de cada reserva individual</p>
+          </div>
+          <PeriodSelector />
+        </div>
+        
+        <EmptyState
+          icon={<Database size={48} />}
+          title="Sin datos de reservas"
+          description="Importá el reporte 'Reservations with Financials' para ver el análisis de rentabilidad por reserva."
+          actionLabel="Ir a Importar"
+          onAction={() => window.location.href = '/importar'}
+        />
       </div>
     );
   }
@@ -361,7 +408,7 @@ export default function Profitability() {
         />
       ) : activeTab === 'analysis' ? (
         <AnalysisView 
-          trends={trends} 
+          trends={formattedTrends} 
           comparisons={comparisons} 
           selectedMetric={selectedMetric}
           setSelectedMetric={setSelectedMetric}
@@ -506,9 +553,18 @@ function AnalysisView({
 }: { 
   trends: any; 
   comparisons: any; 
-  selectedMetric: any;
-  setSelectedMetric: any;
+  selectedMetric: 'revenue' | 'adr' | 'occupancy' | 'revpar' | 'netProfit';
+  setSelectedMetric: (m: 'revenue' | 'adr' | 'occupancy' | 'revpar' | 'netProfit') => void;
 }) {
+  if (!trends && !comparisons) {
+    return (
+      <div className={styles.noDataMessage}>
+        <Info size={24} />
+        <p>No hay datos de tendencias o comparativas disponibles para este período.</p>
+      </div>
+    );
+  }
+
   return (
     <div className={styles.analysisContainer}>
       {/* Comparisons Row */}
@@ -518,33 +574,33 @@ function AnalysisView({
             <TrendingUp size={20} className="text-primary" />
             Comparativa MoM
           </h3>
-          {comparisons?.mom ? (
+          {comparisons?.mom?.metrics ? (
             <ComparisonSection
               title="vs Período Anterior"
-              periodLabel={`vs ${comparisons.mom.previousPeriod}`}
+              periodLabel={comparisons.mom.previousPeriod || 'período anterior'}
               metrics={[
                 { 
                   label: 'Revenue', 
-                  current: comparisons.mom.metrics.revenue.current, 
-                  previous: comparisons.mom.metrics.revenue.previous, 
+                  current: Number(comparisons.mom.metrics.revenue?.current) || 0, 
+                  previous: Number(comparisons.mom.metrics.revenue?.previous) || 0, 
                   formatter: formatCurrencyShort 
                 },
                 { 
                   label: 'Profit Neto', 
-                  current: comparisons.mom.metrics.netProfit?.current || 0, 
-                  previous: comparisons.mom.metrics.netProfit?.previous || 0, 
+                  current: Number(comparisons.mom.metrics.netProfit?.current) || 0, 
+                  previous: Number(comparisons.mom.metrics.netProfit?.previous) || 0, 
                   formatter: formatCurrencyShort 
                 },
                 { 
                   label: 'Ocupación', 
-                  current: comparisons.mom.metrics.occupancy.current, 
-                  previous: comparisons.mom.metrics.occupancy.previous, 
+                  current: Number(comparisons.mom.metrics.occupancy?.current) || 0, 
+                  previous: Number(comparisons.mom.metrics.occupancy?.previous) || 0, 
                   formatter: (v) => `${(v || 0).toFixed(0)}%` 
                 },
                 { 
                   label: 'ADR', 
-                  current: comparisons.mom.metrics.adr.current, 
-                  previous: comparisons.mom.metrics.adr.previous, 
+                  current: Number(comparisons.mom.metrics.adr?.current) || 0, 
+                  previous: Number(comparisons.mom.metrics.adr?.previous) || 0, 
                   formatter: formatCurrencyShort 
                 },
               ]}
@@ -559,27 +615,27 @@ function AnalysisView({
             <BarChart3 size={20} className="text-primary" />
             Comparativa YoY
           </h3>
-          {comparisons?.yoy ? (
+          {comparisons?.yoy?.metrics ? (
             <ComparisonSection
               title="vs Año Anterior"
-              periodLabel={`vs ${comparisons.yoy.previousPeriod}`}
+              periodLabel={comparisons.yoy.previousPeriod || 'año anterior'}
               metrics={[
                 { 
                   label: 'Revenue', 
-                  current: comparisons.yoy.metrics.revenue.current, 
-                  previous: comparisons.yoy.metrics.revenue.previous, 
+                  current: Number(comparisons.yoy.metrics.revenue?.current) || 0, 
+                  previous: Number(comparisons.yoy.metrics.revenue?.previous) || 0, 
                   formatter: formatCurrencyShort 
                 },
                 { 
                   label: 'Ocupación', 
-                  current: comparisons.yoy.metrics.occupancy.current, 
-                  previous: comparisons.yoy.metrics.occupancy.previous, 
+                  current: Number(comparisons.yoy.metrics.occupancy?.current) || 0, 
+                  previous: Number(comparisons.yoy.metrics.occupancy?.previous) || 0, 
                   formatter: (v) => `${(v || 0).toFixed(0)}%` 
                 },
                 { 
                   label: 'ADR', 
-                  current: comparisons.yoy.metrics.adr.current, 
-                  previous: comparisons.yoy.metrics.adr.previous, 
+                  current: Number(comparisons.yoy.metrics.adr?.current) || 0, 
+                  previous: Number(comparisons.yoy.metrics.adr?.previous) || 0, 
                   formatter: formatCurrencyShort 
                 },
               ]}
@@ -594,7 +650,7 @@ function AnalysisView({
       </div>
 
       {/* Trends Chart */}
-      {trends && (
+      {trends && trends[selectedMetric] && trends[selectedMetric].length > 0 ? (
         <Card className={styles.trendCard}>
           <div className={styles.trendHeader}>
             <h3 className={styles.analysisTitle}>
@@ -602,30 +658,17 @@ function AnalysisView({
               Tendencias Históricas
             </h3>
             <div className={styles.metricSelector}>
-              <button 
-                className={`${styles.metricBtn} ${selectedMetric === 'revenue' ? styles.active : ''}`}
-                onClick={() => setSelectedMetric('revenue')}
-              >
-                Revenue
-              </button>
-              <button 
-                className={`${styles.metricBtn} ${selectedMetric === 'netProfit' ? styles.active : ''}`}
-                onClick={() => setSelectedMetric('netProfit')}
-              >
-                Profit Neto
-              </button>
-              <button 
-                className={`${styles.metricBtn} ${selectedMetric === 'occupancy' ? styles.active : ''}`}
-                onClick={() => setSelectedMetric('occupancy')}
-              >
-                Ocupación
-              </button>
-              <button 
-                className={`${styles.metricBtn} ${selectedMetric === 'adr' ? styles.active : ''}`}
-                onClick={() => setSelectedMetric('adr')}
-              >
-                ADR
-              </button>
+              {(['revenue', 'netProfit', 'occupancy', 'adr'] as const).map((m) => (
+                <button 
+                  key={m}
+                  className={`${styles.metricBtn} ${selectedMetric === m ? styles.active : ''}`}
+                  onClick={() => setSelectedMetric(m)}
+                >
+                  {m === 'revenue' ? 'Revenue' : 
+                   m === 'netProfit' ? 'Profit Neto' : 
+                   m === 'occupancy' ? 'Ocupación' : 'ADR'}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -649,7 +692,14 @@ function AnalysisView({
             }
           />
         </Card>
-      )}
+      ) : trends ? (
+        <Card className={styles.trendCard}>
+          <div className={styles.noDataMessage}>
+            <Info size={24} />
+            <p>No hay datos históricos suficientes para mostrar el gráfico de tendencias.</p>
+          </div>
+        </Card>
+      ) : null}
     </div>
   );
 }
