@@ -12,6 +12,7 @@ El backend utiliza un patrón de **Adaptador de Base de Datos** que permite alte
 - **Supabase Adapter (`backend/src/db/supabase-adapter.ts`):** Implementación de la interfaz de base de datos usando el cliente de Supabase.
 - **Calculation Engine (`backend/src/services/calculation-engine.ts`):** Clase centralizada para el procesamiento de datos financieros en memoria para un periodo dado.
 - **Command Center Service (`backend/src/services/command-center-service.ts`):** Orquestador que unifica todas las métricas estratégicas.
+- **Import Service (`backend/src/services/import-service.ts`):** Servicio unificado para procesar múltiples tipos de reportes de Cloudbeds.
 
 ---
 
@@ -83,4 +84,4 @@ Si `DB_TYPE` no es `supabase`, el sistema vuelve automáticamente al modo **JSON
 - `GET /api/metrics/:propertyId/projection`: Proyección de ingresos On-the-books.
 
 ---
-*Documentación actualizada: 23 de Enero, 2026.*
+*Documentación actualizada: 26 de Enero, 2026.*

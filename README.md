@@ -182,6 +182,7 @@ financial-os-cloudbeds/
 - [x] **v2.0** — Integración Supabase & Auth
 - [x] **v2.1** — P&L Detallado por Reserva & Categorías de Costos V4
 - [x] **v2.2** — Command Center Unificado (40 preguntas)
+- [x] **v2.3** — Refactorización de Motores de Cálculo y Limpieza de Servicios
 - [ ] **v3.0** — Inbox Connect (Auto-ingesta por email)
 - [ ] **v3.1** — Integración API Cloudbeds Directa
 
