@@ -114,21 +114,22 @@ export default function Home() {
         // Priority: 1) URL force, 2) Already completed (persisted), 3) Check data
         if (forceOnboarding) {
           setShowOnboarding(true);
-        } else if (isOnboardingCompleted(property.id)) {
-          // User already completed onboarding, don't show it again
+        } else if (property?.id && isOnboardingCompleted(property.id)) {
+          // CRITICAL FIX: If onboarding is marked as completed in localStorage, 
+          // NEVER show it again, regardless of what the data says.
           setShowOnboarding(false);
         } else {
           // First time - check if there's real data
           // We check for both health KPIs and data confidence to be more robust
           const hasRealData = commandRes.data?.health && 
             (commandRes.data?.health?.kpis?.occupancy?.value > 0 || 
-             commandRes.data?.dataConfidence?.monthsCovered > 0);
+             (commandRes.data?.dataConfidence?.monthsCovered && commandRes.data?.dataConfidence?.monthsCovered > 0));
           
           setShowOnboarding(!hasRealData);
           
           // If there's real data, mark onboarding as implicitly completed
           // (they might have imported data through other means)
-          if (hasRealData) {
+          if (hasRealData && property?.id) {
             markOnboardingCompleted(property.id);
           }
         }
