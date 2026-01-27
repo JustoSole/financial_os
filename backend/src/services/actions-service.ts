@@ -80,23 +80,66 @@ export async function generateActions(propertyId: string, startDateOrDays: strin
   return actions;
 }
 
-export async function completeActionStep(propertyId: string, actionType: string, stepIndex: number): Promise<void> {
-  await database.insertActionCompletion({
+/**
+ * Complete an action step - supports both legacy and new formats
+ * @param propertyId - The property ID
+ * @param actionIdOrType - Either a full actionId (string like "collect-RES123") or legacy actionType
+ * @param stepIdOrIndex - Either a stepId (string like "collect-RES123-1") or legacy numeric index
+ */
+export async function completeActionStep(
+  propertyId: string, 
+  actionIdOrType: string, 
+  stepIdOrIndex: string | number
+): Promise<void> {
+  const completion: any = {
     propertyId,
-    actionType,
-    stepIndex,
     completedAt: new Date().toISOString()
-  });
+  };
+
+  // New format: stepId is a string (e.g., "collect-RES123-1")
+  if (typeof stepIdOrIndex === 'string') {
+    completion.actionId = actionIdOrType;
+    completion.stepId = stepIdOrIndex;
+  } else {
+    // Legacy format: stepIndex is a number
+    completion.actionType = actionIdOrType;
+    completion.stepIndex = stepIdOrIndex;
+  }
+
+  await database.insertActionCompletion(completion);
 }
 
-export async function getCompletedSteps(propertyId: string, daysBack: number = 30): Promise<any> {
+/**
+ * Get all completed steps for a property
+ * Returns two formats:
+ * - byActionType: Legacy format { actionType: [stepIndex, ...] }
+ * - byActionId: New format { actionId: [stepId, ...] }
+ */
+export async function getCompletedSteps(propertyId: string, daysBack: number = 30): Promise<{
+  byActionType: Record<string, number[]>;
+  byActionId: Record<string, string[]>;
+}> {
   const steps = await database.getCompletedSteps(propertyId, daysBack);
-  const grouped: Record<string, number[]> = {};
+  
+  const byActionType: Record<string, number[]> = {};
+  const byActionId: Record<string, string[]> = {};
   
   steps.forEach((s: any) => {
-    if (!grouped[s.action_type]) grouped[s.action_type] = [];
-    grouped[s.action_type].push(s.step_index);
+    // Legacy format
+    if (s.action_type && s.step_index !== null && s.step_index !== undefined) {
+      if (!byActionType[s.action_type]) byActionType[s.action_type] = [];
+      if (!byActionType[s.action_type].includes(s.step_index)) {
+        byActionType[s.action_type].push(s.step_index);
+      }
+    }
+    // New format
+    if (s.action_id && s.step_id) {
+      if (!byActionId[s.action_id]) byActionId[s.action_id] = [];
+      if (!byActionId[s.action_id].includes(s.step_id)) {
+        byActionId[s.action_id].push(s.step_id);
+      }
+    }
   });
   
-  return grouped;
+  return { byActionType, byActionId };
 }

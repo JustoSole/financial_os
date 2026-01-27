@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { getProperty, getMetrics, getActions, trackEvent } from '../api';
 import { setGlobalCurrency } from '../utils/formatters';
 import { useAuth } from './AuthContext';
@@ -45,13 +45,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
+  // Refs to prevent infinite loops and duplicate calls
+  const isInitializing = useRef(false);
+  const lastSessionId = useRef<string | null>(null);
+  const lastPropertyId = useRef<string | null>(null);
+  const lastDateRangeDays = useRef<number>(30);
+  
   const [dateRange, setDateRangeState] = useState<DateRange>(() => {
     const end = new Date();
     const start = new Date(end.getTime() - 30 * 24 * 60 * 60 * 1000);
     return { preset: 30, start, end, days: 30 };
   });
 
-  const setDateRange = (input: DateRangeInput) => {
+  const setDateRange = useCallback((input: DateRangeInput) => {
     if (input.preset) {
       const end = new Date();
       const start = new Date(end.getTime() - input.preset * 24 * 60 * 60 * 1000);
@@ -61,15 +67,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const days = Math.max(1, Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)));
       setDateRangeState({ preset: null, start, end, days });
     }
-  };
+  }, []);
 
-  const refreshProperty = async (): Promise<Property | null> => {
+  // Stable session identifier (use access_token or user id, not the whole object)
+  const sessionId = session?.access_token || null;
+
+  const refreshProperty = useCallback(async (): Promise<Property | null> => {
     if (!session) return null;
     
     try {
       const res = await getProperty();
       if (res.success && res.data) {
-        setProperty(res.data);
+        // Only update if the property actually changed
+        setProperty(prev => {
+          if (prev?.id === res.data.id && prev?.name === res.data.name) {
+            return prev; // No change, return same reference
+          }
+          return res.data;
+        });
         if (res.data.currency) {
           setGlobalCurrency(res.data.currency);
         }
@@ -81,9 +96,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setError(err.message);
     }
     return null;
-  };
+  }, [session]);
 
-  const refreshData = async () => {
+  const refreshData = useCallback(async () => {
     if (!property || !session) return;
     
     setLoading(true);
@@ -103,9 +118,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [property?.id, dateRange.days, session]);
 
+  // Effect 1: Initialize property when session changes
   useEffect(() => {
+    // Guard: Only run if session actually changed
+    if (sessionId === lastSessionId.current) return;
+    lastSessionId.current = sessionId;
+
     async function init() {
       if (!session) {
         setProperty(null);
@@ -115,26 +135,54 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      // Prevent duplicate initialization
+      if (isInitializing.current) return;
+      isInitializing.current = true;
+
       setLoading(true);
       try {
-        const loadedProperty = await refreshProperty();
-        if (loadedProperty?.id) {
-          trackEvent(loadedProperty.id, 'view_home');
+        const res = await getProperty();
+        if (res.success && res.data) {
+          setProperty(res.data);
+          if (res.data.currency) {
+            setGlobalCurrency(res.data.currency);
+          }
+          // Track event only on first load
+          trackEvent(res.data.id, 'view_home');
+        } else {
+          setError('No se pudo cargar la propiedad');
         }
       } catch (err: any) {
         setError(err.message);
       } finally {
         setLoading(false);
+        isInitializing.current = false;
       }
     }
     init();
-  }, [session]);
+  }, [sessionId]); // Only depend on the stable sessionId string
 
+  // Effect 2: Refresh data when property or dateRange changes
   useEffect(() => {
-    if (property && session) {
-      refreshData();
-    }
-  }, [property, dateRange, session]);
+    const propertyId = property?.id || null;
+    const days = dateRange.days;
+
+    // Guard: Only run if property or dateRange actually changed
+    const propertyChanged = propertyId !== lastPropertyId.current;
+    const dateRangeChanged = days !== lastDateRangeDays.current;
+    
+    if (!propertyChanged && !dateRangeChanged) return;
+    if (!propertyId || !session) return;
+    
+    // Update refs
+    lastPropertyId.current = propertyId;
+    lastDateRangeDays.current = days;
+
+    // Skip if still initializing
+    if (isInitializing.current) return;
+
+    refreshData();
+  }, [property?.id, dateRange.days, session, refreshData]);
 
   return (
     <AppContext.Provider

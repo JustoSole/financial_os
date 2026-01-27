@@ -505,10 +505,11 @@ router.get('/actions/:propertyId', async (req: Request, res: Response) => {
       actions = await generateActions(req.params.propertyId, d);
     }
     const completed = await getCompletedSteps(req.params.propertyId);
+    // Apply legacy completed steps to backend-generated actions
     for (const action of actions) {
-      if (completed[action.type]) {
+      if (completed.byActionType[action.type]) {
         for (let i = 0; i < action.steps.length; i++) {
-          if (completed[action.type].includes(i)) action.steps[i].completed = true;
+          if (completed.byActionType[action.type].includes(i)) action.steps[i].completed = true;
         }
       }
     }
@@ -518,10 +519,29 @@ router.get('/actions/:propertyId', async (req: Request, res: Response) => {
   }
 });
 
+// Get all completed steps (for frontend-generated actions)
+router.get('/actions/:propertyId/completed', async (req: Request, res: Response) => {
+  try {
+    const { daysBack } = req.query;
+    const days = parseInt(daysBack as string) || 90;
+    const completed = await getCompletedSteps(req.params.propertyId, days);
+    res.json({ success: true, data: completed });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 router.post('/actions/:propertyId/step', async (req: Request, res: Response) => {
   try {
-    const { actionType, stepIndex } = req.body;
-    await completeActionStep(req.params.propertyId, actionType, stepIndex);
+    const { actionType, stepIndex, actionId, stepId } = req.body;
+    // Support both legacy (actionType + stepIndex) and new (actionId + stepId) formats
+    if (actionId && stepId) {
+      await completeActionStep(req.params.propertyId, actionId, stepId);
+    } else if (actionType !== undefined && stepIndex !== undefined) {
+      await completeActionStep(req.params.propertyId, actionType, stepIndex);
+    } else {
+      return res.status(400).json({ success: false, error: 'Missing actionId/stepId or actionType/stepIndex' });
+    }
     res.json({ success: true });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });

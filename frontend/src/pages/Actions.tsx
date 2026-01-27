@@ -25,6 +25,8 @@ import {
   getReservationEconomics,
   getCashMetrics,
   getActions,
+  getCompletedSteps,
+  completeActionStep,
   trackEvent,
 } from '../api';
 import { formatCurrencyShort } from '../utils/formatters';
@@ -67,47 +69,52 @@ export default function Actions() {
   const [backendActions, setBackendActions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // Track completed steps locally
-  const [completedSteps, setCompletedSteps] = useState<Record<string, string[]>>(() => {
-    const saved = localStorage.getItem(`action_steps_${property?.id}`);
-    return saved ? JSON.parse(saved) : {};
-  });
+  // Track completed steps from backend (synced across devices)
+  const [completedSteps, setCompletedSteps] = useState<Record<string, string[]>>({});
+  const [savingStep, setSavingStep] = useState<string | null>(null);
+
+  // Use primitive values to prevent infinite re-renders
+  const propertyId = property?.id;
+  const days = dateRange.days;
 
   useEffect(() => {
-    if (property) {
-      loadData();
-      trackEvent(property.id, 'view_actions');
-    }
-  }, [property, dateRange]);
-
-  useEffect(() => {
-    if (property?.id) {
-      localStorage.setItem(`action_steps_${property.id}`, JSON.stringify(completedSteps));
-    }
-  }, [completedSteps, property?.id]);
-
-  const loadData = async () => {
-    if (!property) return;
-    setLoading(true);
+    if (!propertyId) return;
     
-    const days = dateRange.days;
+    let isMounted = true;
     
-    const [insightsRes, collectionsRes, economicsRes, cashRes, actionsRes] = await Promise.all([
-      getInsights(property.id, days),
-      getCollections(property.id),
-      getReservationEconomics(property.id, days),
-      getCashMetrics(property.id, days),
-      getActions(property.id, days),
-    ]);
+    const loadData = async () => {
+      setLoading(true);
+      
+      const [insightsRes, collectionsRes, economicsRes, cashRes, actionsRes, completedRes] = await Promise.all([
+        getInsights(propertyId, days),
+        getCollections(propertyId),
+        getReservationEconomics(propertyId, days),
+        getCashMetrics(propertyId, days),
+        getActions(propertyId, days),
+        getCompletedSteps(propertyId),
+      ]);
 
-    if (insightsRes.success) setInsights(insightsRes.data);
-    if (collectionsRes.success) setCollections(collectionsRes.data);
-    if (economicsRes.success) setEconomics(economicsRes.data);
-    if (cashRes.success) setCash(cashRes.data);
-    if (actionsRes.success) setBackendActions(actionsRes.data || []);
+      if (!isMounted) return;
 
-    setLoading(false);
-  };
+      if (insightsRes.success) setInsights(insightsRes.data);
+      if (collectionsRes.success) setCollections(collectionsRes.data);
+      if (economicsRes.success) setEconomics(economicsRes.data);
+      if (cashRes.success) setCash(cashRes.data);
+      if (actionsRes.success) setBackendActions(actionsRes.data || []);
+      if (completedRes.success && completedRes.data) {
+        setCompletedSteps(completedRes.data.byActionId || {});
+      }
+
+      setLoading(false);
+    };
+
+    loadData();
+    trackEvent(propertyId, 'view_actions');
+
+    return () => {
+      isMounted = false;
+    };
+  }, [propertyId, days]); // Only depend on primitive values
 
   // Generate all actions from data
   const allActions = useMemo((): ActionItem[] => {
@@ -127,9 +134,12 @@ export default function Actions() {
         // Only create action items for significantly past check-ins with large balances
         if (!isPastCheckIn) return;
 
+        // Deterministic ID based on reservation number (stable across sessions)
         const actionId = `collect-${r.reservationNumber}`;
-        const stepIds = [`${actionId}-1`, `${actionId}-2`];
-        const completed = stepIds.every(id => completedSteps[actionId]?.includes(id));
+        const step1Id = `${actionId}-verify`;
+        const step2Id = `${actionId}-update`;
+        const actionCompletedSteps = completedSteps[actionId] || [];
+        const completed = actionCompletedSteps.includes(step1Id) && actionCompletedSteps.includes(step2Id);
 
         actions.push({
           id: actionId,
@@ -143,8 +153,8 @@ export default function Actions() {
             type: 'revenue',
           },
           steps: [
-            { id: stepIds[0], text: `Verificar si el pago de ${r.guestName || 'huésped'} fue registrado`, completed: completedSteps[actionId]?.includes(stepIds[0]) },
-            { id: stepIds[1], text: 'Actualizar registro si corresponde', completed: completedSteps[actionId]?.includes(stepIds[1]) },
+            { id: step1Id, text: `Verificar si el pago de ${r.guestName || 'huésped'} fue registrado`, completed: actionCompletedSteps.includes(step1Id) },
+            { id: step2Id, text: 'Actualizar registro si corresponde', completed: actionCompletedSteps.includes(step2Id) },
           ],
           evidence: [
             { label: 'Reserva', value: r.reservationNumber },
@@ -160,9 +170,14 @@ export default function Actions() {
     // CHANNELS: Expensive channel optimization
     if (insights?.worstChannel && insights.worstChannel.realCostPercent > 18) {
       const ch = insights.worstChannel;
-      const actionId = `optimize-${ch.channel.toLowerCase().replace(/\s/g, '-')}`;
-      const stepIds = [`${actionId}-1`, `${actionId}-2`, `${actionId}-3`];
-      const completed = stepIds.every(id => completedSteps[actionId]?.includes(id));
+      // Deterministic ID based on channel name (normalized, stable)
+      const channelSlug = ch.channel.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
+      const actionId = `optimize-channel-${channelSlug}`;
+      const step1Id = `${actionId}-raise-rate`;
+      const step2Id = `${actionId}-parity`;
+      const step3Id = `${actionId}-benefit`;
+      const actionCompletedSteps = completedSteps[actionId] || [];
+      const completed = [step1Id, step2Id, step3Id].every(id => actionCompletedSteps.includes(id));
 
       actions.push({
         id: actionId,
@@ -176,9 +191,9 @@ export default function Actions() {
           type: 'savings',
         },
         steps: [
-          { id: stepIds[0], text: `Subir tarifa en ${ch.channel} un 10-15%`, completed: completedSteps[actionId]?.includes(stepIds[0]) },
-          { id: stepIds[1], text: 'Configurar paridad negativa (web 5% más barata)', completed: completedSteps[actionId]?.includes(stepIds[1]) },
-          { id: stepIds[2], text: 'Agregar beneficio exclusivo para reserva directa', completed: completedSteps[actionId]?.includes(stepIds[2]) },
+          { id: step1Id, text: `Subir tarifa en ${ch.channel} un 10-15%`, completed: actionCompletedSteps.includes(step1Id) },
+          { id: step2Id, text: 'Configurar paridad negativa (web 5% más barata)', completed: actionCompletedSteps.includes(step2Id) },
+          { id: step3Id, text: 'Agregar beneficio exclusivo para reserva directa', completed: actionCompletedSteps.includes(step3Id) },
         ],
         evidence: [
           { label: 'ADR canal', value: formatCurrencyShort(ch.adr) },
@@ -192,10 +207,15 @@ export default function Actions() {
 
     // PRICING: Loss patterns
     if (economics?.patterns) {
-      economics.patterns.filter((p: any) => p.isLossPattern).forEach((pattern: any, idx: number) => {
-        const actionId = `pricing-pattern-${idx}`;
-        const stepIds = [`${actionId}-1`, `${actionId}-2`, `${actionId}-3`];
-        const completed = stepIds.every(id => completedSteps[actionId]?.includes(id));
+      economics.patterns.filter((p: any) => p.isLossPattern).forEach((pattern: any) => {
+        // Deterministic ID based on source + nights bucket (stable across data changes)
+        const sourceSlug = (pattern.source || 'unknown').toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
+        const actionId = `pricing-${sourceSlug}-${pattern.nightsBucket}n`;
+        const step1Id = `${actionId}-min-nights`;
+        const step2Id = `${actionId}-raise-rate`;
+        const step3Id = `${actionId}-cleaning-fee`;
+        const actionCompletedSteps = completedSteps[actionId] || [];
+        const completed = [step1Id, step2Id, step3Id].every(id => actionCompletedSteps.includes(id));
 
         actions.push({
           id: actionId,
@@ -209,9 +229,9 @@ export default function Actions() {
             type: 'loss',
           },
           steps: [
-            { id: stepIds[0], text: `Configurar mínimo de ${parseInt(pattern.nightsBucket) + 1} noches en ${pattern.source}`, completed: completedSteps[actionId]?.includes(stepIds[0]) },
-            { id: stepIds[1], text: 'Subir tarifa base para estadías cortas', completed: completedSteps[actionId]?.includes(stepIds[1]) },
-            { id: stepIds[2], text: 'Agregar cargo de limpieza para 1 noche', completed: completedSteps[actionId]?.includes(stepIds[2]) },
+            { id: step1Id, text: `Configurar mínimo de ${parseInt(pattern.nightsBucket) + 1} noches en ${pattern.source}`, completed: actionCompletedSteps.includes(step1Id) },
+            { id: step2Id, text: 'Subir tarifa base para estadías cortas', completed: actionCompletedSteps.includes(step2Id) },
+            { id: step3Id, text: 'Agregar cargo de limpieza para 1 noche', completed: actionCompletedSteps.includes(step3Id) },
           ],
           evidence: [
             { label: 'Reservas', value: String(pattern.count) },
@@ -320,15 +340,34 @@ export default function Actions() {
   const pendingCollections = allActions.filter(a => a.category === 'collections' && !a.completed)
     .reduce((sum, a) => sum + a.impact.value, 0);
 
-  // Handle step completion
-  const handleStepComplete = (actionId: string, stepId: string) => {
-    setCompletedSteps(prev => {
-      const current = prev[actionId] || [];
-      if (current.includes(stepId)) {
-        return { ...prev, [actionId]: current.filter(id => id !== stepId) };
-      }
-      return { ...prev, [actionId]: [...current, stepId] };
-    });
+  // Handle step completion - saves to backend (Supabase)
+  const handleStepComplete = async (actionId: string, stepId: string) => {
+    if (!property) return;
+    
+    // Don't allow unchecking (already completed steps stay completed)
+    const current = completedSteps[actionId] || [];
+    if (current.includes(stepId)) return;
+    
+    // Optimistic update
+    setSavingStep(stepId);
+    setCompletedSteps(prev => ({
+      ...prev,
+      [actionId]: [...(prev[actionId] || []), stepId]
+    }));
+    
+    try {
+      await completeActionStep(property.id, actionId, stepId);
+      trackEvent(property.id, 'action_step_completed', { actionId, stepId });
+    } catch (error) {
+      console.error('Error saving step completion:', error);
+      // Rollback on error
+      setCompletedSteps(prev => ({
+        ...prev,
+        [actionId]: (prev[actionId] || []).filter(id => id !== stepId)
+      }));
+    } finally {
+      setSavingStep(null);
+    }
   };
 
   // Get category counts

@@ -201,10 +201,27 @@ export const getActions = (propertyId: string, startDateOrDays: string | number 
   return request<any[]>(`/actions/${propertyId}?${params}`);
 };
 
-export const completeActionStep = (propertyId: string, actionType: string, stepIndex: number) =>
+// Get all completed steps (for frontend-generated actions)
+export const getCompletedSteps = (propertyId: string, daysBack: number = 90) =>
+  request<{ byActionType: Record<string, number[]>; byActionId: Record<string, string[]> }>(
+    `/actions/${propertyId}/completed?daysBack=${daysBack}`
+  );
+
+// Complete an action step - supports both formats
+// New format: actionId + stepId (strings) - for frontend-generated actions
+// Legacy format: actionType + stepIndex (number) - for backend-generated actions
+export const completeActionStep = (
+  propertyId: string, 
+  actionIdOrType: string, 
+  stepIdOrIndex: string | number
+) =>
   request<void>(`/actions/${propertyId}/step`, {
     method: 'POST',
-    body: JSON.stringify({ actionType, stepIndex }),
+    body: JSON.stringify(
+      typeof stepIdOrIndex === 'string' 
+        ? { actionId: actionIdOrType, stepId: stepIdOrIndex }
+        : { actionType: actionIdOrType, stepIndex: stepIdOrIndex }
+    ),
   });
 
 // =====================================================

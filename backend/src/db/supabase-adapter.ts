@@ -800,17 +800,31 @@ export const supabaseDatabase = {
   },
 
   // =====================================================
-  // Action Completions
+  // Action Completions (supports both legacy index-based and new string-based IDs)
   // =====================================================
   insertActionCompletion: async (completion: any) => {
+    // Support both legacy (actionType + stepIndex) and new (actionId + stepId) formats
+    const insertData: any = {
+      property_id: completion.propertyId,
+      completed_at: completion.completedAt || new Date().toISOString()
+    };
+
+    // New format: actionId + stepId (strings)
+    if (completion.actionId && completion.stepId) {
+      insertData.action_id = completion.actionId;
+      insertData.step_id = completion.stepId;
+    }
+    // Legacy format: actionType + stepIndex (for backend-generated actions)
+    if (completion.actionType !== undefined) {
+      insertData.action_type = completion.actionType;
+    }
+    if (completion.stepIndex !== undefined) {
+      insertData.step_index = completion.stepIndex;
+    }
+
     const { error } = await getClient()
       .from('action_completions')
-      .insert({
-        property_id: completion.propertyId,
-        action_type: completion.actionType,
-        step_index: completion.stepIndex,
-        completed_at: completion.completedAt || new Date().toISOString()
-      });
+      .insert(insertData);
     
     if (error) throw error;
   },
