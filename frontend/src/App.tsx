@@ -6,7 +6,7 @@ import { Home, Actions, Channels, Costs, Import, Settings, Profitability, Login,
 import styles from './App.module.css';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
-  const { session, loading } = useAuth();
+  const { session, user, loading } = useAuth();
 
   if (loading) {
     return (
@@ -18,6 +18,12 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
 
   if (!session) {
     return <Navigate to="/login" replace />;
+  }
+
+  // Verificar si el email está confirmado (si Supabase está configurado para requerirlo)
+  const isEmailConfirmed = user?.email_confirmed_at || user?.confirmed_at;
+  if (!isEmailConfirmed && user?.app_metadata?.provider === 'email') {
+    return <Navigate to="/login?error=unconfirmed_email" replace />;
   }
 
   return <>{children}</>;

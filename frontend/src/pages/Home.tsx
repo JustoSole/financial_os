@@ -116,39 +116,48 @@ export default function Home() {
       const startStr = dateRange.start.toISOString().substring(0, 10);
       const endStr = dateRange.end.toISOString().substring(0, 10);
 
-      const [commandRes] = await Promise.all([
-        getCommandCenter(property.id, startStr, endStr),
-      ]);
+      try {
+        const [commandRes] = await Promise.all([
+          getCommandCenter(property.id, startStr, endStr),
+        ]);
 
-      if (commandRes.success) {
-        setData(commandRes.data);
-        
-        // Determine if we should show onboarding
-        // Priority: 1) URL force, 2) Already completed (persisted), 3) Check data
-        if (forceOnboarding) {
-          setShowOnboarding(true);
-        } else if (property?.id && isOnboardingCompleted(property.id)) {
-          // CRITICAL FIX: If onboarding is marked as completed in localStorage, 
-          // NEVER show it again, regardless of what the data says.
-          setShowOnboarding(false);
+        if (commandRes.success) {
+          setData(commandRes.data);
+          
+          // Determine if we should show onboarding
+          // Priority: 1) URL force, 2) Already completed (persisted), 3) Check data
+          if (forceOnboarding) {
+            setShowOnboarding(true);
+          } else if (property?.id && isOnboardingCompleted(property.id)) {
+            // CRITICAL FIX: If onboarding is marked as completed in localStorage, 
+            // NEVER show it again, regardless of what the data says.
+            setShowOnboarding(false);
+          } else {
+            // First time - check if there's real data
+            // We check for both health KPIs and data confidence to be more robust
+            const hasRealData = commandRes.data?.health && 
+              (commandRes.data?.health?.kpis?.occupancy?.value > 0 || 
+               (commandRes.data?.dataConfidence?.monthsCovered && commandRes.data?.dataConfidence?.monthsCovered > 0));
+            
+            setShowOnboarding(!hasRealData);
+            
+            // If there's real data, mark onboarding as implicitly completed
+            // (they might have imported data through other means)
+            if (hasRealData && property?.id) {
+              markOnboardingCompleted(property.id);
+            }
+          }
         } else {
-          // First time - check if there's real data
-          // We check for both health KPIs and data confidence to be more robust
-          const hasRealData = commandRes.data?.health && 
-            (commandRes.data?.health?.kpis?.occupancy?.value > 0 || 
-             (commandRes.data?.dataConfidence?.monthsCovered && commandRes.data?.dataConfidence?.monthsCovered > 0));
-          
-          setShowOnboarding(!hasRealData);
-          
-          // If there's real data, mark onboarding as implicitly completed
-          // (they might have imported data through other means)
-          if (hasRealData && property?.id) {
-            markOnboardingCompleted(property.id);
+          // API error - only show onboarding if not completed before
+          if (property?.id && !isOnboardingCompleted(property.id)) {
+            setShowOnboarding(true);
+          } else {
+            setShowOnboarding(false);
           }
         }
-      } else {
-        // API error - only show onboarding if not completed before
-        if (!isOnboardingCompleted(property.id)) {
+      } catch (err) {
+        console.error('Error loading command center:', err);
+        if (property?.id && !isOnboardingCompleted(property.id)) {
           setShowOnboarding(true);
         }
       }

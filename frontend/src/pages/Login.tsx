@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Button } from '../components/ui';
 import styles from './Auth.module.css';
@@ -10,6 +10,27 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    // Manejar errores que vienen por query params (ej: email no confirmado)
+    const params = new URLSearchParams(location.search);
+    const errorParam = params.get('error');
+    if (errorParam === 'unconfirmed_email') {
+      setError('Por favor, confirma tu email antes de iniciar sesión. Revisa tu bandeja de entrada.');
+    }
+
+    // Manejar errores de Supabase que vienen en el hash (ej: link expirado)
+    const hashParams = new URLSearchParams(location.hash.substring(1));
+    const errorCode = hashParams.get('error_code');
+    const errorDesc = hashParams.get('error_description');
+    
+    if (errorCode === 'otp_expired' || errorCode === 'access_denied') {
+      setError(`El link de acceso ha expirado o es inválido: ${errorDesc || ''}. Por favor, intenta de nuevo.`);
+      // Limpiar el hash de la URL para que no persista el error
+      window.history.replaceState(null, '', location.pathname);
+    }
+  }, [location]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
