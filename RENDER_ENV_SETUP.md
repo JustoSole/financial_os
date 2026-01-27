@@ -43,11 +43,20 @@ La `SUPABASE_SERVICE_ROLE_KEY` es una clave secreta que **NO** está disponible 
 2. Click en **"Environment"** en el menú lateral
 3. Agrega estas variables:
 
+### Variables para Backend:
 | Variable | Valor |
 |----------|-------|
 | `SUPABASE_URL` | `https://sklttofvjmxwqyyynpqt.supabase.co` |
 | `SUPABASE_ANON_KEY` | `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...` (o la publishable key) |
 | `SUPABASE_SERVICE_ROLE_KEY` | (Opcional) Obtener desde Supabase Dashboard |
+
+### Variables para Frontend (requieren prefijo `VITE_`):
+| Variable | Valor |
+|----------|-------|
+| `VITE_SUPABASE_URL` | `https://sklttofvjmxwqyyynpqt.supabase.co` (mismo que SUPABASE_URL) |
+| `VITE_SUPABASE_ANON_KEY` | `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...` (mismo que SUPABASE_ANON_KEY) |
+
+**⚠️ Importante:** Las variables `VITE_*` son necesarias para que el frontend funcione. Vite las inyecta durante el build, así que deben estar configuradas antes del deploy.
 
 4. Guarda los cambios
 5. El servicio se redeployará automáticamente
