@@ -3,13 +3,9 @@ import { Link } from 'react-router-dom';
 import { 
   BarChart3, 
   CheckCircle2, 
-  ChevronRight, 
   DollarSign, 
   LayoutDashboard, 
-  ShieldCheck, 
-  Zap,
-  ArrowRight,
-  HelpCircle
+  Zap
 } from 'lucide-react';
 import { Button } from '../components/ui';
 import { supabase } from '../lib/supabase';
