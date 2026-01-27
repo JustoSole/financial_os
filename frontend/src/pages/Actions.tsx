@@ -348,7 +348,6 @@ export default function Actions() {
     if (current.includes(stepId)) return;
     
     // Optimistic update
-    setSavingStep(stepId);
     setCompletedSteps(prev => ({
       ...prev,
       [actionId]: [...(prev[actionId] || []), stepId]
@@ -364,8 +363,6 @@ export default function Actions() {
         ...prev,
         [actionId]: (prev[actionId] || []).filter(id => id !== stepId)
       }));
-    } finally {
-      setSavingStep(null);
     }
   };
 
