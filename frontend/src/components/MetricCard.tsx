@@ -48,7 +48,7 @@ export default function MetricCard({
   };
 
   const getTrustBadge = () => {
-    if (!trust) return null;
+    if (!trust || trust === 'estimado') return null;
     const badges: Record<string, { label: string; variant: string }> = {
       real: { label: 'Real', variant: 'success' },
       estimado: { label: 'Estimado', variant: 'warning' },

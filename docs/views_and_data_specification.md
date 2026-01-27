@@ -1,7 +1,7 @@
 # Financial OS - Especificación de Vistas y Datos v2.2
 
 > Documentación detallada de la interfaz de usuario, componentes y modelos de datos.
-> **Actualizado para Command Center Edition (v2.2)**
+> **Actualizado para Command Center Edition (v2.2) - 2026-01-27**
 
 ---
 
@@ -74,31 +74,73 @@ Configuración flexible sin fricción.
 
 ---
 
-## 📦 Modelos de Datos (Frontend Types)
+## 📦 Modelos de Datos (Calculated Metrics)
 
 ### CommandCenterData
 ```typescript
 {
-  period: { start, end, days },
-  health: { netProfit, kpis, topAlert },
-  breakeven: { breakEvenOccupancy, currentOccupancy, gapToBreakEven },
-  unitEconomics: { profitPerNight, cpor, costMix },
-  channels: { otaDependency, bestChannel, worstChannel },
-  cash: { runwayDays, aging, reconciliationGap },
-  dataConfidence: { score, level, missingReports }
+  period: { start: string, end: string, days: number },
+  health: {
+    netProfit: { value: number, isPositive: boolean, trend: 'up' | 'down' | 'stable' },
+    kpis: { occupancy: KPI, adr: KPI, revpar: KPI, goppar: KPI },
+    topAlert: Alert | null
+  },
+  breakeven: {
+    breakEvenOccupancy: number,
+    currentOccupancy: number,
+    gapToBreakEven: number,
+    distanceToBreakEven: { inDollars: number, inNights: number, status: string }
+  },
+  unitEconomics: {
+    profitPerNight: number,
+    cpor: number,
+    costMix: { fixedPercent: number, variablePercent: number, commissionPercent: number }
+  },
+  channels: {
+    otaDependency: { otaShare: number, directShare: number, isOverDependent: boolean },
+    bestChannelByProfitPerNight: string,
+    worstChannelByProfitPerNight: string
+  },
+  cash: {
+    runwayDays: number,
+    runwayStatus: string,
+    aging: { overdue: number, next7Days: number, next30Days: number, future: number },
+    gap: number
+  },
+  dataConfidence: { score: number, level: string, missingReports: string[] }
 }
 ```
 
 ### ReservationEconomics
 ```typescript
 {
-  reservationNumber, guestName, checkIn, nights,
-  revenue, netProfit, marginPercent,
-  calcMemory: { steps[] },
-  aiInsights: string[],
-  trustLevel: 'real' | 'estimated'
+  reservationNumber: string,
+  guestName: string,
+  checkIn: string,
+  checkOut: string,
+  revenue: number,
+  netProfit: number,
+  marginPercent: number,
+  totalCosts: number,
+  commissionAmount: number,
+  variableCosts: number,
+  fixedCostAllocated: number,
+  trust: 'real' | 'estimated',
+  calcNotes: string[]
 }
 ```
+
+---
+
+## 🗄️ Esquema de Base de Datos (Supabase)
+
+### Tablas Principales
+- **`properties`**: Configuración de la propiedad (moneda, plan, timezone).
+- **`cost_settings`**: Configuración V4 de costos (categorías flexibles, comisiones, fees).
+- **`reservation_financials`**: Datos crudos de reservas desde Cloudbeds.
+- **`ledger_transactions`**: Transacciones detalladas (pagos, créditos, débitos).
+- **`import_files`**: Registro de archivos CSV subidos y su estado de procesamiento.
+- **`action_completions`**: Tracking de pasos completados en las acciones recomendadas.
 
 ---
 
@@ -115,4 +157,5 @@ Configuración flexible sin fricción.
 - **Datos Numéricos**: `JetBrains Mono` (para alineación perfecta en tablas)
 
 ---
-*Financial OS v2.2 — Especificación de Frontend*
+*Financial OS v2.2 — Especificación de Frontend e Infraestructura*
+

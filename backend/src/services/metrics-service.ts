@@ -768,18 +768,122 @@ export async function getMinimumPriceSimulation(propertyId: string, marginPct: n
     days: 30 
   });
   await engine.init();
-  const profitability = engine.getProfitability();
-  const structure = engine.getStructureMetrics();
   
-  const totalNights = profitability.totalNights || 1;
-  const cpor = profitability.totalCosts / totalNights;
-  const minPrice = cpor / (1 - (marginPct / 100));
-
+  const profitability = engine.getProfitability();
+  const settings = await database.getCostSettings(propertyId);
+  
+  // 1. PARÁMETROS BASE
+  const roomCount = settings?.room_count || 1;
+  const periodDays = engine.getEffectivePeriod().days || 30;
+  const totalNights = Math.max(profitability.totalNights || 0, 1);
+  // Estimamos reservaciones basado en estancia promedio de 2.5 noches si no hay dato directo
+  const estimatedReservations = Math.max(Math.round(totalNights / 2.5), 1);
+  
+  // 2. COSTOS FIJOS - Prorrateados sobre CAPACIDAD TOTAL (estándar en Revenue Management)
+  const fixedMonthly = (settings?.fixed_costs?.salaries || 0) + 
+                       (settings?.fixed_costs?.rent || 0) + 
+                       (settings?.fixed_costs?.utilities || 0) + 
+                       (settings?.fixed_costs?.other || 0);
+  const fixedPerDay = fixedMonthly / 30.44;
+  const periodFixed = fixedPerDay * periodDays;
+  const totalCapacityNights = roomCount * periodDays;
+  const fixedCostPerNight = periodFixed / Math.max(totalCapacityNights, 1);
+  
+  // 3. COSTOS VARIABLES - Basados en configuración del usuario
+  const { perNightTotal: variableCostPerNight } = getVariableCostPerNight(
+    settings,
+    totalNights,
+    estimatedReservations
+  );
+  
+  // 4. COSTO BASE POR NOCHE (sin comisiones)
+  const baseCostPerNight = fixedCostPerNight + variableCostPerNight;
+  
+  // 5. TASA DE COMISIÓN PROMEDIO
+  const totalRevenue = profitability.totalRevenue || 0;
+  const totalCommissions = profitability.totalCommissions || 0;
+  const avgCommRate = totalRevenue > 0 
+    ? totalCommissions / totalRevenue 
+    : (settings?.channel_commissions?.defaultRate || 0.15); // Default 15% si no hay datos
+  
+  // 6. CÁLCULO CONSISTENTE: PRIMERO breakEvenPrice, DESPUÉS minPrice
+  // ==============================================================
+  // 
+  // Fórmula del PRECIO DE EQUILIBRIO (sin margen):
+  // breakEvenPrice = baseCostPerNight / (1 - commissionRate)
+  // 
+  // Esto significa: el precio mínimo para que después de pagar comisiones,
+  // nos quede exactamente para cubrir los costos.
+  // 
+  // Ejemplo: Si baseCost = $1000 y comisión = 15%
+  // breakEvenPrice = 1000 / 0.85 = $1176.47
+  // Verificación: $1176.47 - 15% comisión = $1000 ✓
+  // 
+  const breakEvenDenominator = 1 - avgCommRate;
+  const safeBEDenominator = breakEvenDenominator > 0 ? breakEvenDenominator : 0.85;
+  const breakEvenPrice = baseCostPerNight / safeBEDenominator;
+  
+  // 7. PRECIO SUGERIDO (con margen) - DERIVADO del breakEvenPrice
+  // ==============================================================
+  // 
+  // Fórmula: minPrice = breakEvenPrice / (1 - marginRate)
+  // 
+  // Esto garantiza que el margen se calcula SOBRE el precio de equilibrio,
+  // asegurando que SIEMPRE: minPrice >= breakEvenPrice
+  // 
+  // Ejemplo: Si breakEvenPrice = $1176.47 y margen deseado = 20%
+  // minPrice = 1176.47 / 0.80 = $1470.59
+  // Verificación: 
+  //   - Comisión (15% de $1470.59) = $220.59
+  //   - Neto después de comisión = $1250
+  //   - Costo base = $1000
+  //   - Ganancia = $250 (20% de $1250) ✓
+  //
+  const marginRate = marginPct / 100;
+  const marginDenominator = 1 - marginRate;
+  const safeMarginDenominator = marginDenominator > 0.1 ? marginDenominator : 0.8;
+  const minPrice = breakEvenPrice / safeMarginDenominator;
+  
+  // 8. COMPONENTES PARA DESGLOSE EN FRONTEND
+  // El desglose ahora muestra claramente la relación:
+  // Costo Base → (+ impacto comisiones) → Precio Equilibrio → (+ margen) → Precio Sugerido
+  const commissionImpactOnBreakeven = breakEvenPrice - baseCostPerNight;
+  const marginAmount = minPrice - breakEvenPrice;
+  
+  // Verificación de consistencia
+  const hasCostsConfigured = fixedMonthly > 0 || variableCostPerNight > 0;
+  
   return {
-    cpor: Math.round(cpor),
-    recommendedPrice: Math.round(minPrice),
-    marginPct,
-    currentAdr: Math.round(structure.ADR)
+    // Precios principales - GARANTIZADO: minPrice >= breakEvenPrice
+    minPrice: Math.round(minPrice),
+    breakEvenPrice: Math.round(breakEvenPrice),
+    
+    // Tasas
+    avgCommissionRate: avgCommRate,
+    marginRate: marginRate,
+    
+    // Contexto
+    totalNights,
+    periodDays,
+    roomCount,
+    hasCostsConfigured,
+    
+    // Componentes para desglose visual
+    components: {
+      // Costos base (sin comisiones)
+      fixedCostPerNight: Math.round(fixedCostPerNight),
+      variableCostPerNight: Math.round(variableCostPerNight),
+      baseCostPerNight: Math.round(baseCostPerNight),
+      
+      // Impacto de comisiones para llegar al equilibrio
+      commissionImpact: Math.round(commissionImpactOnBreakeven),
+      
+      // Margen adicional sobre el equilibrio
+      marginAmount: Math.round(marginAmount)
+    },
+    
+    // ADR actual para referencia
+    currentAdr: totalNights > 0 ? Math.round(profitability.totalRevenue / totalNights) : 0
   };
 }
 

@@ -9,7 +9,6 @@ import {
   TrendingUp,
   TrendingDown,
   AlertTriangle,
-  AlertCircle,
   DollarSign,
   BarChart3,
   ArrowRight,
@@ -19,9 +18,6 @@ import {
   ChevronRight,
   Clock,
 } from 'lucide-react';
-import {
-  Badge,
-} from '../components/ui';
 import styles from './Home.module.css';
 
 
@@ -333,7 +329,7 @@ export default function Home() {
             )}
           </div>
           <div className={styles.heroProfitSublabel}>
-                Profit neto operativo <Badge variant="warning" size="sm">Estimado</Badge>
+                Profit neto operativo
           </div>
         </div>
 
@@ -577,33 +573,33 @@ function StatusCard({
   );
 }
 
-function DataConfidenceBanner({ confidence, onAction }: { confidence: any; onAction: () => void }) {
-  if (!confidence || confidence.level === 'high') return null;
-  const score = typeof confidence.score === 'number' ? confidence.score : 0;
-  const missing = Array.isArray(confidence.missingForHighConfidence) ? confidence.missingForHighConfidence : [];
+function DataConfidenceBanner({ confidence: _confidence, onAction: _onAction }: { confidence: any; onAction: () => void }) {
+  return null;
+  // const score = typeof confidence.score === 'number' ? confidence.score : 0;
+  // const missing = Array.isArray(confidence.missingForHighConfidence) ? confidence.missingForHighConfidence : [];
   
-  return (
-    <div className={`confidence-banner confidence-banner--${confidence.level}`}>
-      <div className="confidence-banner__icon">
-        {confidence.level === 'low' ? <AlertCircle size={20} /> : <AlertCircle size={20} />}
-      </div>
-      <div className="confidence-banner__content">
-        <strong>
-          Confianza de datos: {confidence.level === 'low' ? 'BAJA' : 'MEDIA'} ({score}/100)
-        </strong>
-        <p>
-          {missing.slice(0, 2).join(' • ')}
-        </p>
-      </div>
-      <button 
-        onClick={onAction} 
-        className="confidence-banner__action"
-        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, font: 'inherit', color: 'inherit', fontWeight: 600, textDecoration: 'underline' }}
-      >
-        Completar
-      </button>
-    </div>
-  );
+  // return (
+  //   <div className={`confidence-banner confidence-banner--${confidence.level}`}>
+  //     <div className="confidence-banner__icon">
+  //       {confidence.level === 'low' ? <AlertCircle size={20} /> : <AlertCircle size={20} />}
+  //     </div>
+  //     <div className="confidence-banner__content">
+  //       <strong>
+  //         Confianza de datos: {confidence.level === 'low' ? 'BAJA' : 'MEDIA'} ({score}/100)
+  //       </strong>
+  //       <p>
+  //         {missing.slice(0, 2).join(' • ')}
+  //       </p>
+  //     </div>
+  //     <button 
+  //       onClick={onAction} 
+  //       className="confidence-banner__action"
+  //       style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, font: 'inherit', color: 'inherit', fontWeight: 600, textDecoration: 'underline' }}
+  //     >
+  //       Completar
+  //     </button>
+  //   </div>
+  // );
 }
 
 function CostsNotConfiguredBanner({ unitEconomics }: { unitEconomics: any }) {

@@ -14,7 +14,6 @@ import {
   Card,
   LoadingState,
   TrustBadge,
-  ConfidenceBadge,
   ChannelBadge,
   SummaryMetric,
   HelpTooltip,
@@ -324,7 +323,7 @@ export default function Profitability() {
         </span>
         {(summary.lowConfidenceShare || 0) > 20 && (
           <span className={styles.configWarning}>
-            ⚠ {(summary.lowConfidenceShare || 0).toFixed(0)}% con baja confianza
+            {/* ⚠ {(summary.lowConfidenceShare || 0).toFixed(0)}% con baja confianza */}
           </span>
         )}
       </div>
@@ -515,7 +514,7 @@ export default function Profitability() {
                     <td data-label="Precisión">
                       <div className={styles.confidenceCell}>
                         <TrustBadge trust={r.trust} />
-                        <ConfidenceBadge confidence={r.confidence} />
+                        {/* <ConfidenceBadge confidence={r.confidence} /> */}
                       </div>
                     </td>
                   </tr>
@@ -749,8 +748,8 @@ function ThresholdsView({
               Precio mínimo por noche
               <HelpTooltip termKey="breakEvenPrice" size="sm" />
             </span>
-            <span className="threshold-value">{formatCurrency(breakEven.breakEvenPrice)}</span>
-            <p className="threshold-desc">Si vendés más barato que esto, perdés plata en cada noche ocupada.</p>
+            <span className="threshold-value">{formatCurrency(simulation?.breakEvenPrice || breakEven.breakEvenPrice)}</span>
+            <p className="threshold-desc">Precio base para cubrir costos operativos sin margen de ganancia.</p>
           </div>
 
           <div className="threshold-card">
@@ -811,11 +810,11 @@ function ThresholdsView({
 
           <div className="sandbox-info">
             <Info size={16} />
-            <p>Este cálculo usa tu comisión promedio ({formatPercent((simulation?.avgCommissionRate || 0.15) * 100)}) y tus gastos actuales.</p>
+            <p>Este cálculo usa tu comisión promedio ({formatPercent((simulation?.avgCommissionRate || 0) * 100)}) y tus gastos actuales.</p>
           </div>
         </Card>
 
-        <Card className={`sandbox-result ${loading ? 'loading' : ''}`}>
+        <Card className={`sandbox-result ${loading ? styles.loading : ''}`}>
           <div className="result-header">
             <Target size={32} className="text-primary" />
             <div>
@@ -827,19 +826,60 @@ function ThresholdsView({
           </div>
 
           <div className="result-details">
+            {/* Paso 1: Costo base operativo */}
             <div className="result-item">
               <span>Costo Base (Fijo + Variable)</span>
-              <span>{formatCurrency((simulation?.components?.fixedCostPerNight || 0) + (simulation?.components?.variableCostPerNight || 0))}</span>
+              <span>{formatCurrency(simulation?.components?.baseCostPerNight || 0)}</span>
             </div>
-            <div className="result-item">
-              <span>Margen Neto ({marginPct}%)</span>
-              <span>+{formatCurrency(simulation?.components?.markupAmount || 0)}</span>
+            
+            {/* Paso 2: Precio de equilibrio (base para no perder) */}
+            <div className="result-item highlight">
+              <span>
+                Precio de Equilibrio
+                <HelpTooltip 
+                  title="Precio de Equilibrio" 
+                  content="Este es el precio MÍNIMO por noche que necesitás para no perder dinero, considerando las comisiones de los canales. Todo precio por debajo de esto genera pérdida."
+                  size="sm"
+                />
+              </span>
+              <span className="text-warning">{formatCurrency(simulation?.breakEvenPrice || 0)}</span>
             </div>
+            
+            {/* Paso 3: Margen adicional */}
             <div className="result-item">
-              <span>Costo de Comisiones (Est.)</span>
-              <span>+{formatCurrency(simulation?.components?.commissionImpact || 0)}</span>
+              <span>+ Margen deseado ({marginPct}%)</span>
+              <span className="text-success">+{formatCurrency(simulation?.components?.marginAmount || 0)}</span>
             </div>
           </div>
+
+          <div className="sandbox-explanation">
+            <Info size={14} />
+            <p>
+              <strong>Lógica del cálculo:</strong> Partimos del precio de equilibrio ({formatCurrency(simulation?.breakEvenPrice || 0)}) 
+              que cubre tus costos + comisiones ({formatPercent((simulation?.avgCommissionRate || 0) * 100)}), 
+              y le agregamos tu margen deseado del {marginPct}%.
+            </p>
+          </div>
+
+          {!simulation?.hasCostsConfigured && (
+            <div className="sandbox-warning-box">
+              <Info size={14} />
+              <p>
+                <strong>⚠️ Sin costos configurados:</strong> No tenés costos fijos ni variables registrados. 
+                <a href="/costs" style={{ marginLeft: '4px', textDecoration: 'underline' }}>Configurá tus costos</a> para ver el precio sugerido real.
+              </p>
+            </div>
+          )}
+
+          {simulation?.hasCostsConfigured && simulation?.totalNights < 5 && (
+            <div className="sandbox-warning-box">
+              <Info size={14} />
+              <p>
+                <strong>Atención:</strong> Tenés muy pocas noches vendidas ({simulation.totalNights}) en este periodo. 
+                El cálculo es estable, pero recordá que necesitás más volumen para diluir realmente tus costos.
+              </p>
+            </div>
+          )}
         </Card>
       </div>
 

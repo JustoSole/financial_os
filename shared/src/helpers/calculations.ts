@@ -48,14 +48,17 @@ export function calculateBreakEvenOccupancy(
 
 /**
  * Calculates break-even price (minimum ADR to cover costs)
+ * Based on capacity to provide a stable pricing floor.
  */
 export function calculateBreakEvenPrice(
-  totalCosts: number,
-  nights: number,
+  totalFixedCosts: number,
+  variableCostPerNight: number,
+  totalCapacityNights: number,
   commissionRate: number
 ): number {
-  if (nights <= 0) return 0;
-  return totalCosts / nights / (1 - commissionRate);
+  if (totalCapacityNights <= 0) return 0;
+  const fixedPerNight = totalFixedCosts / totalCapacityNights;
+  return (fixedPerNight + variableCostPerNight) / (1 - commissionRate);
 }
 
 /**

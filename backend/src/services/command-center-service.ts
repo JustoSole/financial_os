@@ -268,6 +268,16 @@ function buildBreakEvenAnalysis(structure: any, profitability: any, settings: an
 
   const nightsNeeded = contribPerNight > 0 ? periodFixed / contribPerNight : 0;
 
+  // Break-even price should be based on CAPACITY to be a stable reference, 
+  // not on actual occupancy which makes it volatile and contradictory.
+  const totalCapacityNights = roomCount * days;
+  const fixedCostPerNight = totalCapacityNights > 0 ? periodFixed / totalCapacityNights : 0;
+  
+  // Consistency with metrics-service: Use the same base cost logic
+  const breakEvenPrice = (1 - avgCommRate > 0)
+    ? (fixedCostPerNight + variablePerNight) / (1 - avgCommRate)
+    : 0;
+
   return {
     breakEvenOccupancy: Math.round(breakEvenOccupancy),
     currentOccupancy: Math.round(structure.occupancyRate),
@@ -275,7 +285,7 @@ function buildBreakEvenAnalysis(structure: any, profitability: any, settings: an
     nightsNeededForBreakEven: Math.ceil(nightsNeeded),
     nightsSoldThisPeriod: Math.round(nightsSold),
     nightsGap: Math.round(nightsSold - nightsNeeded),
-    breakEvenPrice: Math.round((periodFixed / (nightsSold || 1)) + variablePerNight + (adr * avgCommRate)),
+    breakEvenPrice: Math.round(breakEvenPrice),
     currentAdr: Math.round(adr),
     marginSimulation: {
       margin10: 0,

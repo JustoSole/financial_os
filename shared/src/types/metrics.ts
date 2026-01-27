@@ -46,9 +46,13 @@ export interface DataHealthScore {
   lastImport: string | null;
   hasExpandedTransactions: boolean;
   hasReservationsFinancials: boolean;
-  monthsCovered: number;
-  earliestDate: string | null;
-  latestDate: string | null;
+  hasChannelPerformance?: boolean;
+  monthsCovered?: number;
+  earliestDate?: string | null;
+  latestDate?: string | null;
+  isUsingHistoricalData?: boolean;
+  effectivePeriod?: DatePeriod | null;
+  requestedPeriod?: DatePeriod | null;
 }
 
 // =====================================================
@@ -69,8 +73,8 @@ export interface HomeMetrics {
   cargado: MetricTile;
   pendiente: MetricTile;
   ahorroPotencial: MetricTile & {
-    topChannel: string;
-    suggestion: string;
+    topChannel?: string;
+    suggestion?: string;
   };
   dataHealth: DataHealthScore;
   projections?: ProjectionMetrics;
@@ -125,8 +129,8 @@ export interface ChannelData {
 }
 
 export interface ChannelInsights {
-  bestChannel: { name: string; adrNet: number; reason: string } | null;
-  worstChannel: { name: string; adrNet: number; realCost: string } | null;
+  bestChannel: { name: string; adrNet: number; reason?: string } | null;
+  worstChannel: { name: string; adrNet: number; realCost?: string } | null;
   directAdr: number;
 }
 
@@ -476,7 +480,7 @@ export interface BusinessHealthSnapshot {
 }
 
 export interface BreakEvenAnalysis {
-  period: { days: number };
+  period?: { days: number };
   breakEvenOccupancy: number;
   currentOccupancy: number;
   gapToBreakEven: number;
@@ -634,5 +638,6 @@ export interface CommandCenterData {
   dataConfidence: DataConfidence;
   comparisons: CommandCenterComparisons;
   weeklyAction: WeeklyAction;
+  homeMetrics?: HomeMetrics;
 }
 

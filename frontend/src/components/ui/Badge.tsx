@@ -43,6 +43,7 @@ interface TrustBadgeProps {
 }
 
 export function TrustBadge({ trust, className = '' }: TrustBadgeProps) {
+  if (trust === 'estimado') return null;
   const config: Record<TrustLevel, { label: string; variant: BadgeVariant }> = {
     real: { label: '✓ Real', variant: 'success' },
     estimado: { label: '~ Estimado', variant: 'warning' },

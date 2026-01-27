@@ -36,7 +36,7 @@ export default function MetricDisplay({
   valueClassName = '',
 }: MetricDisplayProps) {
   const getTrustBadge = () => {
-    if (!trust) return null;
+    if (!trust || trust === 'estimado') return null;
     const badges: Record<TrustLevel, { label: string; variant: 'success' | 'warning' | 'error' }> = {
       real: { label: 'Real', variant: 'success' },
       estimado: { label: 'Estimado', variant: 'warning' },

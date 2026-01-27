@@ -6,7 +6,7 @@
 
 ## 0) Decisiones de producto (no negociables)
 
-1. **Solo 3 fuentes para el MVS** (cloudbeds exports):
+1. **Solo 2 fuentes para el MVS** (cloudbeds exports):
 
 * **Expanded Transaction Report with Details** (ledger / caja real)
 * **Reservations with Financials** (unidad económica = reserva)
@@ -150,19 +150,6 @@ Tu superioridad no es "más features"; es:
 
 ---
 
-### C) Channel Performance Summary (CSV)
-
-**Rol:** Mix por canal (Real) + "costo estimado" (Estimado).
-**Columnas reales:**
-
-* `Reservation Source Category`
-* `Reservation Source`
-* `Room Nights - sum`
-* `Room Revenue Total - sum`
-* `Estimated Commission - sum` (a menudo 0)
-
----
-
 ## 4) Estructura de Pricing PLG (4 niveles)
 
 ### Filosofía de Pricing
@@ -282,7 +269,7 @@ Un dueño de hotel siempre se pregunta:
 
 Penalizaciones:
 
-* Falta Expanded Transactions: −40
+* Falta Expanded Transactions: −50
 * Falta Reservations with Financials: −50
 * Último import > 7 días: −10
 * **Cobertura histórica insuficiente (< 3 meses):** Indica que las comparativas MoM/YoY serán limitadas o nulas.
