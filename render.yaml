@@ -10,6 +10,13 @@ services:
         value: production
       - key: RENDER_DISK_MOUNT_PATH
         value: /opt/render/project/src/backend/data
+      # Supabase credentials - MUST be set manually in Render Dashboard > Environment
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
     disk:
       name: financial-os-data
       mountPath: /opt/render/project/src/backend/data

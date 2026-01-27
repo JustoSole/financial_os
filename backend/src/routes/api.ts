@@ -2,7 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import { v4 as uuidv4 } from 'uuid';
 import database, { setAuthContext, clearAuthContext } from '../db';
-import { supabase } from '../db/supabase-client';
+import { supabase, isSupabaseConfigured } from '../db/supabase-client';
 import cacheService from '../services/cache-service';
 import { importCSV, validateCSV } from '../services/import-service';
 import { 
@@ -88,11 +88,18 @@ const upload = multer({
 // Public Routes (no auth required)
 // =====================================================
 router.get('/health', (req: Request, res: Response) => {
+  const supabaseStatus = isSupabaseConfigured();
   res.json({ 
     success: true, 
-    status: 'ok', 
+    status: supabaseStatus ? 'ok' : 'degraded', 
     timestamp: new Date().toISOString(),
-    service: 'financial-os-backend'
+    service: 'financial-os-backend',
+    dependencies: {
+      supabase: supabaseStatus ? 'configured' : 'missing_credentials'
+    },
+    ...(supabaseStatus ? {} : {
+      warning: 'Supabase credentials not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY or SUPABASE_SERVICE_ROLE_KEY environment variables.'
+    })
   });
 });
 
