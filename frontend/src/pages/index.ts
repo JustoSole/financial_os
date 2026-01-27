@@ -1,4 +1,5 @@
 export { default as Home } from './Home';
+export { default as Landing } from './Landing';
 export { default as Actions } from './Actions';
 export { default as Channels } from './Channels';
 export { default as Cash } from './Cash';

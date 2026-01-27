@@ -207,6 +207,25 @@ export class CalculationEngine {
       issues.push(`📊 Mostrando datos históricos: ${this.period.start} a ${this.period.end}`);
     }
 
+    // Calcular meses cubiertos (aproximado)
+    let monthsCovered = 0;
+    let earliestDate = null;
+    
+    // Usar todas las reservaciones para calcular el rango total de datos
+    const resDates = this.allReservations.map(r => r.check_in).filter(Boolean).sort();
+    
+    // Para transacciones, idealmente querríamos todas, pero aquí solo tenemos las del período.
+    // Sin embargo, si tenemos 3 años de reservaciones, monthsCovered ya será > 1.
+    const allDates = [...resDates].sort();
+    if (allDates.length > 0) {
+      earliestDate = allDates[0].substring(0, 10);
+      const latestDate = allDates[allDates.length - 1].substring(0, 10);
+      
+      const start = new Date(earliestDate);
+      const end = new Date(latestDate);
+      monthsCovered = Math.max(1, (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth()));
+    }
+
     let level: 'completos' | 'parciales' | 'faltan';
     if (score >= 80) level = 'completos';
     else if (score >= 50) level = 'parciales';
@@ -223,6 +242,8 @@ export class CalculationEngine {
       isUsingHistoricalData: this.usedFallbackPeriod,
       effectivePeriod: this.usedFallbackPeriod ? this.period : null,
       requestedPeriod: this.usedFallbackPeriod ? this.originalPeriod : null,
+      monthsCovered,
+      earliestDate,
       // Optional fields in shared type
       hasChannelPerformance: false,
     };

@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
-import { User, Building, Bell, Sparkles, Check, Crown, Star, Lock, Info } from 'lucide-react';
+import { User, Building, Bell, Sparkles, Check, Crown, Star, Lock, Info, LogOut } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { getCosts, trackEvent, updateCosts, updateProperty } from '../api';
 import { Button } from '../components/ui';
+import { supabase } from '../lib/supabase';
+import { useNavigate } from 'react-router-dom';
 import styles from './Settings.module.css';
 
 type PlanType = 'free' | 'pro';
@@ -44,6 +46,7 @@ const PLANS: Record<PlanType, PlanConfig> = {
 
 export default function Settings() {
   const { property, refreshProperty } = useApp();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('plans');
   const rawPlan = property?.plan;
   const currentPlan: PlanType = rawPlan === 'pro' ? 'pro' : 'free';
@@ -114,6 +117,11 @@ export default function Settings() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate('/');
   };
 
   const tabs = [
@@ -344,7 +352,14 @@ export default function Settings() {
               <div className={styles.dangerZone}>
                 <h4>Zona de Peligro</h4>
                 <div className={styles.dangerActions}>
-                  <Button variant="ghost" className="danger">Cerrar Sesión</Button>
+                  <Button 
+                    variant="ghost" 
+                    className="danger" 
+                    onClick={handleLogout}
+                  >
+                    <LogOut size={16} style={{ marginRight: '0.5rem' }} />
+                    Cerrar Sesión
+                  </Button>
                   <Button variant="ghost" className="danger">Eliminar Cuenta</Button>
                 </div>
               </div>

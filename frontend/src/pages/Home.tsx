@@ -400,38 +400,22 @@ export default function Home() {
           breakeven={data.breakeven}
           comparisons={data.comparisons}
         />
-            </section>
 
-      {/* Cobranzas Pendientes Alert */}
-      {data.cash.totalPending > 10000 && (
-        <section className={styles.collectionsAlert}>
-          <div className={styles.collectionsAlertIcon}>
+        {/* Cobranzas Pendientes Alert */}
+        {data.cash.totalPending > 10000 && (
+          <div className="top-alert top-alert--warning" style={{ marginTop: '2rem' }}>
             <CreditCard size={24} />
-          </div>
-          <div className={styles.collectionsAlertContent}>
-            <div className={styles.collectionsAlertHeader}>
-              <strong>Pendiente por cobrar</strong>
-              <span className={styles.collectionsAlertAmount}>{formatCurrencyShort(data.cash.totalPending)}</span>
+            <div className="top-alert__content">
+              <strong>Cobranzas Pendientes</strong>
+              <p>Tenés {formatCurrency(data.cash.totalPending)} por cobrar.</p>
             </div>
-            <div className={styles.collectionsAlertDetails}>
-              {data.cash.aging.overdue > 0 && (
-                <span className={styles.collectionsOverdue}>
-                  {formatCurrencyShort(data.cash.aging.overdue)} vencido
-                </span>
-              )}
-              {data.cash.aging.next7Days > 0 && (
-                <span className={styles.collectionsUpcoming}>
-                  {formatCurrencyShort(data.cash.aging.next7Days)} próximos 7 días
-                </span>
-              )}
-            </div>
+            <Link to="/acciones" className="top-alert__action">
+              Ver Cobranzas
+              <ArrowRight size={16} />
+            </Link>
           </div>
-          <Link to="/acciones" className={styles.collectionsAlertAction}>
-            Ver cobranzas
-            <ChevronRight size={16} />
-          </Link>
-        </section>
-      )}
+        )}
+      </section>
 
       {/* Section 2: Canales - Versión Resumida */}
       <section className={styles.commandSection}>

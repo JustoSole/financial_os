@@ -2,7 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider } from './context/AppContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Sidebar, MobileHeader } from './components';
-import { Home, Actions, Channels, Costs, Import, Settings, Profitability, Login, Register } from './pages';
+import { Home, Landing, Actions, Channels, Costs, Import, Settings, Profitability, Login, Register } from './pages';
 import styles from './App.module.css';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -50,6 +50,24 @@ function AppLayout() {
   );
 }
 
+function RootRoute() {
+  const { session, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
+        <div className="spin">⌛</div>
+      </div>
+    );
+  }
+
+  if (session) {
+    return <AppLayout />;
+  }
+
+  return <Landing />;
+}
+
 export default function App() {
   return (
     <AuthProvider>
@@ -57,6 +75,7 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/registro" element={<Register />} />
+          <Route path="/" element={<RootRoute />} />
           <Route
             path="/*"
             element={

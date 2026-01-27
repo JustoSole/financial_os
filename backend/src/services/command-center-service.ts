@@ -223,14 +223,7 @@ function buildHealthSnapshot(
       severity: 'critical',
       actionLabel: 'Importar ahora',
       actionLink: '/importar'
-    } : (collections?.totalBalanceDue > 50000 ? {
-      type: 'collections',
-      title: 'Cobranzas Pendientes',
-      description: `Tenés $${Math.round(collections.totalBalanceDue).toLocaleString()} por cobrar.`,
-      severity: 'warning',
-      actionLabel: 'Ver Cobranzas',
-      actionLink: '/acciones'
-    } : null)
+    } : null
   };
 }
 
