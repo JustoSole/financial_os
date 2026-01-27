@@ -1,16 +1,23 @@
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { Button } from '../components/ui';
 import styles from './Auth.module.css';
 
 export default function Register() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (location.state && (location.state as any).email) {
+      setEmail((location.state as any).email);
+    }
+  }, [location.state]);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();

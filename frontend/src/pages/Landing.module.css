@@ -572,29 +572,105 @@
 /* FAQ */
 .faq {
   padding: 6rem 0;
+  background: white;
 }
 
 .faq h3 {
-  font-size: 1.75rem;
-  font-weight: 700;
+  font-size: 2.25rem;
+  font-weight: 800;
   text-align: center;
-  margin-bottom: 3rem;
+  margin-bottom: 3.5rem;
+  letter-spacing: -0.02em;
 }
 
-.faqGrid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 3rem;
+.faqAccordion {
+  max-width: 700px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
 }
 
-.faqItem h4 {
-  font-weight: 700;
-  margin-bottom: 0.75rem;
+.faqItem {
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+  transition: all 0.2s ease;
 }
 
-.faqItem p {
+.faqItem[open] {
+  border-color: var(--landing-accent);
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.05);
+}
+
+.faqItem summary {
+  padding: 1.25rem 1.5rem;
+  font-weight: 600;
+  font-size: 1.1rem;
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  user-select: none;
+}
+
+.faqItem summary::-webkit-details-marker {
+  display: none;
+}
+
+.faqItem summary::after {
+  content: '+';
+  font-size: 1.5rem;
+  font-weight: 400;
   color: var(--landing-text-muted);
+  transition: transform 0.2s ease;
+}
+
+.faqItem[open] summary::after {
+  transform: rotate(45deg);
+  color: var(--landing-accent);
+}
+
+.faqAnswer {
+  padding: 0 1.5rem 1.5rem;
+  color: var(--landing-text-muted);
+  line-height: 1.6;
+  font-size: 1rem;
+}
+
+.faqContact {
+  margin-top: 4rem;
+  text-align: center;
+  padding: 2rem;
+  background: var(--landing-section-bg);
+  border-radius: 20px;
+  max-width: 500px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.faqContact p {
+  font-weight: 600;
+  margin-bottom: 1rem;
+  color: var(--landing-text);
+}
+
+.wppButton {
+  display: inline-block;
+  background: #25D366;
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 50px;
+  text-decoration: none;
+  font-weight: 600;
   font-size: 0.95rem;
+  transition: transform 0.2s, background 0.2s;
+}
+
+.wppButton:hover {
+  background: #128C7E;
+  transform: translateY(-2px);
 }
 
 /* Final CTA / Form */
@@ -644,11 +720,17 @@
   color: var(--landing-text-muted);
 }
 
-.formGroup input, .formGroup select {
+.formGroup input, .formGroup select, .formGroup textarea {
   padding: 0.75rem;
   border: 1px solid #ddd;
   border-radius: 8px;
   font-size: 1rem;
+  font-family: inherit;
+}
+
+.textarea {
+  min-height: 80px;
+  resize: vertical;
 }
 
 .formRow {
@@ -675,6 +757,85 @@
   color: #dc2626;
   font-size: 0.9rem;
   margin-bottom: 1rem;
+}
+
+.wppContent {
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.wppIcon {
+  color: #25D366;
+  background: rgba(37, 211, 102, 0.1);
+  padding: 12px;
+  border-radius: 50%;
+}
+
+.wppButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #25D366;
+  color: white;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 1rem;
+  text-decoration: none;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(37, 211, 102, 0.2);
+  width: 100%;
+}
+
+.wppButton:hover {
+  background-color: #128C7E;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 15px rgba(37, 211, 102, 0.3);
+  color: white;
+}
+
+.wppButtonOutline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: transparent;
+  color: #25D366;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-weight: 700;
+  font-size: 1rem;
+  text-decoration: none;
+  transition: all 0.3s ease;
+  border: 2px solid #25D366;
+  width: 100%;
+}
+
+.wppButtonOutline:hover {
+  background-color: rgba(37, 211, 102, 0.05);
+  transform: translateY(-1px);
+}
+
+.wppDivider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  margin: 0.5rem 0;
+  color: var(--landing-text-muted);
+  font-size: 0.8rem;
+}
+
+.wppDivider::before,
+.wppDivider::after {
+  content: '';
+  flex: 1;
+  border-bottom: 1px solid #eee;
+}
+
+.wppDivider span {
+  padding: 0 10px;
 }
 
 /* Footer */

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { 
   BarChart3, 
   CheckCircle2, 
@@ -12,12 +12,14 @@ import { supabase } from '../lib/supabase';
 import styles from './Landing.module.css';
 
 export default function Landing() {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     email: '',
     hotel_web: '',
-    pms: 'cloudbeds',
+    pms: '',
     room_count: '1-10',
-    priority: 'rentabilidad'
+    priority: '',
+    uses_cloudbeds: 'si'
   });
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -34,13 +36,24 @@ export default function Landing() {
         .insert([{
           email: formData.email,
           hotel_web: formData.hotel_web,
-          pms: formData.pms,
+          pms: formData.uses_cloudbeds === 'si' ? 'cloudbeds' : formData.pms,
           room_count: formData.room_count,
-          priority: formData.priority
+          priority: formData.priority,
+          metadata: { 
+            uses_cloudbeds: formData.uses_cloudbeds,
+            room_count: formData.room_count,
+            main_problem: formData.priority
+          }
         }]);
 
       if (insertError) throw insertError;
-      setSubmitted(true);
+      
+      if (formData.uses_cloudbeds === 'si') {
+        // Redirect to register flow for Cloudbeds users
+        navigate('/registro', { state: { email: formData.email } });
+      } else {
+        setSubmitted(true);
+      }
     } catch (err: any) {
       console.error('Error submitting lead:', err);
       setError('Hubo un error al procesar tu solicitud. Por favor, intenta de nuevo.');
@@ -49,7 +62,7 @@ export default function Landing() {
     }
   };
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
@@ -71,18 +84,18 @@ export default function Landing() {
       <header className={styles.hero}>
         <div className={styles.heroContent}>
           <h1 className={styles.h1}>
-            Entendé cuánto te queda.<br />
-            <span>No cuánto facturás.</span>
+            Tu rentabilidad real,<br />
+            <span>sin planillas eternas.</span>
           </h1>
           <p className={styles.sub}>
-            Financial OS convierte tus reportes de Cloudbeds en un panel simple para <strong>ver cuánto te queda</strong>, <strong>ordenar cuentas</strong> y <strong>tomar decisiones con claridad</strong> (sin planillas).
+            Financial OS convierte tus reportes de tu PMS en un panel simple para <strong>ver cuánto te queda</strong>, <strong>ordenar cuentas</strong> y <strong>tomar decisiones con claridad</strong>.
           </p>
           <div className={styles.heroCtas}>
-            <a href="#solicitar" className={styles.primaryCta}>Solicitar acceso</a>
+            <a href="#solicitar" className={styles.primaryCta}>Probar con mis datos</a>
             <a href="#como-funciona" className={styles.secondaryCta}>Ver cómo funciona</a>
           </div>
           <div className={styles.microTrust}>
-            <Zap size={16} /> Sin integraciones · Subís reportes · Resultado en minutos
+            <Zap size={16} /> Especializado en PMS · Resultado en minutos
           </div>
         </div>
       </header>
@@ -144,7 +157,7 @@ export default function Landing() {
                 <div className={styles.modernStepLine}></div>
               </div>
               <div className={styles.modernStepContent}>
-                <h4>Exportás de Cloudbeds</h4>
+                <h4>Exportás de tu PMS</h4>
                 <p>Descargás el reporte de <strong>Transacciones</strong> y <strong>Reservas</strong>. Son solo dos clics desde tu panel actual.</p>
               </div>
             </div>
@@ -231,7 +244,7 @@ export default function Landing() {
                 <div className={styles.carouselInfo}>
                   <div className={styles.carouselTag}>Dashboard Principal</div>
                   <h4>Todo tu negocio en una sola vista</h4>
-                  <p>Rentabilidad neta real, ocupación, punto de equilibrio y OTB. Dejá de saltar entre pestañas de Cloudbeds.</p>
+                  <p>Rentabilidad neta real, ocupación, punto de equilibrio y OTB. Dejá de saltar entre pestañas de tu PMS.</p>
                 </div>
               </div>
 
@@ -286,75 +299,131 @@ export default function Landing() {
       <section className={styles.faq}>
         <div className={styles.sectionContent}>
           <h3>Preguntas Frecuentes</h3>
-          <div className={styles.faqGrid}>
-            <div className={styles.faqItem}>
-              <h4>¿Necesito integrar Cloudbeds por API?</h4>
-              <p>No. Empezás subiendo reportes (CSV) de forma manual y segura.</p>
-            </div>
-            <div className={styles.faqItem}>
-              <h4>¿Esto reemplaza Cloudbeds?</h4>
-              <p>No. Cloudbeds opera; Financial OS ordena y explica el resultado financiero.</p>
-            </div>
-            <div className={styles.faqItem}>
-              <h4>¿Y si mis costos no están perfectos?</h4>
-              <p>Podés empezar simple y mejorar el modelo de costos con el tiempo dentro de la app.</p>
-            </div>
+          <div className={styles.faqAccordion}>
+            <details className={styles.faqItem}>
+              <summary>¿Necesito integrar mi PMS por API?</summary>
+              <div className={styles.faqAnswer}>
+                <p>No es necesario. Podés empezar hoy mismo subiendo tus reportes CSV de forma manual y segura. Es la forma más rápida de obtener claridad sin procesos técnicos complejos.</p>
+              </div>
+            </details>
+
+            <details className={styles.faqItem}>
+              <summary>¿Esto reemplaza a mi PMS?</summary>
+              <div className={styles.faqAnswer}>
+                <p>No. Tu PMS es tu motor operativo (reservas, check-ins, disponibilidad). Financial OS es tu cerebro financiero: toma la información de tu PMS y la transforma en decisiones de rentabilidad, control de costos y proyecciones.</p>
+              </div>
+            </details>
+
+            <details className={styles.faqItem}>
+              <summary>¿Mis datos financieros están seguros?</summary>
+              <div className={styles.faqAnswer}>
+                <p>Absolutamente. Utilizamos protocolos de seguridad de nivel bancario. Tus datos se procesan de forma privada y solo vos tenés acceso a la información de tu propiedad.</p>
+              </div>
+            </details>
+
+            <details className={styles.faqItem}>
+              <summary>¿Cuánto tiempo toma ver mi primer reporte?</summary>
+              <div className={styles.faqAnswer}>
+                <p>Menos de 5 minutos. Una vez que subís los reportes de tu PMS, nuestro motor de cálculo procesa todo instantáneamente para mostrarte tu rentabilidad real.</p>
+              </div>
+            </details>
+
+            <details className={styles.faqItem}>
+              <summary>¿Qué pasa si mis costos no están claros?</summary>
+              <div className={styles.faqAnswer}>
+                <p>No te preocupes. Podés empezar con un modelo simple y la app te ayudará a identificar y categorizar tus costos (comisiones, limpieza, fijos) para que tu visión financiera sea cada vez más precisa.</p>
+              </div>
+            </details>
+
+            <details className={styles.faqItem}>
+              <summary>¿Por qué Financial OS y no un Excel?</summary>
+              <div className={styles.faqAnswer}>
+                <p>El Excel es manual, propenso a errores y requiere horas de mantenimiento. Financial OS automatiza el cruce de datos, detecta discrepancias en pagos y te da insights que una planilla estática no puede ver.</p>
+              </div>
+            </details>
+          </div>
+
+          <div className={styles.faqContact}>
+            <p>¿Tenés alguna otra duda?</p>
+            <a href="https://wa.me/your-number" target="_blank" rel="noopener noreferrer" className={styles.wppButton}>
+              Chateá con nosotros por WhatsApp
+            </a>
           </div>
         </div>
       </section>
 
-      {/* Final CTA / Form */}
+      {/* Final CTA / Registration Form */}
       <section id="solicitar" className={styles.ctaFinal}>
         <div className={styles.sectionContent}>
           <div className={styles.formCard}>
             {submitted ? (
               <div className={styles.successMessage}>
-                <CheckCircle2 size={48} color="var(--color-success)" />
-                <h3>¡Solicitud enviada!</h3>
-                <p>Te contactaremos pronto para ayudarte con tu primer import.</p>
+                <CheckCircle2 size={48} color="#2563eb" />
+                <h3>¡Gracias por tu interés!</h3>
+                <p>Te hemos anotado en la lista de espera. Te contactaremos pronto para darte acceso a Financial OS.</p>
+                <a 
+                  href="https://wa.me/5492944806519?text=Hola!%20Me%20anot%C3%A9%20en%20la%20waitlist%20de%20Financial%20OS%20pero%20me%20gustar%C3%ADa%20acceder%20antes."
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={styles.wppButton}
+                  style={{ marginTop: '1rem' }}
+                >
+                  Hablar por WhatsApp
+                </a>
               </div>
             ) : (
               <>
-                <h3>Probalo con tus datos.</h3>
-                <p>Si te da claridad, lo seguís. Si no, lo dejás.</p>
+                <h3>Probar con mis datos</h3>
+                <p>Si usás Cloudbeds, podés acceder hoy mismo.</p>
                 
                 <form onSubmit={handleSubmit} className={styles.form}>
                   <div className={styles.formGroup}>
-                    <label>Email</label>
-                    <input 
-                      type="email" 
-                      name="email" 
-                      required 
-                      placeholder="tu@email.com" 
-                      value={formData.email}
+                    <label>¿Usás Cloudbeds como PMS?</label>
+                    <select 
+                      name="uses_cloudbeds" 
+                      value={formData.uses_cloudbeds} 
                       onChange={handleChange}
-                    />
+                      required
+                    >
+                      <option value="si">Sí, uso Cloudbeds</option>
+                      <option value="no">No, uso otro</option>
+                    </select>
                   </div>
-                  <div className={styles.formGroup}>
-                    <label>Hotel / Web</label>
-                    <input 
-                      type="text" 
-                      name="hotel_web" 
-                      required 
-                      placeholder="Nombre de tu hotel" 
-                      value={formData.hotel_web}
-                      onChange={handleChange}
-                    />
-                  </div>
-                  <div className={styles.formRow}>
+
+                  {formData.uses_cloudbeds === 'no' && (
                     <div className={styles.formGroup}>
                       <label>¿Qué PMS usás?</label>
-                      <select name="pms" value={formData.pms} onChange={handleChange}>
-                        <option value="cloudbeds">Cloudbeds</option>
-                        <option value="mews">Mews</option>
-                        <option value="amenitiz">Amenitiz</option>
-                        <option value="sirvoy">Sirvoy</option>
-                        <option value="otro">Otro / Ninguno</option>
-                      </select>
+                      <input 
+                        type="text" 
+                        name="pms" 
+                        placeholder="Ej: Mews, Opera, Amenitiz..."
+                        value={formData.pms}
+                        onChange={handleChange}
+                        required 
+                      />
+                    </div>
+                  )}
+
+                  <div className={styles.formRow}>
+                    <div className={styles.formGroup}>
+                      <label>Email profesional</label>
+                      <input 
+                        type="email" 
+                        name="email" 
+                        placeholder="tu@hotel.com"
+                        value={formData.email}
+                        onChange={handleChange}
+                        required 
+                      />
                     </div>
                     <div className={styles.formGroup}>
-                      <label>Habitaciones</label>
-                      <select name="room_count" value={formData.room_count} onChange={handleChange}>
+                      <label>Nro. de habitaciones</label>
+                      <select 
+                        name="room_count" 
+                        value={formData.room_count} 
+                        onChange={handleChange}
+                        required
+                      >
                         <option value="1-10">1-10</option>
                         <option value="11-30">11-30</option>
                         <option value="31-50">31-50</option>
@@ -362,22 +431,60 @@ export default function Landing() {
                       </select>
                     </div>
                   </div>
+
                   <div className={styles.formGroup}>
-                    <label>¿Qué querés ordenar primero?</label>
-                    <select name="priority" value={formData.priority} onChange={handleChange}>
-                      <option value="rentabilidad">Rentabilidad real</option>
-                      <option value="canales">Canales y comisiones</option>
-                      <option value="cobranzas">Cobranzas y pendientes</option>
-                      <option value="costos">Control de costos</option>
-                    </select>
+                    <label>Web del Hotel</label>
+                    <input 
+                      type="text" 
+                      name="hotel_web" 
+                      placeholder="www.tu-hotel.com"
+                      value={formData.hotel_web}
+                      onChange={handleChange}
+                      required 
+                    />
                   </div>
-                  
-                  {error && <p className={styles.errorText}>{error}</p>}
-                  
-                  <Button type="submit" fullWidth disabled={loading}>
-                    {loading ? 'Enviando...' : 'Solicitar acceso'}
+
+                  <div className={styles.formGroup}>
+                    <label>¿Cuál es tu principal problema hoy?</label>
+                    <textarea 
+                      name="priority" 
+                      placeholder="Ej: No sé mi rentabilidad real, pierdo mucho tiempo con planillas, comisiones muy altas..."
+                      value={formData.priority}
+                      onChange={handleChange}
+                      required
+                      className={styles.textarea}
+                    />
+                  </div>
+
+                  {error && <div className={styles.errorText}>{error}</div>}
+
+                  <Button 
+                    type="submit" 
+                    variant="primary" 
+                    size="lg" 
+                    loading={loading}
+                  >
+                    {formData.uses_cloudbeds === 'si' ? 'Acceder ahora' : 'Anotarme en la lista'}
                   </Button>
-                  <p className={styles.microcopy}>Te ayudamos con el primer import.</p>
+
+                  <div className={styles.wppDivider}>
+                    <span>o también podés</span>
+                  </div>
+
+                  <a 
+                    href="https://wa.me/5492944806519?text=Hola!%20Vengo%20de%20la%20landing%20de%20Financial%20OS.%20Me%20gustar%C3%ADa%20probarlo%20con%20mis%20datos%20de%20Cloudbeds."
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={styles.wppButtonOutline}
+                  >
+                    Consultar por WhatsApp
+                  </a>
+
+                  <p className={styles.microcopy}>
+                    {formData.uses_cloudbeds === 'si' 
+                      ? 'Entrás directo a subir tus reportes.' 
+                      : 'Te avisaremos cuando abramos para otros PMS.'}
+                  </p>
                 </form>
               </>
             )}
