@@ -38,7 +38,6 @@ interface OnboardingChecklistProps {
 const stepIcons: Record<string, any> = {
   transactions: Upload,
   reservations: Upload,
-  channels: Upload,
   costs: Settings,
   review: BarChart3,
 };

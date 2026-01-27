@@ -259,8 +259,10 @@ export default function Profitability() {
           icon={<Database size={48} />}
           title="Sin datos de reservas"
           description="Importá el reporte 'Reservations with Financials' para ver el análisis de rentabilidad por reserva."
-          actionLabel="Ir a Importar"
-          onAction={() => window.location.href = '/importar'}
+          action={{
+            label: "Ir a Importar",
+            to: "/importar"
+          }}
         />
       </div>
     );

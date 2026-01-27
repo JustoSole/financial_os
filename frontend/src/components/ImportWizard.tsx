@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { Upload, FileText, CheckCircle, AlertCircle, X, ExternalLink, Loader2, ArrowRight, Zap, Search, Filter, Download, ChevronDown, ChevronUp, Copy, Check } from 'lucide-react';
 import { validateFile, importFiles, trackEvent } from '../api';
 import { useApp } from '../context/AppContext';
