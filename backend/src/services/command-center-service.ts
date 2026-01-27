@@ -110,7 +110,7 @@ export async function getCommandCenterData(propertyId: string, startDateOrDays: 
       dataConfidence,
       comparisons,
       weeklyAction,
-      homeMetrics // New field
+      homeMetrics
     };
   } catch (error) {
     console.error(`❌ Error building Command Center for ${propertyId}:`, error);
@@ -124,7 +124,7 @@ export async function getCommandCenterData(propertyId: string, startDateOrDays: 
 function createEmptyCommandCenter(propertyId: string, startDateOrDays: any, endDate?: string): CommandCenterData {
   const period = { start: '', end: '', days: 30 };
   return {
-    period,
+    period: { ...period, days: 30 },
     health: {
       netProfit: { value: 0, isPositive: false, trend: 'stable', vsLastPeriod: 0, vsLastPeriodPercent: 0 },
       kpis: {
@@ -138,8 +138,8 @@ function createEmptyCommandCenter(propertyId: string, startDateOrDays: any, endD
     },
     breakeven: {
       breakEvenOccupancy: 0, currentOccupancy: 0, gapToBreakEven: 0, nightsNeededForBreakEven: 0,
-      nightsSoldThisPeriod: 0, nightsGap: 0, breakEvenPrice: 0, currentAdr: 0,
-      marginSimulation: { margin10: 0, margin20: 0, margin30: 0 },
+    nightsSoldThisPeriod: 0, nightsGap: 0, breakEvenPrice: 0, currentAdr: 0,
+    marginSimulation: { margin10: 0, margin20: 0, margin30: 0 },
       distanceToBreakEven: { inDollars: 0, inNights: 0, status: 'at_risk' },
       revparDecomposition: { occupancyContribution: 0, adrContribution: 0, primaryDriver: 'both' }
     },

@@ -3,7 +3,6 @@ import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
 import { initializeDatabase } from './db';
-import { seedDatabase } from './seed';
 import apiRoutes from './routes/api';
 
 const app = express();
@@ -18,8 +17,13 @@ async function startServer() {
   try {
     // Seed database with sample data if empty
     // console.log('🌱 Checking seed data...');
-    // await seedDatabase();
-    // console.log('✅ Seed check complete');
+    // try {
+    //   const { seedDatabase } = await import('./seed');
+    //   await seedDatabase();
+    //   console.log('✅ Seed check complete');
+    // } catch (seedErr) {
+    //   console.warn('⚠️ Seed module not found or failed:', seedErr);
+    // }
 
     app.listen(PORT, () => {
       console.log(`

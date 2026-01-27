@@ -223,6 +223,8 @@ export class CalculationEngine {
       isUsingHistoricalData: this.usedFallbackPeriod,
       effectivePeriod: this.usedFallbackPeriod ? this.period : null,
       requestedPeriod: this.usedFallbackPeriod ? this.originalPeriod : null,
+      // Optional fields in shared type
+      hasChannelPerformance: false,
     };
   }
 
