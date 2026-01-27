@@ -71,7 +71,6 @@ export default function Actions() {
   
   // Track completed steps from backend (synced across devices)
   const [completedSteps, setCompletedSteps] = useState<Record<string, string[]>>({});
-  const [savingStep, setSavingStep] = useState<string | null>(null);
 
   // Use primitive values to prevent infinite re-renders
   const propertyId = property?.id;
