@@ -56,6 +56,17 @@ app.use('/api', apiRoutes);
 
 // Serve frontend static files in production
 if (process.env.NODE_ENV === 'production') {
+  // Expose runtime frontend env (Vite injects at build time, but this provides a fallback)
+  app.get('/env.js', (req, res) => {
+    const publicEnv = {
+      VITE_SUPABASE_URL: process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '',
+      VITE_SUPABASE_ANON_KEY: process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '',
+    };
+    res.setHeader('Content-Type', 'application/javascript');
+    res.setHeader('Cache-Control', 'no-store');
+    res.send(`window.__ENV__ = ${JSON.stringify(publicEnv)};`);
+  });
+
   const frontendDistPath = path.join(__dirname, '../../frontend/dist');
   console.log(`📁 Serving frontend from: ${frontendDistPath}`);
   

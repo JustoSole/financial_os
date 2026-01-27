@@ -7,9 +7,28 @@ let _supabaseClient: SupabaseClient | null = null;
  * Gets the Supabase configuration from Vite environment variables.
  * Returns null if credentials are missing.
  */
+type RuntimeEnv = {
+  VITE_SUPABASE_URL?: string;
+  VITE_SUPABASE_ANON_KEY?: string;
+};
+
+function getRuntimeEnv(): RuntimeEnv {
+  if (typeof window !== 'undefined' && (window as any).__ENV__) {
+    return (window as any).__ENV__ as RuntimeEnv;
+  }
+  return {};
+}
+
 function getSupabaseConfig(): { url: string; key: string } | null {
-  const supabaseUrl = (import.meta as any).env.VITE_SUPABASE_URL || '';
-  const supabaseAnonKey = (import.meta as any).env.VITE_SUPABASE_ANON_KEY || '';
+  const runtimeEnv = getRuntimeEnv();
+  const supabaseUrl =
+    (import.meta as any).env.VITE_SUPABASE_URL ||
+    runtimeEnv.VITE_SUPABASE_URL ||
+    '';
+  const supabaseAnonKey =
+    (import.meta as any).env.VITE_SUPABASE_ANON_KEY ||
+    runtimeEnv.VITE_SUPABASE_ANON_KEY ||
+    '';
   
   if (!supabaseUrl || !supabaseAnonKey) {
     return null;
