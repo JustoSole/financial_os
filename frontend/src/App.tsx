@@ -62,7 +62,11 @@ function RootRoute() {
   }
 
   if (session) {
-    return <AppLayout />;
+    return (
+      <PrivateRoute>
+        <AppLayout />
+      </PrivateRoute>
+    );
   }
 
   return <Landing />;
@@ -75,15 +79,7 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/registro" element={<Register />} />
-          <Route path="/" element={<RootRoute />} />
-          <Route
-            path="/*"
-            element={
-              <PrivateRoute>
-                <AppLayout />
-              </PrivateRoute>
-            }
-          />
+          <Route path="/*" element={<RootRoute />} />
         </Routes>
       </AppProvider>
     </AuthProvider>
