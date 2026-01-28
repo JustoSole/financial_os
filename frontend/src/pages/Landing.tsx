@@ -250,6 +250,17 @@ export default function Landing() {
 
               <div className={styles.carouselItem}>
                 <div className={styles.carouselImage}>
+                  <img src="/screenshots/proyecciones.png" alt="Proyecciones y Pacing" />
+                </div>
+                <div className={styles.carouselInfo}>
+                  <div className={styles.carouselTag}>Proyecciones</div>
+                  <h4>Anticipate al futuro</h4>
+                  <p>Visualizá tu ocupación confirmada (OTB) y compará tu ritmo de venta (Pacing) contra el año pasado para detectar baches antes de que ocurran.</p>
+                </div>
+              </div>
+
+              <div className={styles.carouselItem}>
+                <div className={styles.carouselImage}>
                   <img src="/screenshots/canales.png" alt="Análisis de Canales" />
                 </div>
                 <div className={styles.carouselInfo}>
