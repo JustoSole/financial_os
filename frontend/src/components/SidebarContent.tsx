@@ -9,6 +9,7 @@ import {
   Settings,
   HelpCircle,
   TrendingUp,
+  Calendar,
   BookOpen,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
@@ -20,6 +21,7 @@ const navItems = [
   { to: '/acciones', icon: Zap, label: 'Acciones' },
   { to: '/canales', icon: Target, label: 'Canales' },
   { to: '/rentabilidad', icon: TrendingUp, label: 'Rentabilidad' },
+  { to: '/proyecciones', icon: Calendar, label: 'Proyecciones' },
   // { to: '/caja', icon: Wallet, label: 'Caja' },
   { to: '/costos', icon: Calculator, label: 'Costos' },
   { to: '/importar', icon: Upload, label: 'Importar' },
@@ -50,7 +52,7 @@ export default function SidebarContent({ onItemClick }: SidebarContentProps) {
         </div>
         <div className={styles.logoText}>
           <span className={styles.logoTitle}>Financial OS</span>
-          <span className={styles.logoSubtitle}>by Cloudbeds</span>
+          <span className={styles.logoSubtitle}>by B3 Innovation Group</span>
         </div>
       </div>
 

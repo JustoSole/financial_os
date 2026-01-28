@@ -153,6 +153,10 @@ export const getTrends = (propertyId: string, months: number = 6) =>
 export const getYoYComparison = (propertyId: string) =>
   request<any>(`/metrics/${propertyId}/yoy`);
 
+// NEW: Get projections data (OTB + Pacing)
+export const getProjections = (propertyId: string, horizon: number = 90) =>
+  request<any>(`/metrics/${propertyId}/projections?horizon=${horizon}`);
+
 // =====================================================
 // Reservation Economics (P&L por reserva)
 // =====================================================

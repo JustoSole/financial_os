@@ -7,6 +7,7 @@ export { default as Costs } from './Costs';
 export { default as Import } from './Import';
 export { default as Settings } from './Settings';
 export { default as Profitability } from './Profitability';
+export { default as Projections } from './Projections';
 export { default as Login } from './Login';
 export { default as Register } from './Register';
 

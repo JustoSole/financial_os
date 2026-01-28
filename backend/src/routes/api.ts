@@ -20,6 +20,7 @@ import {
   calculateDOWPerformance,
   calculateYoYComparison,
 } from '../services/metrics-service';
+import { ProjectionsService } from '../services/projections-service';
 import { generateActions, completeActionStep, getCompletedSteps } from '../services/actions-service';
 import { generateInsights } from '../services/insights-service';
 import {
@@ -433,6 +434,17 @@ router.get('/metrics/:propertyId/dow', async (req: Request, res: Response) => {
 router.get('/metrics/:propertyId/yoy', async (req: Request, res: Response) => {
   try {
     const data = await calculateYoYComparison(req.params.propertyId);
+    res.json({ success: true, data });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.get('/metrics/:propertyId/projections', async (req: Request, res: Response) => {
+  try {
+    const horizon = parseInt(req.query.horizon as string) || 90;
+    const service = new ProjectionsService(req.params.propertyId, horizon);
+    const data = await service.getProjections();
     res.json({ success: true, data });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });

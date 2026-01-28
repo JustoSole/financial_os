@@ -333,6 +333,69 @@ export interface YoYComparison {
 }
 
 // =====================================================
+// Projections & Pacing
+// =====================================================
+
+export interface PacingPeriod {
+  label: string;
+  startDate: string;
+  endDate: string;
+  current: {
+    revenue: number;
+    occupancy: number;
+    adr: number;
+    nights: number;
+  };
+  historical: {
+    revenue: number;
+    occupancy: number;
+    adr: number;
+    nights: number;
+  };
+  deltaOccupancy: number;
+  deltaRevenue: number;
+}
+
+export interface GapAlert {
+  id: string;
+  weekStart: string;
+  title: string;
+  description: string;
+  severity: AlertSeverity;
+  currentOccupancy: number;
+  historicalOccupancy: number;
+  actionLabel: string;
+  actionType: 'price_adjustment' | 'visibility_boost' | 'minimum_stay' | 'promotion';
+}
+
+export interface ProjectionsData {
+  horizon: number;
+  summary: {
+    revenueOTB: number;
+    occupancyOTB: number;
+    pendingCollections: number;
+    pickupLast7Days: {
+      reservations: number;
+      revenue: number;
+    };
+  };
+  pacing: {
+    periods: PacingPeriod[];
+    overallTrend: 'ahead' | 'behind' | 'on_track';
+    deltaVsLastYear: number;
+  };
+  gaps: GapAlert[];
+  cashFlow: {
+    byWeek: {
+      weekStart: string;
+      expected: number;
+      alreadyPaid: number;
+      pending: number;
+    }[];
+  };
+}
+
+// =====================================================
 // Profitability / Reservation Economics
 // =====================================================
 

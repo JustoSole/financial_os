@@ -26,15 +26,16 @@ Objetivo: preparar la app para una beta cerrada con usuarios reales enfocando en
 ## 🚀 2) Confiabilidad y Calidad (En Progreso)
 
 ### 2.1 Tests de parsers CSV
-- **Objetivo:** Evitar regresiones en import.
-- **Pendiente:** Implementar suite de tests para `backend/src/parsers/*.ts`.
+- **Estado:** En progreso. Se han sentado las bases para el testing de parsers.
+- **Pendiente:** Completar suite de tests para `backend/src/parsers/*.ts`.
 
 ### 2.2 Tests de calculadoras
 - **Objetivo:** Asegurar resultados esperables en profit y break-even.
 - **Pendiente:** Tests unitarios para `backend/src/services/calculators/*.ts`.
 
-### 2.3 Smoke test E2E del flujo core
-- **Estado:** Verificado manualmente. Import -> Command Center -> Analytics funciona correctamente.
+### 2.3 Proyecciones y OTB (Completado)
+- **Estado:** Finalizado. Se implementó la vista de Proyecciones con gráficos de ocupación e ingresos futuros (OTB).
+- **Componentes:** `Projections.tsx`, `projections-service.ts`.
 
 ---
 
@@ -80,5 +81,6 @@ Objetivo: preparar la app para una beta cerrada con usuarios reales enfocando en
 
 - ✅ Backend robusto con motores de cálculo unificados.
 - ✅ Frontend modernizado con CSS Modules y Mobile-First.
+- ✅ Vista de Proyecciones (OTB) implementada.
 - ✅ Documentación técnica y de producto actualizada.
 - 🔜 Suite de tests automatizados.

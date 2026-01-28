@@ -67,6 +67,7 @@ Solo aparece si hay más de $10K pendiente:
 ### 5. Análisis Profundo (Exploración)
 El análisis detallado se distribuye en vistas especializadas para no saturar el mando:
 *   **Rentabilidad**: P&L por reserva, **Tendencias Históricas** (6 meses), **Comparativas MoM/YoY** y simuladores.
+*   **Proyecciones**: Estimación de ingresos futuros (OTB) y ocupación proyectada.
 *   **Canales**: Tabla completa de comisiones, ADR neto y mix detallado.
 *   **Caja**: Reconciliación, Runway y Aging de cobranzas.
 *   **Costos**: Configuración flexible de costos fijos y variables (V4).
@@ -182,7 +183,7 @@ financial-os-cloudbeds/
 - [x] **v2.0** — Integración Supabase & Auth
 - [x] **v2.1** — P&L Detallado por Reserva & Categorías de Costos V4
 - [x] **v2.2** — Command Center Unificado (40 preguntas)
-- [x] **v2.3** — Refactorización de Motores de Cálculo y Limpieza de Servicios
+- [x] **v2.3** — Proyecciones OTB & Refactorización de Motores
 - [ ] **v3.0** — Inbox Connect (Auto-ingesta por email)
 - [ ] **v3.1** — Integración API Cloudbeds Directa
 

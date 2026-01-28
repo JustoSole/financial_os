@@ -2,7 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider } from './context/AppContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Sidebar, MobileHeader, ConfidenceHeader } from './components';
-import { Home, Landing, Actions, Channels, Costs, Import, Settings, Profitability, Login, Register } from './pages';
+import { Home, Landing, Actions, Channels, Costs, Import, Settings, Profitability, Projections, Login, Register } from './pages';
 import styles from './App.module.css';
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -41,8 +41,9 @@ function AppLayout() {
             <Route path="/" element={<Home />} />
             <Route path="/acciones" element={<Actions />} />
             <Route path="/canales" element={<Channels />} />
-            <Route path="/costos" element={<Costs />} />
             <Route path="/rentabilidad" element={<Profitability />} />
+            <Route path="/proyecciones" element={<Projections />} />
+            <Route path="/costos" element={<Costs />} />
             <Route path="/importar" element={<Import />} />
             <Route path="/configuracion" element={<Settings />} />
             <Route path="*" element={<Navigate to="/" replace />} />
