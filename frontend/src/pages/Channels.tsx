@@ -1,26 +1,11 @@
 import { useState, useEffect, useMemo } from 'react';
-import {
-  PieChart,
-  Pie,
-  Cell,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  LineChart,
-  Line,
-  CartesianGrid,
-  Legend,
-} from 'recharts';
-import { TrendingUp, Info, Target, DollarSign, Minus, ArrowRight, Clock, Zap } from 'lucide-react';
+import { TrendingUp, Info, Target, DollarSign, Minus, ArrowRight, Zap } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { PeriodSelector, Card, LoadingState, EmptyState, MetricDisplay, InfoCard, HelpTooltip } from '../components';
-import { Badge, Button } from '../components/ui';
+import { Badge } from '../components/ui';
 import { useApp } from '../context/AppContext';
 import { getChannels } from '../api';
-import { formatCurrency, formatCurrencyShort } from '../utils/formatters';
+import { formatCurrency } from '../utils/formatters';
 import styles from './Channels.module.css';
 
 // Premium color palette matching new theme
@@ -30,8 +15,6 @@ export default function Channels() {
   const { property, dateRange } = useApp();
   const [channelData, setChannelData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [showSimulation, setShowSimulation] = useState(false);
-  const [selectedChannelForLeadTime, setSelectedChannelForLeadTime] = useState<string | null>(null);
 
   useEffect(() => {
     if (property) loadChannels();
@@ -43,13 +26,6 @@ export default function Channels() {
     const res = await getChannels(property.id, dateRange.days);
     if (res.success && res.data) {
       setChannelData(res.data);
-      // Set default selected channel for lead time if not set
-      if (res.data.channels && res.data.channels.length > 0) {
-        const topOta = res.data.channels.find((c: any) => 
-          !['direct', 'walk-in', 'directo'].includes(c.source.toLowerCase())
-        );
-        setSelectedChannelForLeadTime(topOta?.source || res.data.channels[0].source);
-      }
     }
     setLoading(false);
   };
@@ -70,10 +46,13 @@ export default function Channels() {
     
     let othersMedianLeadTime = 0;
     if (othersLeadTimes.length > 0) {
-      const sorted = [...othersLeadTimes].sort((a, b) => a - b);
-      const mid = Math.floor(sorted.length / 2);
-      othersMedianLeadTime = sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+      const sortedLeadTimes = [...othersLeadTimes].sort((a, b) => a - b);
+      const mid = Math.floor(sortedLeadTimes.length / 2);
+      othersMedianLeadTime = sortedLeadTimes.length % 2 !== 0 ? sortedLeadTimes[mid] : (sortedLeadTimes[mid - 1] + sortedLeadTimes[mid]) / 2;
     }
+
+    const totalRevenueAll = sorted.reduce((sum, c) => sum + c.revenue, 0);
+    const totalNetProfitAll = sorted.reduce((sum, c) => sum + c.netProfit, 0);
 
     return [
       ...top5,
@@ -86,8 +65,8 @@ export default function Channels() {
         netProfit: othersNetProfit,
         profitPerNight: othersNights > 0 ? othersNetProfit / othersNights : 0,
         medianLeadTime: Math.round(othersMedianLeadTime * 10) / 10,
-        revenueShare: othersRevenue / sorted.reduce((sum, c) => sum + c.revenue, 0),
-        profitShare: othersNetProfit / sorted.reduce((sum, c) => sum + c.netProfit, 0),
+        revenueShare: totalRevenueAll > 0 ? othersRevenue / totalRevenueAll : 0,
+        profitShare: totalNetProfitAll > 0 ? othersNetProfit / totalNetProfitAll : 0,
         effectiveCommissionRate: othersRevenue > 0 ? othersCommission / othersRevenue : 0,
         adr: othersNights > 0 ? othersRevenue / othersNights : 0,
         adrNet: othersNights > 0 ? (othersRevenue - othersCommission) / othersNights : 0,
@@ -97,7 +76,6 @@ export default function Channels() {
   }, [channelData]);
 
   const insights = channelData?.insights || {};
-  const leadTimeAnalysis = insights.leadTimeAnalysis || {};
 
   const totalRevenue = channels.reduce((sum: number, c: any) => sum + (c.revenue || 0), 0);
   const totalCommission = channels.reduce(
@@ -110,70 +88,6 @@ export default function Channels() {
   const sortedByProfitPerNight = [...channels]
     .filter((c: any) => c.roomNights > 0)
     .sort((a: any, b: any) => b.profitPerNight - a.profitPerNight);
-
-  const adrChartData = sortedByProfitPerNight.map((c: any, i: number) => ({
-    name: c.source.length > 12 ? c.source.substring(0, 12) + '...' : c.source,
-    fullName: c.source,
-    adrNet: c.adrNet,
-    profitPerNight: c.profitPerNight,
-    commission: Math.round(c.adr * c.effectiveCommissionRate),
-    fill: COLORS[i % COLORS.length],
-  }));
-
-  const profitPieData = useMemo(() => {
-    const totalProfit = channels.reduce((sum: number, c: any) => sum + (c.netProfit > 0 ? c.netProfit : 0), 0);
-    if (totalProfit === 0) return [];
-
-    // Calculate raw percentages
-    const rawData = channels
-      .filter((c: any) => c.netProfit > 0)
-      .map((c: any, i: number) => ({
-        name: c.source,
-        value: c.netProfit || 0,
-        fill: COLORS[i % COLORS.length],
-        percentage: (c.netProfit / totalProfit) * 100
-      }));
-
-    // Use Largest Remainder Method to ensure sum is 100% with 1 decimal
-    const factor = 10;
-    const targetSum = 100 * factor;
-    
-    const withFloored = rawData.map(item => ({
-      ...item,
-      floored: Math.floor(item.percentage * factor),
-      remainder: (item.percentage * factor) - Math.floor(item.percentage * factor)
-    }));
-
-    let currentSum = withFloored.reduce((sum, item) => sum + item.floored, 0);
-    const diff = targetSum - currentSum;
-
-    const sortedByRemainder = [...withFloored].sort((a, b) => b.remainder - a.remainder);
-    
-    for (let i = 0; i < diff; i++) {
-      const itemToIncrement = sortedByRemainder[i % sortedByRemainder.length];
-      const originalItem = withFloored.find(item => item.name === itemToIncrement.name);
-      if (originalItem) originalItem.floored += 1;
-    }
-
-    return withFloored.map(item => ({
-      ...item,
-      displayPercentage: item.floored / factor
-    }));
-  }, [channels]);
-
-  const leadTimeChartData = useMemo(() => {
-    if (!leadTimeAnalysis.globalLeadTimeProfitability) return [];
-    return leadTimeAnalysis.globalLeadTimeProfitability.map((p: any) => ({
-      range: p.leadTimeRange,
-      profit: p.avgProfitPerNight,
-      count: p.reservationCount,
-    }));
-  }, [leadTimeAnalysis]);
-
-  const channelLeadTimeData = useMemo(() => {
-    if (!selectedChannelForLeadTime || !leadTimeAnalysis.byChannel) return [];
-    return leadTimeAnalysis.byChannel[selectedChannelForLeadTime] || [];
-  }, [selectedChannelForLeadTime, leadTimeAnalysis]);
 
   const fmt = (value: number, compact: boolean = false) => formatCurrency(value, { compact });
 
