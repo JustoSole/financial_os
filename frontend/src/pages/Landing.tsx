@@ -250,7 +250,7 @@ export default function Landing() {
 
               <div className={styles.carouselItem}>
                 <div className={styles.carouselImage}>
-                  <img src="/screenshots/proyecciones.png" alt="Proyecciones y Pacing" />
+                  <img src="/screenshots/Proyecciones.png" alt="Proyecciones y Pacing" />
                 </div>
                 <div className={styles.carouselInfo}>
                   <div className={styles.carouselTag}>Proyecciones</div>
