@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
 import { getProjections } from '../api';
 import { 
@@ -6,7 +6,6 @@ import {
   PeriodSelector, 
   HelpTooltip, 
   LoadingState,
-  Alert,
   Badge,
   ProgressBar
 } from '../components';
@@ -16,7 +15,6 @@ import {
   formatPercent 
 } from '../utils/formatters';
 import { 
-  Calendar, 
   TrendingUp, 
   TrendingDown, 
   AlertTriangle, 
@@ -26,8 +24,9 @@ import {
   ArrowRight,
   Clock
 } from 'lucide-react';
-import { ProjectionsData, PacingPeriod, GapAlert } from '@financial-os/shared';
+import { ProjectionsData } from '@financial-os/shared';
 import styles from './Projections.module.css';
+import { CardHeader, CardTitle } from '../components/ui/Card';
 
 export default function Projections() {
   const { property } = useApp();
@@ -93,8 +92,8 @@ export default function Projections() {
               <span>{formatPercent((data.summary.revenueOTB - data.summary.pendingCollections) / data.summary.revenueOTB * 100)}</span>
             </div>
             <ProgressBar 
-              progress={(data.summary.revenueOTB - data.summary.pendingCollections) / data.summary.revenueOTB * 100} 
-              color="var(--color-success)"
+              value={(data.summary.revenueOTB - data.summary.pendingCollections) / data.summary.revenueOTB * 100} 
+              variant="success"
             />
           </div>
         </Card>
@@ -117,7 +116,7 @@ export default function Projections() {
               </span>
             )}
           </div>
-          <ProgressBar progress={data.summary.occupancyOTB} color="var(--color-primary)" />
+          <ProgressBar value={data.summary.occupancyOTB} variant="primary" />
         </Card>
 
         <Card className={styles.metricCard}>
@@ -138,7 +137,10 @@ export default function Projections() {
 
       {/* Nivel 2: Gráfico de Pacing */}
       <section className={styles.pacingSection}>
-        <Card title="Ritmo de Venta Semanal (Pacing YoY)">
+        <Card>
+          <CardHeader>
+            <CardTitle>Ritmo de Venta Semanal (Pacing YoY)</CardTitle>
+          </CardHeader>
           <div className={styles.pacingInfo}>
             <Info size={16} />
             <p>Comparación de ocupación actual vs. ocupación que tenías el año pasado a esta misma distancia del check-in (DBA).</p>
@@ -153,15 +155,15 @@ export default function Projections() {
                 <div className={styles.pacingBars}>
                   <div className={styles.barGroup}>
                     <div className={styles.barLabel}>Actual: {period.current.occupancy}%</div>
-                    <ProgressBar progress={period.current.occupancy} color="var(--color-primary)" height={12} />
+                    <ProgressBar value={period.current.occupancy} variant="primary" height={12} />
                   </div>
                   <div className={styles.barGroup}>
                     <div className={styles.barLabel}>Año Ant: {period.historical.occupancy}%</div>
-                    <ProgressBar progress={period.historical.occupancy} color="var(--color-text-muted)" height={12} />
+                    <ProgressBar value={period.historical.occupancy} variant="info" height={12} />
                   </div>
                 </div>
                 <div className={styles.periodDelta}>
-                  <Badge variant={period.deltaOccupancy >= 0 ? 'success' : 'danger'}>
+                  <Badge variant={period.deltaOccupancy >= 0 ? 'success' : 'error'}>
                     {period.deltaOccupancy >= 0 ? '+' : ''}{period.deltaOccupancy}%
                   </Badge>
                 </div>
@@ -191,7 +193,7 @@ export default function Projections() {
                   <Badge variant={gap.severity === 'warning' ? 'warning' : 'info'}>
                     {gap.severity.toUpperCase()}
                   </Badge>
-                  <span className={styles.gapDate}>{new Date(gap.weekStart).toLocaleDateString('es-AR', { week: 'long', day: 'numeric', month: 'long' })}</span>
+                  <span className={styles.gapDate}>{new Date(gap.weekStart).toLocaleDateString('es-AR', { day: 'numeric', month: 'long' })}</span>
                 </div>
                 <h3>{gap.title}</h3>
                 <p>{gap.description}</p>
@@ -216,7 +218,10 @@ export default function Projections() {
 
       {/* Cash Flow Futuro */}
       <section className={styles.cashFlowSection}>
-        <Card title="Efectivo por Entrar (Próximas Semanas)">
+        <Card>
+          <CardHeader>
+            <CardTitle>Efectivo por Entrar (Próximas Semanas)</CardTitle>
+          </CardHeader>
           <div className={styles.cashFlowTable}>
             <div className={styles.tableHeader}>
               <span>Semana</span>
