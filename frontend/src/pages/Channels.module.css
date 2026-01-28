@@ -37,25 +37,77 @@
 
 .heroStats {
   display: flex;
+  align-items: center;
   gap: var(--space-8);
 }
 
-.heroStat {
-  display: flex;
-  flex-direction: column;
+.simButton {
+  border-color: var(--color-success);
+  color: var(--color-success);
 }
 
-.heroStatLabel {
+.simButton:hover {
+  background: var(--color-success-bg);
+  color: var(--color-success-dark);
+}
+
+.simulationBox {
+  margin-top: var(--space-6);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--color-border);
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.simHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 600;
+  margin-bottom: var(--space-4);
+  color: var(--color-text);
+}
+
+.simGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-6);
+}
+
+.simItem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.simLabel {
   font-size: var(--text-xs);
   color: var(--color-text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
 }
 
-.heroStatValue {
-  font-size: var(--text-xl);
-  font-weight: 800;
-  font-family: var(--font-mono);
+.simValue {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--color-success);
+}
+
+.simLink {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--color-primary);
+  text-decoration: underline;
+  font-weight: 600;
+}
+
+.footerInfo {
+  margin-top: var(--space-8);
 }
 
 .metrics {
@@ -187,6 +239,145 @@
 
 .rowWorst {
   background: var(--color-error-bg);
+}
+
+.leadTimeGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: var(--space-6);
+  margin-bottom: var(--space-6);
+}
+
+.leadTimeCard {
+  padding: var(--space-6);
+}
+
+.leadTimeHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--space-4);
+}
+
+.leadTimeInfo {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.leadTimeTitle {
+  font-size: var(--text-base);
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.leadTimeSubtitle {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+}
+
+.leadTimeChartContainer {
+  height: 250px;
+  width: 100%;
+  margin-top: var(--space-4);
+}
+
+.leadTimeLegend {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+  font-size: var(--text-xs);
+}
+
+.leadTimeLegendItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-text-secondary);
+}
+
+.leadTimeDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.opportunityCard {
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+  border: 1px solid #bbf7d0;
+  margin-bottom: var(--space-6);
+}
+
+.opportunityHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.opportunityIcon {
+  background: #22c55e;
+  color: white;
+  padding: var(--space-2);
+  border-radius: var(--radius-md);
+}
+
+.opportunityTitle {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: #166534;
+}
+
+.opportunityGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: var(--space-6);
+}
+
+.opportunityItem {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.opportunityLabel {
+  font-size: var(--text-sm);
+  color: #166534;
+  opacity: 0.8;
+}
+
+.opportunityValue {
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  color: #15803d;
+}
+
+.opportunityDesc {
+  font-size: var(--text-sm);
+  color: #166534;
+  line-height: 1.5;
+}
+
+.opportunityAction {
+  margin-top: var(--space-4);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  background: #166534;
+  color: white;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.2s;
+}
+
+.opportunityAction:hover {
+  background: #14532d;
+  transform: translateY(-1px);
 }
 
 @media (max-width: 1024px) {

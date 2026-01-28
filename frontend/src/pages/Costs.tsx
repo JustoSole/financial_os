@@ -3,7 +3,7 @@ import {
   Save, CheckCircle, DollarSign, Building, 
   Calculator, TrendingUp, AlertCircle, Sparkles,
   CreditCard, Globe, ChevronDown, ChevronUp,
-  Plus, Trash2, Info, Zap, Calendar
+  Plus, Trash2, Info, Zap, Calendar, Shield
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { 
@@ -108,6 +108,7 @@ export default function Costs() {
     defaultRate: 0.035,
     byMethod: { ...KNOWN_PAYMENT_RATES }, // Pre-populate with known rates
   });
+  const [taxRules, setTaxRules] = useState<any[]>([]);
   
   // PMS data
   const [occupiedNights, setOccupiedNights] = useState(0);
@@ -244,6 +245,11 @@ export default function Costs() {
             }
           };
         }
+
+        // Load tax rules
+        if (data.tax_rules) {
+          setTaxRules(data.tax_rules);
+        }
         
         // Set occupancy data
         if (data.calculated) {
@@ -303,6 +309,7 @@ export default function Costs() {
         extraordinaryCosts,
         channelCommissions,
         paymentFees,
+        tax_rules: taxRules,
       };
       const res = await updateCosts(property.id, updateData);
       if (res.success) {
@@ -422,6 +429,26 @@ export default function Costs() {
   
   const removeExtraordinaryCost = (id: string) => {
     setExtraordinaryCosts(prev => prev.filter(c => c.id !== id));
+  };
+
+  // Tax rules management
+  const addTaxRule = () => {
+    setTaxRules(prev => [...prev, {
+      id: generateId(),
+      type: 'VAT',
+      appliesTo: 'room_rate',
+      method: 'percentage',
+      value: 0,
+      includedInRate: true
+    }]);
+  };
+
+  const updateTaxRule = (id: string, updates: any) => {
+    setTaxRules(prev => prev.map(r => r.id === id ? { ...r, ...updates } : r));
+  };
+
+  const removeTaxRule = (id: string) => {
+    setTaxRules(prev => prev.filter(r => r.id !== id));
   };
 
   // =====================================================
@@ -930,10 +957,12 @@ export default function Costs() {
                             ) : (
                               <div className={styles.inputCurrency}>
                                 <input
-                                  type="number"
-                                  value={isNaN(rate) ? 0 : Math.round(rate * 1000) / 10}
-                                  onChange={(e) => updateChannelRate(channel.name, Number(e.target.value) / 100)}
-                                  style={{ width: '60px' }}
+                                  type="text"
+                                  inputMode="numeric"
+                                  pattern="[0-9]*"
+                                  value={formatNumericInputValue(Math.round(rate * 100) || 0)}
+                                  onChange={(e) => updateChannelRate(channel.name, parseIntegerInput(e.target.value) / 100)}
+                                  style={{ color: '#1a1a1a', WebkitTextFillColor: '#1a1a1a', opacity: 1 }}
                                 />
                                 <span className="suffix">%</span>
                               </div>
@@ -954,13 +983,15 @@ export default function Costs() {
                   <span>Comisión por defecto</span>
                   <div className={styles.inputCurrency}>
                     <input
-                      type="number"
-                      value={isNaN(channelCommissions.defaultRate) ? 0 : Math.round(channelCommissions.defaultRate * 1000) / 10}
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      value={formatNumericInputValue(Math.round(channelCommissions.defaultRate * 100) || 0)}
                       onChange={(e) => setChannelCommissions(prev => ({ 
                         ...prev, 
-                        defaultRate: Number(e.target.value) / 100 
+                        defaultRate: parseIntegerInput(e.target.value) / 100 
                       }))}
-                      style={{ width: '60px' }}
+                      style={{ color: '#1a1a1a', WebkitTextFillColor: '#1a1a1a', opacity: 1 }}
                     />
                     <span className="suffix">%</span>
                   </div>
@@ -993,10 +1024,12 @@ export default function Costs() {
                         <span className={styles.categoryName}>{method}</span>
                         <div className={styles.inputCurrency}>
                           <input
-                            type="number"
-                            value={isNaN(rate) ? 0 : Math.round(rate * 1000) / 10}
-                            onChange={(e) => updatePaymentRate(method, Number(e.target.value) / 100)}
-                            style={{ width: '60px' }}
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            value={formatNumericInputValue(Math.round(rate * 100) || 0)}
+                            onChange={(e) => updatePaymentRate(method, parseIntegerInput(e.target.value) / 100)}
+                            style={{ color: '#1a1a1a', WebkitTextFillColor: '#1a1a1a', opacity: 1 }}
                           />
                           <span className="suffix">%</span>
                         </div>
@@ -1006,6 +1039,87 @@ export default function Costs() {
                 </div>
               </div>
             )}
+          </section>
+
+          {/* Taxes and Fees */}
+          <section className={styles.costCard}>
+            <div className={styles.cardHeader}>
+              <div className={`${styles.cardIcon} ${styles.amber}`}><Shield size={18} /></div>
+              <div className={styles.cardTitle}>
+                <h2>Impuestos y Tasas</h2>
+                <p>IVA, tasas municipales y otros impuestos</p>
+              </div>
+            </div>
+            <div className={styles.cardBody}>
+              <div className={styles.helpText}>
+                <Info size={14} />
+                <span>Configurá los impuestos que se aplican a tus ventas para calcular el <strong>profit neto real</strong>.</span>
+              </div>
+
+              <div className={styles.categoriesList}>
+                {taxRules.map((rule) => (
+                  <div key={rule.id} className={styles.taxRuleRow}>
+                    <div className={styles.taxRuleMain}>
+                      <select 
+                        value={rule.type} 
+                        onChange={(e) => updateTaxRule(rule.id, { type: e.target.value })}
+                        className={styles.taxSelect}
+                      >
+                        <option value="VAT">IVA / VAT</option>
+                        <option value="OCCUPANCY">Tasa de Ocupación</option>
+                        <option value="CITY_TAX">Tasa Turística</option>
+                        <option value="OTHER">Otro</option>
+                      </select>
+                      
+                      <div className={styles.taxInputs}>
+                        <div className={styles.inputCurrency}>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            value={formatNumericInputValue(rule.value || 0)}
+                            onChange={(e) => updateTaxRule(rule.id, { value: parseIntegerInput(e.target.value) })}
+                            style={{ color: '#1a1a1a', WebkitTextFillColor: '#1a1a1a', opacity: 1 }}
+                          />
+                          <span className="suffix">{rule.method === 'percentage' ? '%' : '$'}</span>
+                        </div>
+                        
+                        <select 
+                          value={rule.method} 
+                          onChange={(e) => updateTaxRule(rule.id, { method: e.target.value })}
+                          className={styles.taxSelectSmall}
+                        >
+                          <option value="percentage">% del total</option>
+                          <option value="fixed_per_night">$ por noche</option>
+                          <option value="fixed_per_stay">$ por estadía</option>
+                        </select>
+                      </div>
+                    </div>
+                    
+                    <div className={styles.taxRuleOptions}>
+                      <label className={styles.checkboxLabel}>
+                        <input
+                          type="checkbox"
+                          checked={rule.includedInRate}
+                          onChange={(e) => updateTaxRule(rule.id, { includedInRate: e.target.checked })}
+                        />
+                        <span>Incluido en la tarifa</span>
+                      </label>
+                      <button 
+                        className={styles.btnRemove}
+                        onClick={() => removeTaxRule(rule.id)}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <button className={styles.btnAddTax} onClick={addTaxRule}>
+                <Plus size={16} /> Agregar impuesto
+              </button>
+            </div>
           </section>
         </div>
       </div>

@@ -5,75 +5,25 @@ import { getCommandCenter } from '../api';
 import { PeriodSelector, HelpTooltip, OnboardingWizard } from '../components';
 import { formatCurrency, formatCurrencyShort } from '../utils/formatters';
 import { isOnboardingCompleted, markOnboardingCompleted, resetOnboarding } from '../utils/onboarding';
-import {
-  TrendingUp,
-  TrendingDown,
-  AlertTriangle,
-  DollarSign,
-  BarChart3,
-  ArrowRight,
-  Target,
-  CreditCard,
-  Zap,
+import { 
+  Zap, 
+  TrendingUp, 
+  TrendingDown, 
+  ArrowRight, 
+  DollarSign, 
+  BarChart3, 
+  Target, 
   ChevronRight,
+  AlertTriangle,
   Clock,
+  CreditCard
 } from 'lucide-react';
 import styles from './Home.module.css';
 
 
-// =====================================================
-// Types
-// =====================================================
-
-interface ComparisonMetric {
-  current: number;
-  previous: number;
-  changePercent: number;
-}
-
-interface ComparisonData {
-  currentPeriod: string;
-  previousPeriod: string;
-  metrics: {
-    revenue: ComparisonMetric;
-    adr: ComparisonMetric;
-    occupancy: ComparisonMetric;
-    revpar?: ComparisonMetric;
-    netProfit?: ComparisonMetric;
-  };
-}
-
-interface ProjectionMetrics {
-  projectedRevenue: number;
-  projectedOccupancy: number;
-  avgBookingWindow: number;
-  totalOTB: number;
-  estimatedMonthEnd: number;
-}
-
-interface HomeMetricsData {
-  period: { start: string; end: string; days: number };
-  cobrado: { value: number; trust: string };
-  cargado: { value: number; trust: string };
-  pendiente: { value: number; trust: string };
-  projections?: ProjectionMetrics;
-}
-
-interface CommandCenterData {
-  period: { start: string; end: string; days: number };
-  health: any;
-  breakeven: any;
-  unitEconomics: any;
-  channels: any;
-  cash: any;
-  dataConfidence: any;
-  comparisons: {
-    mom: ComparisonData | null;
-    yoy: ComparisonData | null;
-  };
-  weeklyAction: any;
-  homeMetrics?: HomeMetricsData;
-}
+import { 
+  CommandCenterData, 
+} from '@financial-os/shared';
 
 // =====================================================
 // Main Component - Command Center
@@ -136,7 +86,7 @@ export default function Home() {
             // First time - check if there's real data
             // We check for both health KPIs and data confidence to be more robust
             const hasRealData = commandRes.data?.health && 
-              (commandRes.data?.health?.kpis?.occupancy?.value > 0 || 
+              ((commandRes.data?.health?.kpis?.occupancy?.value || 0) > 0 || 
                (commandRes.data?.dataConfidence?.monthsCovered && commandRes.data?.dataConfidence?.monthsCovered > 0));
             
             setShowOnboarding(!hasRealData);
@@ -281,7 +231,6 @@ export default function Home() {
           subtitle="Lo que necesitás saber para decidir hoy"
         />
         
-        {/* Projections Mirror Section - New */}
         {data.homeMetrics?.projections && (
           <div className={styles.projectionsGrid}>
             <div className={styles.projectionCard}>
@@ -296,7 +245,7 @@ export default function Home() {
                 </div>
                 <div className={styles.projectionItem}>
                   <span className={styles.projectionLabel}>Ocupación Proyectada</span>
-                  <span className={styles.projectionValue}>{Math.round(data.homeMetrics.projections.projectedOccupancy * 100)}%</span>
+                  <span className={styles.projectionValue}>{(data.homeMetrics.projections.projectedOccupancy * 100).toFixed(1)}%</span>
                 </div>
               </div>
               <div className={styles.projectionFooter}>
@@ -364,32 +313,32 @@ export default function Home() {
         <div className={styles.quickIndicators}>
           <StatusCard
             title="Ocupación"
-            value={`${data.health.kpis.occupancy.value.toFixed(0)}%`}
-            status={data.health.kpis.occupancy.status}
-            label={data.health.kpis.occupancy.status === 'good' ? 'Nivel saludable' : data.health.kpis.occupancy.status === 'warning' ? 'Podría mejorar' : 'Muy baja'}
+            value={`${(data.structure?.occupancyRate || 0).toFixed(1)}%`}
+            status={data.health?.kpis?.occupancy?.status || 'warning'}
+            label={data.health?.kpis?.occupancy?.status === 'good' ? 'Nivel saludable' : data.health?.kpis?.occupancy?.status === 'warning' ? 'Podría mejorar' : 'Muy baja'}
             subtitle="de habitaciones vendidas"
             helpKey="occupancy"
-            comparison={data.comparisons.mom?.metrics.occupancy ? {
+            comparison={data.comparisons?.mom?.metrics?.occupancy ? {
               value: data.comparisons.mom.metrics.occupancy.changePercent,
               label: 'vs anterior'
             } : null}
           />
           <StatusCard
             title="Ganancia por Noche"
-            value={formatCurrencyShort(data.unitEconomics.profitPerNight)}
-            status={data.unitEconomics.profitPerNight > 0 ? 'good' : 'bad'}
-            label={data.unitEconomics.profitPerNight > 0 ? 'Rentable' : 'Con pérdida'}
+            value={formatCurrencyShort(data.unitEconomics?.profitPerNight || 0)}
+            status={(data.unitEconomics?.profitPerNight || 0) > 0 ? 'good' : 'bad'}
+            label={(data.unitEconomics?.profitPerNight || 0) > 0 ? 'Rentable' : 'Con pérdida'}
             subtitle="después de costos"
             helpKey="profit_per_night"
           />
           <StatusCard
             title="Punto de Equilibrio"
-            value={`${data.breakeven.currentOccupancy.toFixed(0)}%`}
-            status={data.breakeven.gapToBreakEven >= 0 ? 'good' : 'bad'}
-            label={data.breakeven.gapToBreakEven >= 0 
-              ? `${Math.abs(data.breakeven.gapToBreakEven).toFixed(0)}pp sobre el mínimo` 
-              : `${Math.abs(data.breakeven.gapToBreakEven).toFixed(0)}pp bajo el mínimo`}
-            subtitle={`necesitás ${data.breakeven.breakEvenOccupancy.toFixed(0)}% para cubrir costos`}
+            value={`${(data.breakeven?.breakEvenOccupancy || 0).toFixed(1)}%`}
+            status={data.breakeven?.gapToBreakEven >= 0 ? 'good' : 'bad'}
+            label={data.breakeven?.gapToBreakEven >= 0 
+              ? `${Math.abs(data.breakeven?.gapToBreakEven || 0).toFixed(1)}pp sobre el mínimo` 
+              : `${Math.abs(data.breakeven?.gapToBreakEven || 0).toFixed(1)}pp bajo el mínimo`}
+            subtitle={`necesitás ${(data.breakeven?.breakEvenOccupancy || 0).toFixed(1)}% para cubrir costos`}
             helpKey="breakeven_occupancy"
           />
         </div>
@@ -644,11 +593,11 @@ function PeriodSummaryStats({
   comparisons: CommandCenterData['comparisons'];
 }) {
   const mom = comparisons?.mom;
-  const revenue = mom?.metrics.revenue.current || 0;
-  const revenueChange = mom?.metrics.revenue.changePercent;
+  const revenue = mom?.metrics?.revenue?.current || 0;
+  const revenueChange = mom?.metrics?.revenue?.changePercent;
   
   const adr = health?.kpis?.adr?.value || 0;
-  const adrChange = mom?.metrics.adr?.changePercent;
+  const adrChange = mom?.metrics?.adr?.changePercent;
   
   const nightsSold = breakeven?.nightsSoldThisPeriod || 0;
   
@@ -702,10 +651,10 @@ function PeriodComparisonWidget({ comparisons }: { comparisons: CommandCenterDat
   
   // Check if we have valid comparison data
   const hasValidData = mom && 
-    mom.metrics.netProfit && 
+    mom.metrics?.netProfit && 
     (mom.metrics.netProfit.previous !== 0 || mom.metrics.netProfit.current !== 0);
   
-  const changePercent = mom?.metrics.netProfit?.changePercent;
+  const changePercent = mom?.metrics?.netProfit?.changePercent;
   const hasMeaningfulChange = changePercent !== null && 
     changePercent !== undefined && 
     !isNaN(changePercent) && 
@@ -735,13 +684,13 @@ function PeriodComparisonWidget({ comparisons }: { comparisons: CommandCenterDat
     );
   }
 
-  const isPositive = changePercent >= 0;
+  const isPositive = changePercent !== undefined && changePercent >= 0;
   
   return (
     <div className={styles.contextItem}>
       <span className={styles.contextLabel}>vs período anterior</span>
       <div className={`${styles.contextValue} ${isPositive ? styles.positive : styles.negative}`}>
-        {isPositive ? '+' : ''}{changePercent.toFixed(1)}%
+        {isPositive ? '+' : ''}{changePercent?.toFixed(1)}%
       </div>
       <span className={styles.contextSubtext}>
         {isPositive ? 'Mejorando' : 'Bajando'}

@@ -126,12 +126,25 @@ export interface ChannelData {
   adr: number;
   adrNet: number;
   realCostPercent: number;
+  avgLeadTime?: number;
+  profitPerNight?: number;
+}
+
+export interface ChannelLeadTimePoint {
+  leadTimeRange: string; // e.g. "0-7", "8-14", "15-30", "30+"
+  avgProfitPerNight: number;
+  reservationCount: number;
+  revenue: number;
 }
 
 export interface ChannelInsights {
   bestChannel: { name: string; adrNet: number; reason?: string } | null;
   worstChannel: { name: string; adrNet: number; realCost?: string } | null;
   directAdr: number;
+  leadTimeAnalysis?: {
+    byChannel: Record<string, ChannelLeadTimePoint[]>;
+    globalLeadTimeProfitability: ChannelLeadTimePoint[];
+  };
 }
 
 export interface ChannelMetrics {
@@ -631,6 +644,7 @@ export interface WeeklyAction {
 export interface CommandCenterData {
   period: DatePeriod;
   health: BusinessHealthSnapshot;
+  structure: StructureMetrics;
   breakeven: BreakEvenAnalysis;
   unitEconomics: UnitEconomics;
   channels: ChannelEconomics;

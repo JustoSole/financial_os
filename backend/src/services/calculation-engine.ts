@@ -357,21 +357,25 @@ export class CalculationEngine {
     const totalPossibleNights = roomCount * requestedDays;
     const projectedOccupancy = totalPossibleNights > 0 ? occupiedNights / totalPossibleNights : 0;
 
-    // 4. Booking Window (Anticipación) - usar created_at como proxy de fecha de reserva
+    // 4. Booking Window (Anticipación) - usar reservation_date del CSV de Cloudbeds
     let totalLeadTime = 0;
     let leadTimeCount = 0;
     
     this.allReservations.forEach(r => {
-      // Usar reservation_date si existe, sino usar created_at como proxy
-      const bookingDate = r.reservation_date || r.created_at;
+      const bookingDate = r.reservation_date;
       if (bookingDate && r.check_in) {
-        const resDate = new Date(bookingDate);
-        const checkIn = new Date(r.check_in);
-        const diff = Math.ceil((checkIn.getTime() - resDate.getTime()) / msPerDay);
-        // Solo contar si check_in es posterior a la fecha de reserva y es razonable (<365 días)
-        if (diff > 0 && diff < 365) {
-          totalLeadTime += diff;
-          leadTimeCount++;
+        const resDateStr = typeof bookingDate === 'string' ? bookingDate.substring(0, 10) : '';
+        const checkInStr = typeof r.check_in === 'string' ? r.check_in.substring(0, 10) : '';
+        
+        if (resDateStr && checkInStr) {
+          const resDate = new Date(resDateStr + 'T00:00:00Z');
+          const checkIn = new Date(checkInStr + 'T00:00:00Z');
+          const diff = Math.round((checkIn.getTime() - resDate.getTime()) / msPerDay);
+          // Solo contar si check_in es posterior a la fecha de reserva y es razonable (<365 días)
+          if (diff >= 0 && diff < 365) {
+            totalLeadTime += diff;
+            leadTimeCount++;
+          }
         }
       }
     });
@@ -424,11 +428,14 @@ export class CalculationEngine {
     const occupancyRate = availableNights > 0 ? (totalNights / availableNights) * 100 : 0;
     const adr = totalNights > 0 ? totalRevenue / totalNights : 0;
     
+    // Consistent rounding for occupancy across all views (Issue E)
+    const roundedOccupancy = Math.round(Math.min(100, occupancyRate) * 10) / 10;
+
     return {
       period: effectivePeriod,
-      occupancyRate: Math.min(100, occupancyRate), // No rounding here
-      ADR: adr, // No rounding here
-      RevPAR: availableNights > 0 ? totalRevenue / availableNights : 0, // No rounding here
+      occupancyRate: roundedOccupancy,
+      ADR: Math.round(adr),
+      RevPAR: availableNights > 0 ? Math.round(totalRevenue / availableNights) : 0,
       NRevPAR: 0, // Calculated in detailed views
       GOPPAR: 0, // Calculated in detailed views
       roomCount,
@@ -483,11 +490,39 @@ export class CalculationEngine {
       return sum + (r.room_revenue_total * rate);
     }, 0);
 
-    const netProfit = totalRevenue - costs.totalFixed - costs.totalVariable - totalCommissions;
+    // Calculate Taxes
+    const taxRules = this.costSettings?.tax_rules || [];
+    let totalTaxes = 0;
+    
+    this.reservations.forEach(r => {
+      const roomRevenue = r.room_revenue_total || 0;
+      const nights = r.room_nights || 0;
+      
+      taxRules.forEach((rule: any) => {
+        let taxAmount = 0;
+        if (rule.method === 'percentage') {
+          const base = rule.appliesTo === 'room_rate' ? roomRevenue : roomRevenue; // Simplified
+          taxAmount = base * (rule.value / 100);
+        } else if (rule.method === 'fixed_per_night') {
+          taxAmount = rule.value * nights;
+        } else if (rule.method === 'fixed_per_stay') {
+          taxAmount = rule.value;
+        }
+        
+        // If tax is already included in rate, it's a cost. 
+        // If it's not included, it's added to total but doesn't affect net profit (unless we consider it revenue first).
+        // Standard RM: Net Profit = Revenue (Net of included taxes) - Costs.
+        if (rule.includedInRate) {
+          totalTaxes += taxAmount;
+        }
+      });
+    });
+
+    const netProfit = totalRevenue - costs.totalFixed - costs.totalVariable - totalCommissions - totalTaxes;
     
     logger.debug('ENGINE', 'Profitability calculation', {
       totalRevenue,
-      totalCosts: costs.totalFixed + costs.totalVariable + totalCommissions,
+      totalCosts: costs.totalFixed + costs.totalVariable + totalCommissions + totalTaxes,
       netProfit,
       margin: totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0
     });
@@ -496,7 +531,8 @@ export class CalculationEngine {
       totalRevenue,
       totalNights,
       totalCommissions,
-      totalCosts: costs.totalFixed + costs.totalVariable + totalCommissions,
+      totalTaxes,
+      totalCosts: costs.totalFixed + costs.totalVariable + totalCommissions + totalTaxes,
       netProfit,
       profitPerNight: totalNights > 0 ? netProfit / totalNights : 0,
       marginPercent: totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0
@@ -535,9 +571,29 @@ export class CalculationEngine {
     const fixedPerDay = fixedMonthly / 30.44;
     const roomCount = this.costSettings?.room_count || 1;
     const fixedAllocated = (fixedPerDay / roomCount) * roomNights;
+
+    // 4. Taxes
+    const taxRules = this.costSettings?.tax_rules || [];
+    let taxes = 0;
+    taxRules.forEach((rule: any) => {
+      let taxAmount = 0;
+      if (rule.method === 'percentage') {
+        taxAmount = revenue * (rule.value / 100);
+      } else if (rule.method === 'fixed_per_night') {
+        taxAmount = rule.value * roomNights;
+      } else if (rule.method === 'fixed_per_stay') {
+        taxAmount = rule.value;
+      }
+      
+      // Solo sumamos si está incluido en la tarifa (es un costo para el host)
+      // O si queremos mostrarlo como deducción del ingreso bruto.
+      if (rule.includedInRate) {
+        taxes += taxAmount;
+      }
+    });
     
-    // 4. Net Profit
-    const totalCosts = commission + variableCosts + fixedAllocated;
+    // 5. Net Profit
+    const totalCosts = commission + variableCosts + fixedAllocated + taxes;
     const netProfit = revenue - totalCosts;
     
     return {
@@ -551,6 +607,7 @@ export class CalculationEngine {
       commissionRate: rate,
       variableCosts,
       fixedAllocated,
+      taxes,
       totalCosts,
       netProfit,
       profitPerNight: roomNights > 0 ? netProfit / roomNights : 0,
@@ -659,11 +716,35 @@ export class CalculationEngine {
           sourceCategory: r.source_category || 'Otro',
           revenue: 0,
           roomNights: 0,
+          leadTimes: [] as number[],
+          reservations: [] as any[],
         });
       }
       const ch = channelMap.get(source)!;
       ch.revenue += (Number(r.room_revenue_total) || 0);
       ch.roomNights += (Number(r.room_nights) || 0);
+      
+      // Lead Time calculation
+      // Usamos reservation_date que ahora se extrae de "Booking Date Time - UTC" del CSV de Cloudbeds
+      const bookingDate = r.reservation_date;
+      
+      if (bookingDate && r.check_in) {
+        // Normalizar fechas a medianoche UTC para evitar problemas de zona horaria
+        const resDateStr = typeof bookingDate === 'string' ? bookingDate.substring(0, 10) : '';
+        const checkInStr = typeof r.check_in === 'string' ? r.check_in.substring(0, 10) : '';
+        
+        if (resDateStr && checkInStr) {
+          const resDate = new Date(resDateStr + 'T00:00:00Z');
+          const checkIn = new Date(checkInStr + 'T00:00:00Z');
+          
+          const diff = Math.round((checkIn.getTime() - resDate.getTime()) / (24 * 60 * 60 * 1000));
+          // Permitir diff 0 (reservas mismo día) y filtrar outliers extremos
+          if (diff >= 0 && diff < 730) {
+            ch.leadTimes.push(diff);
+          }
+        }
+      }
+      ch.reservations.push(r);
     }
 
     const channels = Array.from(channelMap.values()).map(ch => {
@@ -674,49 +755,174 @@ export class CalculationEngine {
       const commission = ch.revenue * rate;
       const adr = ch.roomNights > 0 ? ch.revenue / ch.roomNights : 0;
       
-      return {
-        ...ch,
-        revenueShare: totalRevenue > 0 ? ch.revenue / totalRevenue : 0,
-        estimatedCommission: Math.round(commission),
-        effectiveCommissionRate: rate,
-        isCommissionEstimated: true,
-        adr: Math.round(adr),
-        adrNet: Math.round(adr * (1 - rate)),
-        realCostPercent: Math.round(rate * 100 * 10) / 10,
-      };
+      // Lead Time Median
+      const sortedLeadTimes = [...ch.leadTimes].sort((a, b) => a - b);
+      let medianLeadTime = 0;
+      if (sortedLeadTimes.length > 0) {
+        const mid = Math.floor(sortedLeadTimes.length / 2);
+        medianLeadTime = sortedLeadTimes.length % 2 !== 0 
+          ? sortedLeadTimes[mid] 
+          : (sortedLeadTimes[mid - 1] + sortedLeadTimes[mid]) / 2;
+      }
+
+    // Calculate net profit for this channel
+    const costs = this.getCostBreakdown(ch.roomNights);
+    
+    // Calculate taxes for this channel
+    const taxRules = this.costSettings?.tax_rules || [];
+    let channelTaxes = 0;
+    taxRules.forEach((rule: any) => {
+      if (rule.includedInRate) {
+        if (rule.method === 'percentage') {
+          channelTaxes += ch.revenue * (rule.value / 100);
+        } else if (rule.method === 'fixed_per_night') {
+          channelTaxes += rule.value * ch.roomNights;
+        } else if (rule.method === 'fixed_per_stay') {
+          // Aproximación: estimamos estadías de 3 noches si no tenemos el dato exacto por canal aquí
+          const estimatedStays = ch.roomNights / 3;
+          channelTaxes += rule.value * estimatedStays;
+        }
+      }
     });
 
-    // Calcular insights de canales
-    const directChannel = channels.find(c => ['direct', 'walk-in', 'email', 'pagina web', 'teléfono', 'telefono', 'directo', 'website', 'phone'].includes(c.source.toLowerCase()));
-    const directAdr = directChannel?.adr || (channels.length > 0 ? Math.max(...channels.map(c => c.adr)) : 0);
+    const netProfit = ch.revenue - commission - costs.totalVariable - (costs.fixedPerDay / (this.costSettings?.room_count || 1)) * ch.roomNights - channelTaxes;
 
-    const sortedByNet = [...channels].sort((a, b) => b.adrNet - a.adrNet);
+    const profitPerNight = ch.roomNights > 0 ? netProfit / ch.roomNights : 0;
+
+    return {
+      source: ch.source,
+      sourceCategory: ch.sourceCategory,
+      revenue: ch.revenue,
+      roomNights: ch.roomNights,
+      revenueShare: totalRevenue > 0 ? ch.revenue / totalRevenue : 0,
+      estimatedCommission: Math.round(commission),
+      effectiveCommissionRate: rate,
+      isCommissionEstimated: true,
+      adr: Math.round(adr),
+      adrNet: Math.round(adr * (1 - rate)),
+      realCostPercent: Math.round(rate * 100 * 10) / 10,
+      netProfit: Math.round(netProfit),
+      medianLeadTime: Math.round(medianLeadTime * 10) / 10,
+      profitPerNight: Math.round(profitPerNight),
+      _rawReservations: ch.reservations // Internal use for lead time analysis
+    };
+    });
+
+    const totalNetProfit = channels.reduce((sum, c) => sum + c.netProfit, 0);
+
+    const channelsWithProfitShare = channels.map(c => ({
+      ...c,
+      profitShare: totalNetProfit > 0 ? Math.max(0, c.netProfit) / totalNetProfit : 0
+    }));
+
+    // Lead Time Analysis
+    const leadTimeBuckets = [
+      { label: '0-3 días', min: 0, max: 3 },
+      { label: '4-7 días', min: 4, max: 7 },
+      { label: '8-14 días', min: 8, max: 14 },
+      { label: '15-30 días', min: 15, max: 30 },
+      { label: '31+ días', min: 31, max: 999 }
+    ];
+
+    const analyzeLeadTime = (resList: any[]) => {
+      return leadTimeBuckets.map(bucket => {
+        const bucketRes = resList.filter(r => {
+          const bookingDate = r.reservation_date;
+          if (!bookingDate || !r.check_in) return false;
+          
+          const resDateStr = typeof bookingDate === 'string' ? bookingDate.substring(0, 10) : '';
+          const checkInStr = typeof r.check_in === 'string' ? r.check_in.substring(0, 10) : '';
+          
+          if (!resDateStr || !checkInStr) return false;
+          
+          const resDate = new Date(resDateStr + 'T00:00:00Z');
+          const checkInDate = new Date(checkInStr + 'T00:00:00Z');
+          
+          const diff = Math.round((checkInDate.getTime() - resDate.getTime()) / (24 * 60 * 60 * 1000));
+          return diff >= bucket.min && diff <= bucket.max;
+        });
+
+        let bucketRevenue = 0;
+        let bucketNights = 0;
+        let bucketProfit = 0;
+
+        bucketRes.forEach(r => {
+          const econ = this.calculateReservationEconomics(r);
+          bucketRevenue += econ.revenue;
+          bucketNights += econ.roomNights;
+          bucketProfit += econ.netProfit;
+        });
+
+        return {
+          leadTimeRange: bucket.label,
+          avgProfitPerNight: bucketNights > 0 ? Math.round(bucketProfit / bucketNights) : 0,
+          reservationCount: bucketRes.length,
+          revenue: Math.round(bucketRevenue),
+          profit: Math.round(bucketProfit)
+        };
+      });
+    };
+
+    const leadTimeByChannel: Record<string, any[]> = {};
+    channelsWithProfitShare.forEach(c => {
+      leadTimeByChannel[c.source] = analyzeLeadTime(c._rawReservations);
+    });
+
+    const globalLeadTimeProfitability = analyzeLeadTime(this.reservations);
+
+    // Remove raw reservations before returning
+    const finalChannels = channelsWithProfitShare.map(({ _rawReservations, ...rest }) => rest);
+
+    // Calcular insights de canales
+    const directChannel = finalChannels.find(c => ['direct', 'walk-in', 'email', 'pagina web', 'teléfono', 'telefono', 'directo', 'website', 'phone'].includes(c.source.toLowerCase()));
+    const directAdr = directChannel?.adr || (finalChannels.length > 0 ? Math.max(...finalChannels.map(c => c.adr)) : 0);
+    const directNetProfitPerNight = directChannel?.profitPerNight || (finalChannels.length > 0 ? Math.max(...finalChannels.map(c => c.profitPerNight)) : 0);
+
+    const sortedByNet = [...finalChannels].sort((a, b) => b.profitPerNight - a.profitPerNight);
     const bestChannel = sortedByNet[0] || null;
     const worstChannel = sortedByNet[sortedByNet.length - 1] || null;
 
-    const otaRevenue = channels
+    const otaRevenue = finalChannels
       .filter(c => !['direct', 'walk-in', 'email', 'pagina web', 'teléfono', 'telefono', 'directo', 'website', 'phone'].includes(c.source.toLowerCase()))
       .reduce((sum, c) => sum + c.revenue, 0);
     
     const otaShare = totalRevenue > 0 ? (otaRevenue / totalRevenue) * 100 : 0;
 
+    // Potential savings: More accurate calculation
+    // If we replace OTA revenue with Direct revenue, we save the commission but also gain/lose based on ADR difference
+    const otaChannels = finalChannels.filter(c => !['direct', 'walk-in', 'email', 'pagina web', 'teléfono', 'telefono', 'directo', 'website', 'phone'].includes(c.source.toLowerCase()));
+    let totalSavingsPotential = 0;
+    
+    otaChannels.forEach(ota => {
+      const nightsToMove = ota.roomNights * 0.2; // Assume 20% can be moved to direct
+      const currentProfit = ota.profitPerNight * nightsToMove;
+      const potentialProfit = directNetProfitPerNight * nightsToMove;
+      if (potentialProfit > currentProfit) {
+        totalSavingsPotential += (potentialProfit - currentProfit);
+      }
+    });
+
     return {
       period: this.getEffectivePeriod(),
-      channels,
+      channels: finalChannels as any[],
       dependency: {
         topChannelCategory: 'OTA',
         sharePercent: Math.round(otaShare),
         isHighDependency: otaShare > 70,
       },
       savingsPotential: {
-        value: Math.round(otaRevenue * 0.1 * 0.15), // Estimación simple: 10% de OTA a Directo ahorra 15%
-        description: 'Si movés 10% de OTAs a Directo',
+        value: Math.round(totalSavingsPotential),
+        description: 'Si movés el 20% de tus reservas de OTAs a Directo',
         trust: 'estimado',
       },
       insights: {
         bestChannel: bestChannel ? { name: bestChannel.source, adrNet: bestChannel.adrNet } : null,
         worstChannel: worstChannel ? { name: worstChannel.source, adrNet: worstChannel.adrNet } : null,
         directAdr: Math.round(directAdr),
+        leadTimeAnalysis: {
+          byChannel: leadTimeByChannel,
+          globalLeadTimeProfitability
+        }
       },
       dataSource: 'reservations',
     };
@@ -761,6 +967,7 @@ export class CalculationEngine {
     const totalRevenue = economics.reduce((sum, r) => sum + (r.revenue || 0), 0);
     const totalNights = economics.reduce((sum, r) => sum + (r.roomNights || 0), 0);
     const totalCommissions = economics.reduce((sum, r) => sum + (r.commission || 0), 0);
+    const totalTaxes = economics.reduce((sum, r) => sum + (r.taxes || 0), 0);
     const totalVariableCosts = economics.reduce((sum, r) => sum + (r.variableCosts || 0), 0);
     const totalFixedCostsAllocated = economics.reduce((sum, r) => sum + (r.fixedAllocated || 0), 0);
     const unprofitable = economics.filter(r => r.netProfit < 0);
@@ -802,6 +1009,7 @@ export class CalculationEngine {
       totalRoomNights: totalNights,
       totalRevenue,
       totalCommissions,
+      totalTaxes,
       totalVariableCosts,
       totalFixedCostsAllocated,
       totalNetProfit: totalProfit,
@@ -828,4 +1036,3 @@ export class CalculationEngine {
     };
   }
 }
-

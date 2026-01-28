@@ -76,6 +76,7 @@ export function parseReservations(data: Record<string, string>[], propertyId: st
   const sourceCol = findColumn(headers, 'reservation_source') || findColumn(headers, 'source');
   const checkInCol = findColumn(headers, 'check_in_date');
   const checkOutCol = findColumn(headers, 'check_out_date');
+  const bookingDateCol = findColumn(headers, 'booking_date');
   const roomNightsCol = findColumn(headers, 'room_nights');
   const roomRevenueCol = findColumn(headers, 'room_revenue_total');
   const taxesCol = findColumn(headers, 'total_reservation_taxes');
@@ -87,7 +88,7 @@ export function parseReservations(data: Record<string, string>[], propertyId: st
   const reservations: any[] = [];
   const seen = new Set<string>();
   
-  console.log(`[PARSER] Starting parseReservations for ${data.length} rows. ResNumCol: ${reservationNumCol}, CheckInCol: ${checkInCol}`);
+  console.log(`[PARSER] Starting parseReservations for ${data.length} rows. ResNumCol: ${reservationNumCol}, CheckInCol: ${checkInCol}, BookingDateCol: ${bookingDateCol}`);
 
   for (const row of data) {
     const rawResNum = row[reservationNumCol!];
@@ -106,8 +107,12 @@ export function parseReservations(data: Record<string, string>[], propertyId: st
     // Validar que tengamos fechas básicas
     const rawCheckIn = row[checkInCol!];
     const rawCheckOut = row[checkOutCol!];
+    const rawBookingDate = bookingDateCol ? row[bookingDateCol] : null;
+    
     const checkIn = normalizeDate(rawCheckIn);
     const checkOut = normalizeDate(rawCheckOut);
+    // Booking date puede incluir hora (UTC), normalizar a solo fecha YYYY-MM-DD
+    const reservationDate = rawBookingDate ? normalizeDate(rawBookingDate) : null;
     
     if (!checkIn || !checkOut) {
       console.log(`[PARSER] Row skipped: Invalid dates for ${resNum}. In: ${rawCheckIn}, Out: ${rawCheckOut}`);
@@ -124,6 +129,7 @@ export function parseReservations(data: Record<string, string>[], propertyId: st
       source: sourceCol ? row[sourceCol] || null : null,
       checkIn,
       checkOut,
+      reservationDate,
       roomNights: roomNightsCol ? Math.round(normalizeDecimal(row[roomNightsCol])) : 0,
       roomRevenueTotal: roomRevenueCol ? normalizeDecimal(row[roomRevenueCol]) : 0,
       taxesTotal: taxesCol ? normalizeDecimal(row[taxesCol]) : 0,

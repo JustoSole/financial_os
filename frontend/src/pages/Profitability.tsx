@@ -282,28 +282,28 @@ export default function Profitability() {
 
       {/* Summary Cards */}
       <div className={styles.summary}>
-        <SummaryMetric value={summary.totalReservations} label="Reservas analizadas" />
+        <SummaryMetric value={summary?.totalReservations || 0} label="Reservas analizadas" />
         <SummaryMetric
-          value={formatCurrency(summary.totalNetProfit)}
+          value={formatCurrency(summary?.totalNetProfit || 0)}
           label="Ganancia neta total"
-          variant={summary.totalNetProfit >= 0 ? 'positive' : 'negative'}
+          variant={(summary?.totalNetProfit || 0) >= 0 ? 'positive' : 'negative'}
         />
         <SummaryMetric
-          value={`${(summary.avgMarginPercent || 0).toFixed(1)}%`}
+          value={`${(summary?.avgMarginPercent || 0).toFixed(1)}%`}
           label="Margen promedio"
         />
         <SummaryMetric
-          value={formatCurrency(summary.goppar)}
+          value={formatCurrency(summary?.goppar || 0)}
           label="GOPPAR"
-          variant={summary.goppar >= 0 ? 'positive' : 'negative'}
+          variant={(summary?.goppar || 0) >= 0 ? 'positive' : 'negative'}
         />
         <SummaryMetric
-          value={summary.unprofitableCount || 0}
-          label={`Con pérdida (${(summary.unprofitableShare || 0).toFixed(1)}%)`}
+          value={summary?.unprofitableCount || 0}
+          label={`Con pérdida (${(summary?.unprofitableShare || 0).toFixed(1)}%)`}
           variant="danger"
         />
         <SummaryMetric
-          value={`-${formatCurrency(summary.unprofitableLoss)}`}
+          value={`-${formatCurrency(summary?.unprofitableLoss || 0)}`}
           label="Total perdido"
           variant="danger"
         />
@@ -313,17 +313,17 @@ export default function Profitability() {
       <div className={styles.config}>
         <span className={styles.configLabel}>Costos configurados:</span>
         <span className={styles.configItem}>
-          Variable: ${summary.configUsed?.variableCostPerNight || 0}/noche
+          Variable: ${summary?.configUsed?.variableCostPerNight || 0}/noche
         </span>
         <span className={styles.configItem}>
-          Fijos: ${(summary.configUsed?.monthlyFixedCosts || 0).toLocaleString()}/mes
+          Fijos: ${(summary?.configUsed?.monthlyFixedCosts || 0).toLocaleString()}/mes
         </span>
         <span className={styles.configItem}>
-          Comisión default: {((summary.configUsed?.defaultCommissionRate || 0) * 100).toFixed(0)}%
+          Comisión default: {((summary?.configUsed?.defaultCommissionRate || 0) * 100).toFixed(0)}%
         </span>
-        {(summary.lowConfidenceShare || 0) > 20 && (
-          <span className={styles.configWarning}>
-            {/* ⚠ {(summary.lowConfidenceShare || 0).toFixed(0)}% con baja confianza */}
+        {(summary?.configUsed?.variableCostPerNight || 0) === 0 && (
+          <span className={styles.configWarning} style={{ color: 'var(--color-error)', fontWeight: 'bold', marginLeft: '12px' }}>
+            ⚠️ Sin costos variables: Márgenes inflados
           </span>
         )}
       </div>

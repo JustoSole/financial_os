@@ -1,3 +1,4 @@
+export { default as ConfidenceHeader } from './ConfidenceHeader';
 // Existing components
 export { default as ActionCard } from './ActionCard';
 export { default as DataHealthBanner } from './DataHealthBanner';

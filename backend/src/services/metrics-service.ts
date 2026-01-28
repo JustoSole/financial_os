@@ -507,10 +507,10 @@ export async function calculateStructureMetrics(propertyId: string, startDateOrD
     ...structure,
     NRevPAR: Math.round(availableRoomNights > 0 ? (profit.totalRevenue - profit.totalCommissions) / availableRoomNights : 0),
     GOPPAR: Math.round(availableRoomNights > 0 ? profit.netProfit / availableRoomNights : 0),
-    // Rounding for presentation (Issue E)
-    occupancyRate: Math.round(structure.occupancyRate * 10) / 10,
-    ADR: Math.round(structure.ADR),
-    RevPAR: Math.round(structure.RevPAR)
+    // Rounding for presentation (Issue E) - already rounded in structure but ensuring consistency
+    occupancyRate: structure.occupancyRate,
+    ADR: structure.ADR,
+    RevPAR: structure.RevPAR
   };
 
   cacheService.set(cacheKey, result);

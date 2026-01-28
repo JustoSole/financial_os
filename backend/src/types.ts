@@ -32,5 +32,13 @@ export interface DBCostSettings {
   defaultRate: number;
   byMethod: Record<string, number>;
   };
+  tax_rules?: Array<{
+    id: string;
+    type: 'VAT' | 'OCCUPANCY' | 'CITY_TAX' | 'OTHER';
+    appliesTo: 'room_rate' | 'total';
+    method: 'percentage' | 'fixed_per_night' | 'fixed_per_stay';
+    value: number;
+    includedInRate: boolean;
+  }>;
   updated_at: string;
 }

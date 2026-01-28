@@ -6,6 +6,99 @@
   box-sizing: border-box;
 }
 
+.taxRuleRow {
+  padding: var(--space-4);
+  background: var(--color-bg-hover);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.taxRuleMain {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-4);
+}
+
+.taxSelect {
+  flex: 1;
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: white !important;
+  color: #1a1a1a !important;
+  font-size: var(--text-sm);
+  height: 36px;
+  cursor: pointer;
+  appearance: auto;
+}
+
+.taxInputs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.taxSelectSmall {
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: white !important;
+  color: #1a1a1a !important;
+  font-size: var(--text-xs);
+  height: 36px;
+  cursor: pointer;
+  appearance: auto;
+}
+
+.taxSelect option,
+.taxSelectSmall option {
+  background-color: white !important;
+  color: #1a1a1a !important;
+}
+
+.taxRuleOptions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
+}
+
+.checkboxLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.btnAddTax {
+  width: 100%;
+  padding: var(--space-3);
+  margin-top: var(--space-4);
+  background: none;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-lg);
+  color: var(--color-text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btnAddTax:hover {
+  background: var(--color-bg-hover);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+
 .costsLoading {
   display: flex;
   flex-direction: column;
@@ -398,13 +491,14 @@
 .inputCurrency {
   display: flex;
   align-items: center;
-  background: var(--color-bg-card);
-  border: 1px solid var(--color-border-hover);
+  background: white !important;
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   overflow: hidden;
   transition: all 0.15s;
-  color: var(--color-text);
+  color: #1a1a1a !important;
   flex-shrink: 0;
+  height: 36px;
 }
 
 .inputCurrency:focus-within {
@@ -415,31 +509,35 @@
 .inputCurrency span {
   padding: 0 0.5rem;
   font-size: 0.8rem;
-  color: var(--color-text);
+  color: var(--color-text-muted) !important;
   background: var(--color-bg-hover);
+  align-self: stretch;
+  display: flex;
+  align-items: center;
   font-weight: 600;
 }
 
 .inputCurrency span.suffix {
   background: transparent;
   font-size: 0.7rem;
-  padding-left: 0;
+  padding: 0 0.5rem;
+  color: var(--color-text-muted) !important;
 }
 
 .inputCurrency input {
-  width: 160px;
-  min-width: 160px;
-  border: none;
+  width: 100px;
+  min-width: 100px;
+  border: none !important;
   padding: 0.45rem 0.5rem;
   font-family: var(--font-mono);
   font-size: 0.85rem;
   font-weight: 700;
-  outline: none;
+  outline: none !important;
   text-align: right;
-  background: var(--color-bg-card);
-  color: var(--color-text);
-  -webkit-text-fill-color: var(--color-text);
-  caret-color: var(--color-text);
+  background: white !important;
+  color: #1a1a1a !important;
+  -webkit-text-fill-color: #1a1a1a !important;
+  caret-color: #1a1a1a !important;
 }
 
 .inputCurrency input::placeholder {

@@ -54,6 +54,11 @@ app.use(express.json());
 // API Routes
 app.use('/api', apiRoutes);
 
+// Health check endpoint (for Render)
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
 // Serve frontend static files in production
 if (process.env.NODE_ENV === 'production') {
   // Expose runtime frontend env (Vite injects at build time, but this provides a fallback)

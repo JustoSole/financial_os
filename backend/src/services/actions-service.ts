@@ -44,20 +44,58 @@ export async function generateActions(propertyId: string, startDateOrDays: strin
   }
 
   // 2. Unprofitable Reservations Action
-  if (economics.unprofitableCount > 0) {
+  const unprofitable = economics.worstReservations?.filter((r: any) => r.netProfit < 0) || [];
+  if (unprofitable.length > 0) {
+    const totalLoss = unprofitable.reduce((sum: number, r: any) => sum + Math.abs(r.netProfit), 0);
     actions.push({
+      id: 'unprofitable-reservations',
       type: 'profitability',
       title: 'Optimizar Reservas No Rentables',
-      description: `Tenés ${economics.unprofitableCount} reservas que dieron pérdida.`,
+      description: `Tenés ${unprofitable.length} reservas que dieron pérdida en este período.`,
       priority: 1,
+      impact: {
+        value: Math.round(totalLoss),
+        unit: 'pérdida evitable',
+        direction: 'down'
+      },
       steps: [
-        { label: 'Revisar comisiones de canales caros', completed: false },
-        { label: 'Ajustar precios mínimos', completed: false }
+        { text: 'Revisar comisiones de canales caros', completed: false },
+        { text: 'Ajustar precios mínimos en el simulador', completed: false },
+        { text: 'Configurar cargo de limpieza para estadías cortas', completed: false }
+      ],
+      evidence: [
+        { metric: 'Reservas con pérdida', value: String(unprofitable.length) },
+        { metric: 'Pérdida total', value: `$${Math.round(totalLoss).toLocaleString()}` }
       ]
     });
   }
 
-  // 3. OTA Dependency Action
+  // 3. One-night Loss Pattern Action
+  const oneNightLoss = economics.patterns?.find((p: any) => p.nightsBucket === '1' && p.isLossPattern);
+  if (oneNightLoss) {
+    actions.push({
+      id: 'one-night-loss-pattern',
+      type: 'pricing',
+      title: 'Fuga en Reservas de 1 Noche',
+      description: `Las reservas de 1 noche en ${oneNightLoss.source} están perdiendo dinero.`,
+      priority: 1,
+      impact: {
+        value: Math.round(oneNightLoss.lossAmount),
+        unit: 'pérdida en 1 noche',
+        direction: 'down'
+      },
+      steps: [
+        { text: 'Aumentar tarifa base para 1 noche', completed: false },
+        { text: 'Configurar estancia mínima de 2 noches', completed: false }
+      ],
+      evidence: [
+        { metric: 'Reservas', value: String(oneNightLoss.count) },
+        { metric: 'Pérdida/noche', value: `$${Math.round(Math.abs(oneNightLoss.avgProfitPerNight)).toLocaleString()}` }
+      ]
+    });
+  }
+
+  // 4. OTA Dependency Action
   const totalRevenue = channels.channels.reduce((sum: number, c: any) => sum + c.revenue, 0);
   const otaRevenue = channels.channels
     .filter((c: any) => c.sourceCategory.toLowerCase() === 'ota')
@@ -66,13 +104,48 @@ export async function generateActions(propertyId: string, startDateOrDays: strin
 
   if (otaShare > 70) {
     actions.push({
+      id: 'ota-dependency',
       type: 'ota_dependency',
       title: 'Reducir Dependencia de OTAs',
       description: `El ${otaShare.toFixed(0)}% de tus ingresos viene de OTAs.`,
       priority: 2,
+      impact: {
+        value: Math.round(otaRevenue * 0.1 * 0.15), // 10% shift to direct saves ~15% commission
+        unit: 'ahorro potencial/mes',
+        direction: 'up'
+      },
       steps: [
-        { label: 'Potenciar motor de reservas propio', completed: false },
-        { label: 'Campaña de fidelización para venta directa', completed: false }
+        { text: 'Potenciar motor de reservas propio', completed: false },
+        { text: 'Campaña de fidelización para venta directa', completed: false }
+      ],
+      evidence: [
+        { metric: 'Share OTA', value: `${otaShare.toFixed(0)}%` },
+        { metric: 'Revenue OTA', value: `$${Math.round(otaRevenue).toLocaleString()}` }
+      ]
+    });
+  }
+
+  // 5. Channel Profit Leak Action (Savings Potential)
+  if (channels.savingsPotential?.value > 50) {
+    actions.push({
+      id: 'channel-profit-leak',
+      type: 'channel_mix',
+      title: 'Fuga de Profit por Canales',
+      description: `Podrías ganar ${Math.round(channels.savingsPotential.value).toLocaleString()} más optimizando tu mix.`,
+      priority: 1,
+      impact: {
+        value: Math.round(channels.savingsPotential.value),
+        unit: 'ganancia extra/mes',
+        direction: 'up'
+      },
+      steps: [
+        { text: `Reducir inventario en ${channels.insights?.worstChannel?.name || 'canales caros'}`, completed: false },
+        { text: 'Implementar markup de precios en OTAs de alto costo', completed: false },
+        { text: 'Ofrecer beneficios exclusivos en el motor directo', completed: false }
+      ],
+      evidence: [
+        { metric: 'Ahorro potencial', value: `$${Math.round(channels.savingsPotential.value).toLocaleString()}` },
+        { metric: 'Peor canal', value: channels.insights?.worstChannel?.name || 'N/A' }
       ]
     });
   }

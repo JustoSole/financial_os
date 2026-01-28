@@ -382,6 +382,14 @@ export interface CostSettingsResponse {
   fixed_costs?: FixedCostsInput;
   channel_commissions: ChannelCommissions;
   payment_fees: PaymentFees;
+  tax_rules?: Array<{
+    id: string;
+    type: 'VAT' | 'OCCUPANCY' | 'CITY_TAX' | 'OTHER';
+    appliesTo: 'room_rate' | 'total';
+    method: 'percentage' | 'fixed_per_night' | 'fixed_per_stay';
+    value: number;
+    includedInRate: boolean;
+  }>;
   calculated: CalculatedCosts;
   updated_at: string;
 }
@@ -407,6 +415,7 @@ export const updateCosts = (propertyId: string, data: {
   variableCategories?: CostCategory[];
   fixedCategories?: CostCategory[];
   extraordinaryCosts?: ExtraordinaryCost[];
+  tax_rules?: any[];
   // Legacy (backward compatibility)
   variableCosts?: Partial<VariableCostsInput>;
   fixedCosts?: Partial<FixedCostsInput>;

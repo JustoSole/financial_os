@@ -37,6 +37,7 @@ export function parseReservationsReport(content: string): {
   const sourceCol = findColumn(headers, 'reservation_source') || findColumn(headers, 'source');
   const checkInCol = findColumn(headers, 'check_in_date');
   const checkOutCol = findColumn(headers, 'check_out_date');
+  const bookingDateCol = findColumn(headers, 'booking_date');
   const roomNightsCol = findColumn(headers, 'room_nights');
   const roomRevenueCol = findColumn(headers, 'room_revenue_total');
   const taxesCol = findColumn(headers, 'total_reservation_taxes');
@@ -59,6 +60,9 @@ export function parseReservationsReport(content: string): {
   if (errors.length > 0) {
     return { reservations, warnings, errors };
   }
+  
+  // Log para debug de columnas encontradas
+  console.log(`[PARSER] Reservation parser columns found - BookingDate: ${bookingDateCol || 'NOT FOUND'}, CheckIn: ${checkInCol}, CheckOut: ${checkOutCol}`);
   
   let skippedInvalid = 0;
   const seenReservations = new Set<string>();
@@ -90,8 +94,11 @@ export function parseReservationsReport(content: string): {
       // Parse dates
       const rawCheckIn = row[checkInCol!];
       const rawCheckOut = row[checkOutCol!];
+      const rawBookingDate = bookingDateCol ? row[bookingDateCol] : null;
+      
       const checkIn = normalizeDate(rawCheckIn);
       const checkOut = normalizeDate(rawCheckOut);
+      const reservationDate = rawBookingDate ? normalizeDate(rawBookingDate) : null;
       
       if (!checkIn || !checkOut) {
         console.log(`[PARSER] Warning: Invalid dates for res ${reservationNumber}. In: ${rawCheckIn}, Out: ${rawCheckOut}`);
@@ -125,6 +132,7 @@ export function parseReservationsReport(content: string): {
         source: sourceCol ? row[sourceCol] || null : null,
         checkIn: checkIn || '',
         checkOut: checkOut || '',
+        reservationDate,
         roomNights,
         roomRevenueTotal,
         taxesTotal,

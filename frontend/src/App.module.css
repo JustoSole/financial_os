@@ -3,16 +3,25 @@
   min-height: 100vh;
 }
 
+.mainWrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  margin-left: var(--sidebar-width);
+  min-width: 0; /* Prevent horizontal overflow */
+}
+
 .mainContent {
   flex: 1;
-  margin-left: var(--sidebar-width);
   padding: var(--space-8);
   max-width: 1400px;
 }
 
 @media (max-width: 768px) {
-  .mainContent {
+  .mainWrapper {
     margin-left: 0;
+  }
+  .mainContent {
     padding: var(--space-4);
     padding-top: 0; /* MobileHeader handles top spacing */
   }

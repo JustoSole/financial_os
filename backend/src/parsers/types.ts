@@ -45,6 +45,7 @@ export interface ParsedReservation {
   source: string | null;
   checkIn: string;
   checkOut: string;
+  reservationDate?: string | null;
   roomNights: number;
   roomRevenueTotal: number;
   taxesTotal: number;

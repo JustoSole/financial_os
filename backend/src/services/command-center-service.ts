@@ -103,6 +103,7 @@ export async function getCommandCenterData(propertyId: string, startDateOrDays: 
     return {
       period: currentPeriod,
       health,
+      structure,
       breakeven,
       unitEconomics,
       channels,
@@ -135,6 +136,16 @@ function createEmptyCommandCenter(propertyId: string, startDateOrDays: any, endD
       },
       changes: { driver: null, explanation: 'Sin datos', impact: 0 },
       topAlert: null
+    },
+    structure: {
+      occupancyRate: 0,
+      ADR: 0,
+      RevPAR: 0,
+      NRevPAR: 0,
+      GOPPAR: 0,
+      roomCount: 0,
+      period: { start: '', end: '', days: 30 },
+      confidence: 'low'
     },
     breakeven: {
       breakEvenOccupancy: 0, currentOccupancy: 0, gapToBreakEven: 0, nightsNeededForBreakEven: 0,
@@ -272,9 +283,9 @@ function buildBreakEvenAnalysis(structure: any, profitability: any, settings: an
     : 0;
 
   return {
-    breakEvenOccupancy: Math.round(breakEvenOccupancy),
-    currentOccupancy: Math.round(structure.occupancyRate),
-    gapToBreakEven: Math.round(structure.occupancyRate - breakEvenOccupancy),
+    breakEvenOccupancy: breakEvenOccupancy, // No rounding here, let the engine/view handle it
+    currentOccupancy: structure.occupancyRate,
+    gapToBreakEven: structure.occupancyRate - breakEvenOccupancy,
     nightsNeededForBreakEven: Math.ceil(nightsNeeded),
     nightsSoldThisPeriod: Math.round(nightsSold),
     nightsGap: Math.round(nightsSold - nightsNeeded),

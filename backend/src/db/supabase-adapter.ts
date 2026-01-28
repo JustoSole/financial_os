@@ -37,6 +37,7 @@ export function clearAuthContext() {
  */
 function getClient(): SupabaseClient {
   // Siempre usar el cliente principal (que usa SERVICE_ROLE_KEY) para evitar problemas de RLS
+  // El cliente principal está configurado en supabase-client.ts para usar SERVICE_ROLE_KEY si existe
   return supabase;
 }
 
@@ -495,6 +496,7 @@ export const supabaseDatabase = {
       source: r.source,
       check_in: r.checkIn,
       check_out: r.checkOut,
+      reservation_date: r.reservationDate || null,
       room_nights: r.roomNights,
       room_revenue_total: r.roomRevenueTotal,
       taxes_total: r.taxesTotal,
@@ -537,6 +539,7 @@ export const supabaseDatabase = {
       source: r.source,
       check_in: r.checkIn,
       check_out: r.checkOut,
+      reservation_date: r.reservationDate || null,
       room_nights: r.roomNights,
       room_revenue_total: r.roomRevenueTotal,
       taxes_total: r.taxesTotal,
@@ -693,6 +696,7 @@ export const supabaseDatabase = {
         fixed_costs: settings.fixed_costs,
         channel_commissions: settings.channel_commissions,
         payment_fees: settings.payment_fees,
+        tax_rules: settings.tax_rules,
         updated_at: new Date().toISOString()
       })
       .select()

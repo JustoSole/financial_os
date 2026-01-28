@@ -267,6 +267,16 @@ const COLUMN_MAPPINGS: Record<string, string[]> = {
     'nombre completo',
     'guest'
   ],
+  'booking_date': [
+    'booking date time - utc',
+    'booking date time',
+    'booking date',
+    'reservation date',
+    'fecha de reserva',
+    'fecha reserva',
+    'created date',
+    'creation date'
+  ],
   'reservation_status': [
     'reservation status', 
     'estado de reserva',
