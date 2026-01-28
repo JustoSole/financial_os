@@ -7,7 +7,8 @@ import {
   HelpTooltip, 
   LoadingState,
   Badge,
-  ProgressBar
+  ProgressBar,
+  PacingChart
 } from '../components';
 import { 
   formatCurrency, 
@@ -145,6 +146,15 @@ export default function Projections() {
             <Info size={16} />
             <p>Comparación de ocupación actual vs. ocupación que tenías el año pasado a esta misma distancia del check-in (DBA).</p>
           </div>
+          
+          <PacingChart 
+            data={data.pacing.periods.map(p => ({
+              label: new Date(p.startDate).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' }),
+              current: p.current.occupancy,
+              historical: p.historical.occupancy
+            }))} 
+          />
+
           <div className={styles.pacingGrid}>
             {data.pacing.periods.map((period, i) => (
               <div key={i} className={styles.pacingRow}>
