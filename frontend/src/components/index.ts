@@ -30,6 +30,7 @@ export { default as TrendIndicator } from './TrendIndicator';
 export { default as MiniChart } from './MiniChart';
 export { default as QuickStat } from './QuickStat';
 export { default as PacingChart } from './PacingChart';
+export { default as CalendarProjection } from './CalendarProjection';
 export { default as OnboardingChecklist } from './OnboardingChecklist';
 export type { OnboardingStep } from './OnboardingChecklist';
 export { default as OnboardingWizard } from './OnboardingWizard';

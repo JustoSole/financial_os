@@ -384,6 +384,7 @@ export interface ProjectionsData {
     overallTrend: 'ahead' | 'behind' | 'on_track';
     deltaVsLastYear: number;
   };
+  daily: DailyMetric[];
   gaps: GapAlert[];
   cashFlow: {
     byWeek: {
@@ -393,6 +394,15 @@ export interface ProjectionsData {
       pending: number;
     }[];
   };
+}
+
+export interface DailyMetric {
+  date: string;
+  revenue: number;
+  occupancy: number;
+  adr: number;
+  nights: number;
+  isPast?: boolean;
 }
 
 // =====================================================

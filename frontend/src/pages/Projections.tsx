@@ -8,7 +8,8 @@ import {
   LoadingState,
   Badge,
   ProgressBar,
-  PacingChart
+  PacingChart,
+  CalendarProjection
 } from '../components';
 import { 
   formatCurrency, 
@@ -136,51 +137,64 @@ export default function Projections() {
         </Card>
       </section>
 
-      {/* Nivel 2: Gráfico de Pacing */}
+      {/* Nivel 2: Gráfico de Pacing y Calendario */}
       <section className={styles.pacingSection}>
-        <Card>
-          <CardHeader>
-            <CardTitle>Ritmo de Venta Semanal (Pacing YoY)</CardTitle>
-          </CardHeader>
-          <div className={styles.pacingInfo}>
-            <Info size={16} />
-            <p>Comparación de ocupación actual vs. ocupación que tenías el año pasado a esta misma distancia del check-in (DBA).</p>
-          </div>
-          
-          <PacingChart 
-            data={data.pacing.periods.map(p => ({
-              label: new Date(p.startDate).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' }),
-              current: p.current.occupancy,
-              historical: p.historical.occupancy
-            }))} 
-          />
+        <div className={styles.gridTwoCols}>
+          <Card>
+            <CardHeader>
+              <CardTitle>Ritmo de Venta Semanal (Pacing YoY)</CardTitle>
+            </CardHeader>
+            <div className={styles.pacingInfo}>
+              <Info size={16} />
+              <p>Comparación de ocupación actual vs. ocupación que tenías el año pasado a esta misma distancia del check-in (DBA).</p>
+            </div>
+            
+            <PacingChart 
+              data={data.pacing.periods.map(p => ({
+                label: new Date(p.startDate).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' }),
+                current: p.current.occupancy,
+                historical: p.historical.occupancy
+              }))} 
+            />
 
-          <div className={styles.pacingGrid}>
-            {data.pacing.periods.map((period, i) => (
-              <div key={i} className={styles.pacingRow}>
-                <div className={styles.periodLabel}>
-                  <strong>{period.label}</strong>
-                  <span>{new Date(period.startDate).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}</span>
-                </div>
-                <div className={styles.pacingBars}>
-                  <div className={styles.barGroup}>
-                    <div className={styles.barLabel}>Actual: {period.current.occupancy}%</div>
-                    <ProgressBar value={period.current.occupancy} variant="primary" height={12} />
+            <div className={styles.pacingGrid}>
+              {data.pacing.periods.map((period, i) => (
+                <div key={i} className={styles.pacingRow}>
+                  <div className={styles.periodLabel}>
+                    <strong>{period.label}</strong>
+                    <span>{new Date(period.startDate).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}</span>
                   </div>
-                  <div className={styles.barGroup}>
-                    <div className={styles.barLabel}>Año Ant: {period.historical.occupancy}%</div>
-                    <ProgressBar value={period.historical.occupancy} variant="info" height={12} />
+                  <div className={styles.pacingBars}>
+                    <div className={styles.barGroup}>
+                      <div className={styles.barLabel}>Actual: {period.current.occupancy}%</div>
+                      <ProgressBar value={period.current.occupancy} variant="primary" height={12} />
+                    </div>
+                    <div className={styles.barGroup}>
+                      <div className={styles.barLabel}>Año Ant: {period.historical.occupancy}%</div>
+                      <ProgressBar value={period.historical.occupancy} variant="info" height={12} />
+                    </div>
+                  </div>
+                  <div className={styles.periodDelta}>
+                    <Badge variant={period.deltaOccupancy >= 0 ? 'success' : 'error'}>
+                      {period.deltaOccupancy >= 0 ? '+' : ''}{period.deltaOccupancy}%
+                    </Badge>
                   </div>
                 </div>
-                <div className={styles.periodDelta}>
-                  <Badge variant={period.deltaOccupancy >= 0 ? 'success' : 'error'}>
-                    {period.deltaOccupancy >= 0 ? '+' : ''}{period.deltaOccupancy}%
-                  </Badge>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
+              ))}
+            </div>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Vista Diaria de Proyecciones</CardTitle>
+            </CardHeader>
+            <div className={styles.pacingInfo}>
+              <Info size={16} />
+              <p>Revenue y ocupación estimada día por día para los próximos {horizon} días.</p>
+            </div>
+            <CalendarProjection data={data.daily} />
+          </Card>
+        </div>
       </section>
 
       {/* Nivel 3: Alertas y Gaps */}

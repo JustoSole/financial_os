@@ -106,6 +106,19 @@
   margin-bottom: 2rem;
 }
 
+.gridTwoCols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+@media (max-width: 1200px) {
+  .gridTwoCols {
+    grid-template-columns: 1fr;
+  }
+}
+
 .pacingInfo {
   display: flex;
   align-items: center;

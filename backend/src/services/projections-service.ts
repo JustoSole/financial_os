@@ -53,13 +53,16 @@ export class ProjectionsService {
     // 3. Calculate Pacing (Weekly)
     const pacingPeriods = await this.calculatePacing(activeReservations, today, this.horizon, roomCount);
 
-    // 4. Detect Gaps
+    // 4. Calculate Daily Metrics for Calendar (including past 30 days for context)
+    const dailyMetrics = this.calculateDailyMetrics(activeReservations, today, this.horizon, roomCount);
+
+    // 5. Detect Gaps
     const gaps = this.detectGaps(pacingPeriods);
 
-    // 5. Calculate Weekly Cash Flow
+    // 6. Calculate Weekly Cash Flow
     const cashFlow = this.calculateWeeklyCashFlow(activeReservations, today, this.horizon);
 
-    // 6. Overall Trend
+    // 7. Overall Trend
     const deltaVsLastYear = pacingPeriods.reduce((sum, p) => sum + (p.current.occupancy - p.historical.occupancy), 0) / (pacingPeriods.length || 1);
     const overallTrend = deltaVsLastYear > 2 ? 'ahead' : deltaVsLastYear < -2 ? 'behind' : 'on_track';
 
@@ -71,9 +74,40 @@ export class ProjectionsService {
         overallTrend,
         deltaVsLastYear: Math.round(deltaVsLastYear * 10) / 10
       },
+      daily: dailyMetrics,
       gaps,
       cashFlow
     };
+  }
+
+  private calculateDailyMetrics(reservations: any[], today: Date, horizon: number, roomCount: number) {
+    const daily: any[] = [];
+    
+    // Start from 30 days ago to show historical context in the calendar
+    const startOffset = -30;
+    
+    for (let d = startOffset; d < horizon; d++) {
+      const dayStart = new Date(today.getTime() + d * 24 * 60 * 60 * 1000);
+      const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+      
+      const dayPeriod: DatePeriod = {
+        start: dayStart.toISOString().substring(0, 10),
+        end: dayEnd.toISOString().substring(0, 10),
+        days: 1
+      };
+
+      // For past dates, we use today as the asOfDate to see final results
+      // For future dates, we also use today as asOfDate to see OTB
+      const metrics = this.getMetricsForPeriod(reservations, dayPeriod, today, roomCount);
+      
+      daily.push({
+        date: dayPeriod.start,
+        ...metrics,
+        isPast: d < 0
+      });
+    }
+
+    return daily;
   }
 
   private calculateOTBSummary(reservations: any[], today: Date, horizonEnd: Date) {
