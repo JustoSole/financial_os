@@ -366,6 +366,12 @@ export default function Home() {
         )}
       </section>
 
+      {/* Operational Health Widget */}
+      <OperationalHealthWidget 
+        unitEconomics={data.unitEconomics} 
+        breakeven={data.breakeven}
+      />
+
       {/* Section 2: Canales - Versión Resumida */}
       <section className={styles.commandSection}>
         <SectionHeader 
@@ -730,6 +736,131 @@ function SectionHeader({
         </Link>
       )}
     </div>
+  );
+}
+
+function OperationalHealthWidget({ 
+  unitEconomics, 
+  breakeven
+}: { 
+  unitEconomics: any; 
+  breakeven: any;
+}) {
+  if (!unitEconomics || !breakeven) return null;
+
+  const fixedCosts = unitEconomics.cporBreakdown?.fixed || 0;
+  const variableCosts = unitEconomics.cporBreakdown?.variable || 0;
+  const totalCpor = fixedCosts + variableCosts;
+  const adr = unitEconomics.adr || breakeven.currentAdr || 0;
+  const breakEvenPrice = breakeven.breakEvenPrice || 0;
+  
+  // El margen se calcula comparando ADR vs breakEvenPrice 
+  // (que ya incluye comisiones) para ser consistente
+  const margin = adr - breakEvenPrice;
+  const isProfitable = margin >= 0;
+
+  return (
+    <section className={styles.commandSection}>
+      <SectionHeader 
+        icon={<Target size={20} />} 
+        title="Salud Operativa" 
+        subtitle="Anatomía de tu tarifa y eficiencia de costos"
+        link="/rentabilidad"
+      />
+      
+      <div className={styles.operationalHealthGrid}>
+        <div className={styles.anatomyCard}>
+          <div className={styles.anatomyHeader}>
+            <span>Desglose del Precio de Equilibrio</span>
+            <HelpTooltip 
+              title="¿Qué significa esto?" 
+              content="Muestra cómo se compone el precio mínimo que necesitás cobrar. Fijos + Variables = tu costo base. Más el margen para cubrir comisiones de canales. Si tu ADR supera este precio, estás generando ganancia."
+              size="sm" 
+            />
+          </div>
+          
+          <div className={styles.anatomyChart}>
+            <div className={styles.anatomyBar}>
+              <div 
+                className={styles.anatomySegmentFixed} 
+                style={{ width: `${(fixedCosts / Math.max(adr, breakEvenPrice)) * 100}%` }}
+              />
+              <div 
+                className={styles.anatomySegmentVariable} 
+                style={{ width: `${(variableCosts / Math.max(adr, breakEvenPrice)) * 100}%` }}
+              />
+              {isProfitable && margin > 0 && (
+                <div 
+                  className={styles.anatomySegmentMargin} 
+                  style={{ width: `${(margin / Math.max(adr, breakEvenPrice)) * 100}%` }}
+                />
+              )}
+            </div>
+            
+            <div className={styles.anatomyLegend}>
+              <div className={styles.legendItem}>
+                <span className={`${styles.legendDot} ${styles.bgError}`} />
+                <div className={styles.legendInfo}>
+                  <span className={styles.legendLabel}>Fijos</span>
+                  <span className={styles.legendValue}>{formatCurrencyShort(fixedCosts)}</span>
+                </div>
+              </div>
+              <div className={styles.legendItem}>
+                <span className={`${styles.legendDot} ${styles.bgWarning}`} />
+                <div className={styles.legendInfo}>
+                  <span className={styles.legendLabel}>Variables</span>
+                  <span className={styles.legendValue}>{formatCurrencyShort(variableCosts)}</span>
+                </div>
+              </div>
+              <div className={styles.legendItem}>
+                <span className={`${styles.legendDot} ${isProfitable ? styles.bgSuccess : styles.bgError}`} />
+                <div className={styles.legendInfo}>
+                  <span className={styles.legendLabel}>{isProfitable ? 'Ganancia' : 'Déficit'}</span>
+                  <span className={`${styles.legendValue} ${isProfitable ? 'text-success' : 'text-error'}`}>
+                    {isProfitable ? '+' : '-'}{formatCurrencyShort(Math.abs(margin))}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className={styles.efficiencyCard}>
+          <div className={styles.efficiencyHeader}>
+            <span>Eficiencia de Costos</span>
+            <HelpTooltip 
+              title="Cómo se calculan estos números" 
+              content="Costo Base = Fijos + Variables divididos por tu capacidad total. Punto de Equilibrio = Costo Base ajustado para cubrir las comisiones de canales. El precio de equilibrio es el mínimo que necesitás cobrar para no perder plata."
+              size="sm"
+            />
+          </div>
+          <div className={styles.efficiencyContent}>
+            <div className={styles.efficiencyMetric}>
+              <span className={styles.efficiencyLabel}>Costo Base por Noche</span>
+              <span className={styles.efficiencyValue}>{formatCurrencyShort(totalCpor)}</span>
+            </div>
+            <div className={styles.efficiencyDivider} />
+            <div className={styles.efficiencyMetric}>
+              <span className={styles.efficiencyLabel}>Precio de Equilibrio</span>
+              <span className={styles.efficiencyValue}>{formatCurrencyShort(breakeven.breakEvenPrice)}</span>
+            </div>
+          </div>
+          <div className={`${styles.efficiencyInsight} ${isProfitable ? styles.insightPositive : styles.insightNegative}`}>
+            {isProfitable ? (
+              <>
+                <TrendingUp size={14} />
+                <span>Tu ADR promedio ({formatCurrencyShort(adr)}) está <strong>{formatCurrencyShort(margin)}</strong> por encima de tus costos.</span>
+              </>
+            ) : (
+              <>
+                <TrendingDown size={14} />
+                <span>Tu ADR promedio ({formatCurrencyShort(adr)}) está <strong>{formatCurrencyShort(Math.abs(margin))}</strong> por debajo de tus costos.</span>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 

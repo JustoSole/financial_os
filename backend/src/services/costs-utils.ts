@@ -15,9 +15,21 @@ function sumMonthlyVariableCategories(costSettings: any): number {
   );
 }
 
+/**
+ * Calcula el costo variable por noche.
+ * 
+ * IMPORTANTE: Este cálculo usa los "nightsForCalculation" como divisor.
+ * Para cálculos de PUNTO DE EQUILIBRIO, pasa la CAPACIDAD (roomCount × días)
+ * para obtener un costo estable. Para cálculos de COSTOS REALES de reservaciones
+ * específicas, pasa las noches reales.
+ * 
+ * @param costSettings - Configuración de costos del property
+ * @param nightsForCalculation - Noches para dividir costos mensuales (usar CAPACIDAD para equilibrio)
+ * @param totalReservations - Número de reservaciones (para calcular limpieza por estadía)
+ */
 export function getVariableCostPerNight(
   costSettings: any,
-  occupiedNights: number,
+  nightsForCalculation: number,
   totalReservations: number
 ): VariableCostPerNight {
   const usesCategories = Array.isArray(costSettings?.variable_categories) && costSettings.variable_categories.length > 0;
@@ -34,12 +46,17 @@ export function getVariableCostPerNight(
 
   const cleaningPerStay = usesCategories ? 0 : (legacyCosts.cleaningPerStay || 0);
 
-  const perNightBase = occupiedNights > 0 ? monthlyVariableTotal / occupiedNights : 0;
-  const cleaningPerNight = cleaningPerStay > 0
-    ? (occupiedNights > 0 && totalReservations > 0
-        ? (cleaningPerStay * totalReservations) / occupiedNights
-        : cleaningPerStay / 3)
-    : 0;
+  // Usar nightsForCalculation como divisor - el caller decide si es capacidad o noches reales
+  // Si es 0, usamos un fallback razonable (30 noches = ~1 habitación por mes)
+  const safeNights = nightsForCalculation > 0 ? nightsForCalculation : 30;
+  const perNightBase = monthlyVariableTotal / safeNights;
+  
+  // Para limpieza por estadía, calculamos el costo por noche basado en estadía promedio
+  // Si no hay datos de reservaciones, asumimos estadía promedio de 2.5 noches
+  const avgStayLength = (nightsForCalculation > 0 && totalReservations > 0)
+    ? nightsForCalculation / totalReservations
+    : 2.5;
+  const cleaningPerNight = cleaningPerStay > 0 ? cleaningPerStay / avgStayLength : 0;
 
   return {
     perNightBase,

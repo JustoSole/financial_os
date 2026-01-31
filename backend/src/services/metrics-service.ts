@@ -622,42 +622,69 @@ export async function calculateBreakEven(propertyId: string): Promise<any> {
   if (cached) return cached;
 
   const costSettings = await database.getCostSettings(propertyId);
-  const roomCount = costSettings?.room_count || 0;
+  const roomCount = costSettings?.room_count || 1;
   const fixedMonthly = await database.getTotalMonthlyFixedCosts(propertyId);
   
   const structure = await calculateStructureMetrics(propertyId, 90); 
   const channels = await calculateChannelMetrics(propertyId, 90);
   
   const ADR = structure.ADR;
+  const periodDays = structure.period.days || 90;
   const totalRevenue = channels.channels.reduce((sum: number, c: any) => sum + c.revenue, 0);
   const totalCommission = channels.channels.reduce((sum: number, c: any) => sum + c.estimatedCommission, 0);
   const avgComm = totalRevenue > 0 ? totalCommission / totalRevenue : 0;
   
-  const estimatedOccupiedNights = (structure.occupancyRate / 100) * roomCount * structure.period.days;
+  // Capacidad total del período
+  const totalCapacityNights = roomCount * periodDays;
+  
+  // Costos variables basados en CAPACIDAD (no ocupación real) para consistencia
   const { perNightTotal: totalVarPerNight } = getVariableCostPerNight(
     costSettings,
-    estimatedOccupiedNights,
-    0
+    totalCapacityNights,
+    Math.round(totalCapacityNights / 2.5)
   );
   
+  // Contribución por noche = ADR neto (después de comisión) - costos variables
   const contribPerNight = ADR * (1 - avgComm) - totalVarPerNight;
+  
+  // CÁLCULO DEL PUNTO DE EQUILIBRIO DE OCUPACIÓN
+  // =====================================================
+  // Fórmula: breakEvenOccupancy = (costosFijosPorDía / (contribPerNight * roomCount)) * 100
+  // 
+  // Esto responde: "¿Qué porcentaje de ocupación necesito para cubrir mis gastos fijos?"
+  // 
+  // Ejemplo: Si costos fijos diarios = $3,000, contribución/noche = $500, y 10 habitaciones:
+  // breakEvenOccupancy = ($3,000 / ($500 × 10)) × 100 = 60%
+  // Necesitas vender al menos 60% de tus noches disponibles para cubrir costos fijos.
+  //
+  const fixedPerDay = fixedMonthly / 30.44;
   
   let breakEvenOccupancy = 0;
   let isImpossible = false;
   
   if (contribPerNight <= 0) {
+    // Si la contribución por noche es 0 o negativa, es imposible alcanzar el equilibrio
     breakEvenOccupancy = 100;
     isImpossible = true;
   } else {
-    breakEvenOccupancy = ((fixedMonthly / 30.44) / contribPerNight) / roomCount;
+    // Fórmula correcta: noches necesarias / capacidad total por día
+    const nightsNeededPerDay = fixedPerDay / contribPerNight;
+    breakEvenOccupancy = (nightsNeededPerDay / roomCount) * 100;
+    
+    // Si necesitas más del 100% de ocupación, es imposible
+    if (breakEvenOccupancy > 100) {
+      isImpossible = true;
+    }
   }
 
   const result = {
-    breakEvenOccupancy: Math.round(breakEvenOccupancy * 100 * 10) / 10,
+    breakEvenOccupancy: Math.round(Math.min(100, breakEvenOccupancy) * 10) / 10,
     currentOccupancy: structure.occupancyRate,
     isImpossible,
-    contribPerNight,
-    fixedPerDay: fixedMonthly / 30.44
+    contribPerNight: Math.round(contribPerNight),
+    fixedPerDay: Math.round(fixedPerDay),
+    roomCount,
+    periodDays
   };
 
   cacheService.set(cacheKey, result);
@@ -775,45 +802,58 @@ export async function getMinimumPriceSimulation(propertyId: string, marginPct: n
   // 1. PARÁMETROS BASE
   const roomCount = settings?.room_count || 1;
   const periodDays = engine.getEffectivePeriod().days || 30;
-  const totalNights = Math.max(profitability.totalNights || 0, 1);
-  // Estimamos reservaciones basado en estancia promedio de 2.5 noches si no hay dato directo
-  const estimatedReservations = Math.max(Math.round(totalNights / 2.5), 1);
+  const totalNightsSold = profitability.totalNights || 0;
   
-  // 2. COSTOS FIJOS - Prorrateados sobre CAPACIDAD TOTAL (estándar en Revenue Management)
+  // 2. CAPACIDAD TOTAL DEL PERÍODO (base para cálculos estables)
+  // =====================================================
+  // IMPORTANTE: Usamos CAPACIDAD (roomCount × days), NO noches vendidas.
+  // Esto proporciona un precio de equilibrio ESTABLE que no cambia
+  // según cuánto hayas vendido (evita circularidad).
+  // =====================================================
+  const totalCapacityNights = roomCount * periodDays;
+  
+  // 3. COSTOS FIJOS - Prorrateados sobre CAPACIDAD para estabilidad
   const fixedMonthly = (settings?.fixed_costs?.salaries || 0) + 
                        (settings?.fixed_costs?.rent || 0) + 
                        (settings?.fixed_costs?.utilities || 0) + 
                        (settings?.fixed_costs?.other || 0);
   const fixedPerDay = fixedMonthly / 30.44;
   const periodFixed = fixedPerDay * periodDays;
-  const totalCapacityNights = roomCount * periodDays;
-  const fixedCostPerNight = periodFixed / Math.max(totalCapacityNights, 1);
   
-  // 3. COSTOS VARIABLES - Basados en configuración del usuario
+  // Costo fijo por noche BASADO EN CAPACIDAD (no en ocupación real)
+  // Esto representa: "¿Cuánto me cuesta cada noche si vendo TODO?"
+  const fixedCostPerNight = totalCapacityNights > 0 ? periodFixed / totalCapacityNights : 0;
+  
+  // 4. COSTOS VARIABLES - Basados en configuración del usuario
+  // Para variables, usamos la capacidad como base estable
   const { perNightTotal: variableCostPerNight } = getVariableCostPerNight(
     settings,
-    totalNights,
-    estimatedReservations
+    totalCapacityNights, // Usar capacidad para consistencia
+    Math.round(totalCapacityNights / 2.5) // Estimación de reservaciones
   );
   
-  // 4. COSTO BASE POR NOCHE (sin comisiones)
+  // 5. COSTO BASE POR NOCHE (sin comisiones)
   const baseCostPerNight = fixedCostPerNight + variableCostPerNight;
   
-  // 5. TASA DE COMISIÓN PROMEDIO
+  // 6. TASA DE COMISIÓN PROMEDIO
   const totalRevenue = profitability.totalRevenue || 0;
   const totalCommissions = profitability.totalCommissions || 0;
   const avgCommRate = totalRevenue > 0 
     ? totalCommissions / totalRevenue 
     : (settings?.channel_commissions?.defaultRate || 0.15); // Default 15% si no hay datos
   
-  // 6. CÁLCULO CONSISTENTE: PRIMERO breakEvenPrice, DESPUÉS minPrice
-  // ==============================================================
+  // 7. CÁLCULO DEL PRECIO DE EQUILIBRIO (BREAK-EVEN PRICE)
+  // =====================================================
   // 
-  // Fórmula del PRECIO DE EQUILIBRIO (sin margen):
-  // breakEvenPrice = baseCostPerNight / (1 - commissionRate)
+  // Fórmula: breakEvenPrice = baseCostPerNight / (1 - commissionRate)
   // 
-  // Esto significa: el precio mínimo para que después de pagar comisiones,
-  // nos quede exactamente para cubrir los costos.
+  // CONCEPTO CLAVE: Este es el precio MÍNIMO por noche que necesitas
+  // para cubrir todos tus costos operativos SI vendieras al 100% de ocupación.
+  // 
+  // Es una REFERENCIA ESTABLE porque:
+  // - Se basa en CAPACIDAD (no en ocupación real)
+  // - No cambia según cuánto hayas vendido
+  // - Sirve como "piso" de pricing
   // 
   // Ejemplo: Si baseCost = $1000 y comisión = 15%
   // breakEvenPrice = 1000 / 0.85 = $1176.47
@@ -823,8 +863,8 @@ export async function getMinimumPriceSimulation(propertyId: string, marginPct: n
   const safeBEDenominator = breakEvenDenominator > 0 ? breakEvenDenominator : 0.85;
   const breakEvenPrice = baseCostPerNight / safeBEDenominator;
   
-  // 7. PRECIO SUGERIDO (con margen) - DERIVADO del breakEvenPrice
-  // ==============================================================
+  // 8. PRECIO SUGERIDO (con margen) - DERIVADO del breakEvenPrice
+  // =====================================================
   // 
   // Fórmula: minPrice = breakEvenPrice / (1 - marginRate)
   // 
@@ -844,14 +884,15 @@ export async function getMinimumPriceSimulation(propertyId: string, marginPct: n
   const safeMarginDenominator = marginDenominator > 0.1 ? marginDenominator : 0.8;
   const minPrice = breakEvenPrice / safeMarginDenominator;
   
-  // 8. COMPONENTES PARA DESGLOSE EN FRONTEND
-  // El desglose ahora muestra claramente la relación:
-  // Costo Base → (+ impacto comisiones) → Precio Equilibrio → (+ margen) → Precio Sugerido
+  // 9. COMPONENTES PARA DESGLOSE EN FRONTEND
   const commissionImpactOnBreakeven = breakEvenPrice - baseCostPerNight;
   const marginAmount = minPrice - breakEvenPrice;
   
   // Verificación de consistencia
   const hasCostsConfigured = fixedMonthly > 0 || variableCostPerNight > 0;
+  
+  // Ocupación actual para contexto
+  const currentOccupancy = totalCapacityNights > 0 ? (totalNightsSold / totalCapacityNights) * 100 : 0;
   
   return {
     // Precios principales - GARANTIZADO: minPrice >= breakEvenPrice
@@ -863,14 +904,16 @@ export async function getMinimumPriceSimulation(propertyId: string, marginPct: n
     marginRate: marginRate,
     
     // Contexto
-    totalNights,
+    totalNights: totalNightsSold,
+    totalCapacityNights,
     periodDays,
     roomCount,
+    currentOccupancy: Math.round(currentOccupancy * 10) / 10,
     hasCostsConfigured,
     
     // Componentes para desglose visual
     components: {
-      // Costos base (sin comisiones)
+      // Costos base (sin comisiones) - basados en CAPACIDAD
       fixedCostPerNight: Math.round(fixedCostPerNight),
       variableCostPerNight: Math.round(variableCostPerNight),
       baseCostPerNight: Math.round(baseCostPerNight),
@@ -883,7 +926,7 @@ export async function getMinimumPriceSimulation(propertyId: string, marginPct: n
     },
     
     // ADR actual para referencia
-    currentAdr: totalNights > 0 ? Math.round(profitability.totalRevenue / totalNights) : 0
+    currentAdr: totalNightsSold > 0 ? Math.round(profitability.totalRevenue / totalNightsSold) : 0
   };
 }
 

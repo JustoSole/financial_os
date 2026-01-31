@@ -240,6 +240,9 @@ function buildHealthSnapshot(
 
 /**
  * Builder: Break-even
+ * 
+ * IMPORTANTE: Todos los cálculos de punto de equilibrio usan CAPACIDAD (no ocupación real)
+ * para proporcionar referencias estables que no cambien según el volumen de ventas.
  */
 function buildBreakEvenAnalysis(structure: any, profitability: any, settings: any, days: number): BreakEvenAnalysis {
   const fixedMonthly = (settings?.fixed_costs?.salaries || 0) + (settings?.fixed_costs?.rent || 0) + (settings?.fixed_costs?.utilities || 0) + (settings?.fixed_costs?.other || 0);
@@ -248,58 +251,63 @@ function buildBreakEvenAnalysis(structure: any, profitability: any, settings: an
   const roomCount = settings?.room_count || 1;
   const adr = structure.ADR || 0;
   
-  // Get variable costs per night correctly
+  // CAPACIDAD TOTAL - Base para todos los cálculos estables
+  const totalCapacityNights = roomCount * days;
+  
+  // Noches vendidas (para información, no para cálculos de equilibrio)
   const nightsSold = (structure.occupancyRate * roomCount * days) / 100;
   
-  // Use the same variable cost calculation as elsewhere
+  // Costos variables basados en CAPACIDAD (no ocupación real)
   const { perNightTotal: variablePerNight } = getVariableCostPerNight(
     settings,
-    nightsSold,
-    0 
+    totalCapacityNights, // Usar capacidad para consistencia
+    Math.round(totalCapacityNights / 2.5)
   );
   
-  // Calculate average commission rate from actual profitability data
+  // Tasa de comisión promedio desde datos reales
   const totalRevenue = profitability.totalRevenue || 0;
   const totalCommissions = profitability.totalCommissions || 0;
   const avgCommRate = totalRevenue > 0 ? totalCommissions / totalRevenue : (settings?.channel_commissions?.defaultRate || 0);
   
-  // Contribution per night = ADR * (1 - commission%) - VariableCosts
+  // CONTRIBUCIÓN POR NOCHE = ADR neto (después de comisión) - costos variables
   const contribPerNight = (adr * (1 - avgCommRate)) - variablePerNight;
   
-  const breakEvenOccupancy = (contribPerNight > 0 && roomCount > 0)
-    ? (fixedPerDay / (contribPerNight * roomCount)) * 100
-    : 0;
+  // PUNTO DE EQUILIBRIO DE OCUPACIÓN
+  // Fórmula: (costosFijosDiarios / (contribuciónPorNoche × habitaciones)) × 100
+  let breakEvenOccupancy = 0;
+  if (contribPerNight > 0 && roomCount > 0) {
+    breakEvenOccupancy = (fixedPerDay / (contribPerNight * roomCount)) * 100;
+    breakEvenOccupancy = Math.min(100, breakEvenOccupancy); // Cap at 100%
+  }
 
-  const nightsNeeded = contribPerNight > 0 ? periodFixed / contribPerNight : 0;
+  // NOCHES NECESARIAS para cubrir costos fijos del período
+  const nightsNeeded = contribPerNight > 0 ? periodFixed / contribPerNight : totalCapacityNights;
 
-  // Break-even price should be based on CAPACITY to be a stable reference, 
-  // not on actual occupancy which makes it volatile and contradictory.
-  const totalCapacityNights = roomCount * days;
+  // PRECIO DE EQUILIBRIO - basado en CAPACIDAD (referencia estable)
   const fixedCostPerNight = totalCapacityNights > 0 ? periodFixed / totalCapacityNights : 0;
-  
-  // Consistency with metrics-service: Use the same base cost logic
+  const baseCostPerNight = fixedCostPerNight + variablePerNight;
   const breakEvenPrice = (1 - avgCommRate > 0)
-    ? (fixedCostPerNight + variablePerNight) / (1 - avgCommRate)
+    ? baseCostPerNight / (1 - avgCommRate)
     : 0;
 
   return {
-    breakEvenOccupancy: breakEvenOccupancy, // No rounding here, let the engine/view handle it
+    breakEvenOccupancy: Math.round(breakEvenOccupancy * 10) / 10,
     currentOccupancy: structure.occupancyRate,
-    gapToBreakEven: structure.occupancyRate - breakEvenOccupancy,
+    gapToBreakEven: Math.round((structure.occupancyRate - breakEvenOccupancy) * 10) / 10,
     nightsNeededForBreakEven: Math.ceil(nightsNeeded),
     nightsSoldThisPeriod: Math.round(nightsSold),
     nightsGap: Math.round(nightsSold - nightsNeeded),
     breakEvenPrice: Math.round(breakEvenPrice),
     currentAdr: Math.round(adr),
     marginSimulation: {
-      margin10: 0,
-      margin20: 0,
-      margin30: 0
+      margin10: Math.round(breakEvenPrice / 0.9),  // 10% margen
+      margin20: Math.round(breakEvenPrice / 0.8),  // 20% margen
+      margin30: Math.round(breakEvenPrice / 0.7)   // 30% margen
     },
     distanceToBreakEven: {
       inDollars: Math.round((nightsSold - nightsNeeded) * contribPerNight),
       inNights: Math.round(nightsSold - nightsNeeded),
-      status: nightsSold >= nightsNeeded ? 'profitable' : 'losing'
+      status: nightsSold >= nightsNeeded ? 'profitable' : nightsSold >= nightsNeeded * 0.8 ? 'at_risk' : 'losing'
     },
     revparDecomposition: {
       occupancyContribution: 0.6,
@@ -311,16 +319,24 @@ function buildBreakEvenAnalysis(structure: any, profitability: any, settings: an
 
 /**
  * Builder: Unit Economics
+ * 
+ * IMPORTANTE: Los costos fijos por noche se calculan usando CAPACIDAD (no noches vendidas)
+ * para ser consistentes con el cálculo del punto de equilibrio (breakEvenPrice).
+ * Esto proporciona una referencia estable de "cuánto necesito por noche" que no cambia
+ * según cuánto hayas vendido.
  */
 function buildUnitEconomics(structure: any, profitability: any, settings: any, days: number): UnitEconomics {
   const roomCount = settings?.room_count || 1;
   const totalNights = (structure.occupancyRate * roomCount * days) / 100;
   
-  // Use the same variable cost calculation as elsewhere
+  // CAPACIDAD TOTAL - Base para costos fijos (consistente con breakEvenPrice)
+  const totalCapacityNights = roomCount * days;
+  
+  // Use the same variable cost calculation as elsewhere, basado en capacidad para consistencia
   const { perNightTotal: variablePerNight } = getVariableCostPerNight(
     settings,
-    totalNights,
-    0
+    totalCapacityNights, // Usar capacidad, no noches vendidas
+    Math.round(totalCapacityNights / 2.5)
   );
 
   const adr = structure.ADR || 0;
@@ -328,30 +344,45 @@ function buildUnitEconomics(structure: any, profitability: any, settings: any, d
   
   const profitPerNight = totalNights > 0 ? netProfit / totalNights : 0;
   
-  // Fixed costs per night
+  // Fixed costs per night - BASADO EN CAPACIDAD (igual que breakEvenPrice)
+  // Esto representa: "¿Cuánto me cuesta cada noche si vendo al 100%?"
   const fixedMonthly = (settings?.fixed_costs?.salaries || 0) + 
                        (settings?.fixed_costs?.rent || 0) + 
                        (settings?.fixed_costs?.utilities || 0) + 
                        (settings?.fixed_costs?.other || 0);
   const fixedPerDay = fixedMonthly / 30.44;
-  const fixedPerNight = totalNights > 0 ? (fixedPerDay * days) / totalNights : 0;
+  const periodFixed = fixedPerDay * days;
   
-  const commissionPerNight = Math.max(0, adr - profitPerNight - fixedPerNight - variablePerNight);
+  // Costo fijo por noche basado en CAPACIDAD para consistencia con breakEvenPrice
+  const fixedPerNight = totalCapacityNights > 0 ? periodFixed / totalCapacityNights : 0;
+  
+  // Comisión promedio desde los datos reales
+  const totalRevenue = profitability.totalRevenue || 0;
+  const totalCommissions = profitability.totalCommissions || 0;
+  const avgCommRate = totalRevenue > 0 ? totalCommissions / totalRevenue : 0;
+  const commissionPerNight = adr * avgCommRate;
 
   return {
     profitPerNight: Math.round(profitPerNight),
+    adr: Math.round(adr),
     contributionMargin: Math.round(adr - variablePerNight),
     contributionMarginPercent: adr > 0 ? Math.round(((adr - variablePerNight) / adr) * 100) : 0,
-    cpor: totalNights > 0 ? Math.round(fixedPerNight + variablePerNight) : 0,
+    cpor: Math.round(fixedPerNight + variablePerNight),
     cporBreakdown: {
       fixed: Math.round(fixedPerNight),
       variable: Math.round(variablePerNight),
       commission: Math.round(commissionPerNight)
     },
     costMix: {
-      fixedPercent: totalNights > 0 ? Math.round((fixedPerNight / (fixedPerNight + variablePerNight + commissionPerNight)) * 100) : 0,
-      variablePercent: totalNights > 0 ? Math.round((variablePerNight / (fixedPerNight + variablePerNight + commissionPerNight)) * 100) : 0,
-      commissionPercent: totalNights > 0 ? Math.round((commissionPerNight / (fixedPerNight + variablePerNight + commissionPerNight)) * 100) : 0
+      fixedPercent: (fixedPerNight + variablePerNight + commissionPerNight) > 0 
+        ? Math.round((fixedPerNight / (fixedPerNight + variablePerNight + commissionPerNight)) * 100) 
+        : 0,
+      variablePercent: (fixedPerNight + variablePerNight + commissionPerNight) > 0 
+        ? Math.round((variablePerNight / (fixedPerNight + variablePerNight + commissionPerNight)) * 100) 
+        : 0,
+      commissionPercent: (fixedPerNight + variablePerNight + commissionPerNight) > 0 
+        ? Math.round((commissionPerNight / (fixedPerNight + variablePerNight + commissionPerNight)) * 100) 
+        : 0
     },
     costAlerts: []
   };

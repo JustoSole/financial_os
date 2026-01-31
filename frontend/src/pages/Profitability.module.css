@@ -350,6 +350,149 @@
   color: var(--color-text-muted);
 }
 
+/* Cost Analysis Card Redesign */
+.costAnalysisCard {
+  padding: var(--space-6) !important;
+  margin-top: var(--space-4);
+}
+
+.costAnalysisHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: var(--space-6);
+}
+
+.costAnalysisTitle {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.costAnalysisSubtitle {
+  font-size: var(--text-sm);
+  color: var(--color-text-muted);
+  margin: 2px 0 0;
+}
+
+.periodBadge {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--color-bg-hover);
+  border-radius: var(--radius-full);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+
+.costTableWrapper {
+  margin: 0 calc(-1 * var(--space-6));
+  overflow-x: auto;
+}
+
+.costTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.costTable th {
+  text-align: left;
+  padding: var(--space-3) var(--space-6);
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-muted);
+  background: var(--color-bg-hover);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.costTable td {
+  padding: var(--space-4) var(--space-6);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.costTypeInfo {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  margin-top: 6px;
+  flex-shrink: 0;
+}
+
+.costTypeInfo strong {
+  display: block;
+  font-size: var(--text-sm);
+  color: var(--color-text);
+}
+
+.costTypeInfo p {
+  font-size: var(--text-xs);
+  color: var(--color-text-muted);
+  margin: 2px 0 0;
+}
+
+.totalCostRow {
+  background: var(--color-bg-subtle);
+}
+
+.totalCostRow td {
+  border-bottom: none;
+}
+
+.statusBadge {
+  padding: 4px 10px;
+  border-radius: var(--radius-full);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.statusBadgeError { background: var(--color-error-bg); color: var(--color-error); }
+.statusBadgeWarning { background: var(--color-warning-bg); color: var(--color-warning-dark, #92400e); }
+.statusBadgePrimary { background: var(--color-primary-subtle); color: var(--color-primary); }
+
+.costInsightBox {
+  margin-top: var(--space-6);
+  padding: var(--space-4);
+  background: var(--color-primary-subtle);
+  border-radius: var(--radius-lg);
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.costInsightBox p {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+
+.bgError { background-color: var(--color-error); }
+.bgWarning { background-color: var(--color-warning); }
+.bgPrimary { background-color: var(--color-primary); }
+
+@media (max-width: 768px) {
+  .costAnalysisHeader {
+    flex-direction: column;
+    gap: var(--space-4);
+  }
+  
+  .costTable th, .costTable td {
+    padding: var(--space-3) var(--space-4);
+  }
+}
+
 .patternsEmpty {
   color: var(--color-text-muted);
   font-size: var(--text-sm);

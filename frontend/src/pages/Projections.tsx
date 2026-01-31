@@ -137,9 +137,20 @@ export default function Projections() {
         </Card>
       </section>
 
-      {/* Nivel 2: Gráfico de Pacing y Calendario */}
+      {/* Nivel 2: Calendario y Gráfico de Pacing */}
       <section className={styles.pacingSection}>
         <div className={styles.gridTwoCols}>
+          <Card>
+            <CardHeader>
+              <CardTitle>Vista Diaria de Proyecciones</CardTitle>
+            </CardHeader>
+            <div className={styles.pacingInfo}>
+              <Info size={16} />
+              <p>Revenue y ocupación estimada día por día para los próximos {horizon} días.</p>
+            </div>
+            <CalendarProjection data={data.daily} />
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>Ritmo de Venta Semanal (Pacing YoY)</CardTitle>
@@ -182,17 +193,6 @@ export default function Projections() {
                 </div>
               ))}
             </div>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Vista Diaria de Proyecciones</CardTitle>
-            </CardHeader>
-            <div className={styles.pacingInfo}>
-              <Info size={16} />
-              <p>Revenue y ocupación estimada día por día para los próximos {horizon} días.</p>
-            </div>
-            <CalendarProjection data={data.daily} />
           </Card>
         </div>
       </section>

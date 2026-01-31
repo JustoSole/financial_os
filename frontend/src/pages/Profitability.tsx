@@ -246,18 +246,18 @@ export default function Profitability() {
         <div className="page-header">
           <div>
             <h1 className="page-title">
-              Rentabilidad por Reserva
+              Rentabilidad por Noche
               <HelpTooltip termKey="unitEconomics" size="md" />
             </h1>
-            <p className="page-subtitle">Ganancia o pérdida de cada reserva individual</p>
+            <p className="page-subtitle">Ganancia neta y margen operativo prorrateado por noche ocupada</p>
           </div>
           <PeriodSelector />
         </div>
         
         <EmptyState
           icon={<Database size={48} />}
-          title="Sin datos de reservas"
-          description="Importá el reporte 'Reservations with Financials' para ver el análisis de rentabilidad por reserva."
+          title="Sin datos de noches"
+          description="Importá el reporte 'Reservations with Financials' para ver el análisis de rentabilidad por noche."
           action={{
             label: "Ir a Importar",
             to: "/importar"
@@ -272,17 +272,17 @@ export default function Profitability() {
       <div className="page-header">
         <div>
           <h1 className="page-title">
-            Rentabilidad por Reserva
+            Rentabilidad por Noche
             <HelpTooltip termKey="unitEconomics" size="md" />
           </h1>
-          <p className="page-subtitle">Ganancia o pérdida de cada reserva individual</p>
+          <p className="page-subtitle">Ganancia neta y margen operativo prorrateado por noche ocupada</p>
         </div>
         <PeriodSelector />
       </div>
 
       {/* Summary Cards */}
       <div className={styles.summary}>
-        <SummaryMetric value={summary?.totalReservations || 0} label="Reservas analizadas" />
+        <SummaryMetric value={summary?.totalRoomNights || 0} label="Noches analizadas" />
         <SummaryMetric
           value={formatCurrency(summary?.totalNetProfit || 0)}
           label="Ganancia neta total"
@@ -292,21 +292,20 @@ export default function Profitability() {
           value={`${(summary?.avgMarginPercent || 0).toFixed(1)}%`}
           label="Margen promedio"
         />
-        <SummaryMetric
-          value={formatCurrency(summary?.goppar || 0)}
-          label="GOPPAR"
-          variant={(summary?.goppar || 0) >= 0 ? 'positive' : 'negative'}
-        />
-        <SummaryMetric
-          value={summary?.unprofitableCount || 0}
-          label={`Con pérdida (${(summary?.unprofitableShare || 0).toFixed(1)}%)`}
-          variant="danger"
-        />
-        <SummaryMetric
-          value={`-${formatCurrency(summary?.unprofitableLoss || 0)}`}
-          label="Total perdido"
-          variant="danger"
-        />
+        {(summary?.unprofitableCount || 0) > 0 && (
+          <SummaryMetric
+            value={summary?.unprofitableCount || 0}
+            label={`Noches con pérdida (${(summary?.unprofitableShare || 0).toFixed(1)}%)`}
+            variant="danger"
+          />
+        )}
+        {(summary?.unprofitableLoss || 0) > 0 && (
+          <SummaryMetric
+            value={`-${formatCurrency(summary?.unprofitableLoss || 0)}`}
+            label="Total perdido"
+            variant="danger"
+          />
+        )}
       </div>
 
       {/* Config Used */}
@@ -796,15 +795,15 @@ function ThresholdsView({
             <input
               type="range"
               min="0"
-              max="50"
+              max="150"
               value={marginPct}
               onChange={(e) => setMarginPct(parseInt(e.target.value))}
               className="sandbox-slider"
             />
             <div className="slider-labels">
-              <span>0% (solo cubrir costos)</span>
-              <span>25%</span>
-              <span>50%</span>
+              <span>0%</span>
+              <span>75%</span>
+              <span>150%</span>
             </div>
           </div>
 
@@ -850,15 +849,6 @@ function ThresholdsView({
               <span>+ Margen deseado ({marginPct}%)</span>
               <span className="text-success">+{formatCurrency(simulation?.components?.marginAmount || 0)}</span>
             </div>
-          </div>
-
-          <div className="sandbox-explanation">
-            <Info size={14} />
-            <p>
-              <strong>Lógica del cálculo:</strong> Partimos del precio de equilibrio ({formatCurrency(simulation?.breakEvenPrice || 0)}) 
-              que cubre tus costos + comisiones ({formatPercent((simulation?.avgCommissionRate || 0) * 100)}), 
-              y le agregamos tu margen deseado del {marginPct}%.
-            </p>
           </div>
 
           {!simulation?.hasCostsConfigured && (

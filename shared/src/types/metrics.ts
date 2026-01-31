@@ -594,6 +594,7 @@ export interface BreakEvenAnalysis {
 
 export interface UnitEconomics {
   profitPerNight: number;
+  adr?: number; // ADR para referencia visual en comparación con costos
   contributionMargin: number;
   contributionMarginPercent: number;
   cpor: number;

@@ -107,16 +107,9 @@
 }
 
 .gridTwoCols {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+  display: flex;
+  flex-direction: column;
   gap: 1.5rem;
-  align-items: start;
-}
-
-@media (max-width: 1200px) {
-  .gridTwoCols {
-    grid-template-columns: 1fr;
-  }
 }
 
 .pacingInfo {
