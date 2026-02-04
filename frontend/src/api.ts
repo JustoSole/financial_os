@@ -70,8 +70,12 @@ export const getChannels = (propertyId: string, startDateOrDays: string | number
 };
 
 // Collections: Reservations with balance due
-export const getCollections = (propertyId: string) =>
-  request<any>(`/metrics/${propertyId}/collections`);
+export const getCollections = (propertyId: string, startDateOrDays: string | number = 30, endDate?: string) => {
+  const params = typeof startDateOrDays === 'string' && endDate
+    ? new URLSearchParams({ startDate: startDateOrDays, endDate })
+    : new URLSearchParams({ days: startDateOrDays.toString() });
+  return request<any>(`/metrics/${propertyId}/collections?${params}`);
+};
 
 // Daily flow for chart
 export const getDailyFlow = (propertyId: string, startDateOrDays: string | number = 30, endDate?: string) => {

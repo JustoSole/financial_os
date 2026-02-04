@@ -691,17 +691,37 @@ export async function calculateBreakEven(propertyId: string): Promise<any> {
   return result;
 }
 
-export async function getCollectionsData(propertyId: string): Promise<any> {
+export async function getCollectionsData(propertyId: string, startDateOrDays: string | number = 30, endDate?: string): Promise<any> {
+  let startStr: string;
+  let endStr: string;
+
+  if (typeof startDateOrDays === 'string' && endDate) {
+    startStr = startDateOrDays;
+    endStr = endDate;
+  } else {
+    const days = typeof startDateOrDays === 'number' ? startDateOrDays : 30;
+    const end = new Date();
+    const start = new Date(end.getTime() - days * 24 * 60 * 60 * 1000);
+    startStr = start.toISOString().substring(0, 10);
+    endStr = end.toISOString().substring(0, 10);
+  }
+
   const totalBalanceDue = await database.getTotalBalanceDue(propertyId);
   const reservations = await database.getReservationsWithBalance(propertyId);
   
+  // Filter reservations by check-in period
+  const filteredReservations = reservations.filter((r: any) => {
+    const checkIn = r.check_in?.substring(0, 10);
+    return checkIn >= startStr && checkIn <= endStr;
+  });
+
   const allReservations = await database.getReservationsByProperty(propertyId);
   const totalPaid = allReservations.reduce((sum: number, r: any) => sum + (r.paid_amount || 0), 0);
   
   return {
     totalBalanceDue,
     totalPaid,
-    reservationsWithBalance: reservations.map((r: any) => ({
+    reservationsWithBalance: filteredReservations.map((r: any) => ({
       reservationNumber: r.reservation_number,
       guestName: r.guest_name || null,
       status: r.status,
@@ -1001,19 +1021,33 @@ export async function calculateDOWPerformance(propertyId: string, startDateOrDay
     current.setDate(current.getDate() + 1);
   }
 
+  // IMPORTANTE: Calcular noches y reservaciones TOTALES para obtener el costo variable por noche correcto
+  // Esto evita el bug de dividir costos mensuales por pocas noches de un día específico
+  const totalNightsAllDays = Object.values(dowData).reduce((sum, d) => sum + d.nights, 0);
+  const totalResCount = Object.values(dowData).reduce((sum, d) => sum + d.resCount, 0);
+  
+  // Calcular costo variable por noche usando las noches TOTALES
+  const { perNightBase: globalPerNightBase, cleaningPerNight } = getVariableCostPerNight(
+    costSettings,
+    totalNightsAllDays,
+    totalResCount
+  );
+  const globalVariablePerNight = globalPerNightBase + cleaningPerNight;
+
   const result: DOWPerformance[] = Object.entries(dowData).map(([dowStr, data]) => {
     const dow = parseInt(dowStr);
     const occurrences = dayOccurrences[dow] || (days / 7);
     const availableNights = occurrences * roomCount;
     const occupancyRate = availableNights > 0 ? (data.nights / availableNights) * 100 : 0;
     
-    const { perNightBase, cleaningTotal } = getVariableCostPerNight(
-      costSettings,
-      data.nights,
-      data.resCount
-    );
-    const totalVarCosts = (data.nights * perNightBase) + cleaningTotal;
-    const netProfit = data.revenue - (occurrences * fixedPerDay) - totalVarCosts;
+    // CORREGIDO: Usar el costo variable por noche calculado globalmente
+    const totalVarCosts = data.nights * globalVariablePerNight;
+    
+    // Costos fijos prorrateados por proporción de noches
+    const nightsShare = totalNightsAllDays > 0 ? data.nights / totalNightsAllDays : 0;
+    const fixedCostsForDay = (fixedPerDay * days) * nightsShare;
+    
+    const netProfit = data.revenue - fixedCostsForDay - totalVarCosts;
     
     return {
       dayOfWeek: dow,

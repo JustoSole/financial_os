@@ -17,8 +17,14 @@ import {
  * 
  * IMPORTANTE: Este engine detecta automáticamente el rango de datos disponibles.
  * Si el período solicitado no tiene datos pero existen datos históricos,
- * el engine ajustará el período para mostrar los datos disponibles.
+ * el engine ajustará el período para mostrar los datos disponibles (a menos que se deshabilite).
  */
+
+export interface CalculationEngineOptions {
+  /** Si es true, no hace fallback a datos históricos cuando no hay datos en el período */
+  disableFallback?: boolean;
+}
+
 export class CalculationEngine {
   private propertyId: string;
   private period: DatePeriod;
@@ -29,11 +35,13 @@ export class CalculationEngine {
   private transactions: any[] = [];
   private importFiles: any[] = [];
   private usedFallbackPeriod: boolean = false; // Indica si se usó un período alternativo
+  private options: CalculationEngineOptions;
   
-  constructor(propertyId: string, period: DatePeriod) {
+  constructor(propertyId: string, period: DatePeriod, options: CalculationEngineOptions = {}) {
     this.propertyId = propertyId;
     this.period = period;
     this.originalPeriod = { ...period };
+    this.options = options;
   }
 
   /**
@@ -67,7 +75,9 @@ export class CalculationEngine {
     let filteredReservations = this.filterReservationsByPeriod(allReservations, this.period);
     
     // 4. AUTO-DETECCIÓN: Si no hay datos en el período actual, buscar datos históricos
-    if (filteredReservations.length === 0 && allReservations.length > 0) {
+    // NOTA: Si disableFallback está activo, NO hacemos fallback a datos históricos.
+    // Esto es importante para el actions-service donde queremos analizar SOLO el período seleccionado.
+    if (filteredReservations.length === 0 && allReservations.length > 0 && !this.options.disableFallback) {
       logger.info('ENGINE', `No data in requested period. Detecting available data range...`);
       
       // Obtener rango de datos disponibles
@@ -106,6 +116,8 @@ export class CalculationEngine {
         // Re-filtrar con el nuevo período
         filteredReservations = this.filterReservationsByPeriod(allReservations, this.period);
       }
+    } else if (filteredReservations.length === 0 && this.options.disableFallback) {
+      logger.info('ENGINE', `No data in requested period and fallback disabled. Using empty dataset.`);
     }
     
     // 5. Cargar transacciones del período (ya sea original o ajustado)
@@ -541,6 +553,10 @@ export class CalculationEngine {
 
   /**
    * Calculate detailed economics for a single reservation
+   * 
+   * IMPORTANTE: Los costos variables mensuales (lavandería, amenities) se dividen por
+   * 30.44 (días promedio por mes) para obtener un costo por noche consistente.
+   * La limpieza por estadía se calcula por separado usando la estadía real de la reserva.
    */
   calculateReservationEconomics(r: any) {
     const roomNights = r.room_nights || 0;
@@ -556,12 +572,40 @@ export class CalculationEngine {
     const commission = revenue * rate;
     
     // 2. Variable Costs
-    const { perNightTotal: varPerNight } = getVariableCostPerNight(
-      this.costSettings,
-      roomNights,
-      1
-    );
-    const variableCosts = varPerNight * roomNights;
+    // CORRECCIÓN: Los costos variables mensuales se dividen por el TOTAL de noches vendidas
+    // en el período, NO por las noches de la reserva individual.
+    // Esto asegura consistencia entre el cálculo agregado y el individual.
+    // Si no hay noches vendidas, usamos capacidad mensual como fallback.
+    const totalNightsSold = this.reservations.reduce((sum, res) => sum + (res.room_nights || 0), 0);
+    const DAYS_PER_MONTH = 30.44;
+    const roomCount = this.costSettings?.room_count || 1;
+    const monthlyCapacity = roomCount * DAYS_PER_MONTH;
+    
+    // Usar noches vendidas si hay datos, sino usar capacidad como base estable
+    const divisorForMonthlyCosts = totalNightsSold > 0 ? totalNightsSold : monthlyCapacity;
+    
+    // Obtener costos base del sistema de categorías o legacy
+    const usesCategories = Array.isArray(this.costSettings?.variable_categories) && this.costSettings.variable_categories.length > 0;
+    const legacyCosts = this.costSettings?.variable_costs || {
+      cleaningPerStay: 0,
+      laundryMonthly: 0,
+      amenitiesMonthly: 0,
+    };
+    
+    // Costos mensuales (se dividen por total de noches para obtener costo/noche ocupada)
+    const monthlyVariableTotal = usesCategories
+      ? (this.costSettings.variable_categories || []).reduce(
+          (sum: number, cat: any) => sum + (cat?.monthlyAmount || 0), 0
+        )
+      : (legacyCosts.laundryMonthly || 0) + (legacyCosts.amenitiesMonthly || 0);
+    
+    const variablePerNight = monthlyVariableTotal / divisorForMonthlyCosts;
+    
+    // Limpieza por estadía (se cobra UNA VEZ por reserva, no por noche)
+    const cleaningPerStay = usesCategories ? 0 : (legacyCosts.cleaningPerStay || 0);
+    
+    // Costo variable total = (costo mensual prorrateado × noches) + limpieza por estadía
+    const variableCosts = (variablePerNight * roomNights) + cleaningPerStay;
     
     // 3. Fixed Costs (Allocated)
     const fixedMonthly = (this.costSettings?.fixed_costs?.salaries || 0) + 
@@ -569,7 +613,7 @@ export class CalculationEngine {
                          (this.costSettings?.fixed_costs?.utilities || 0) + 
                          (this.costSettings?.fixed_costs?.other || 0);
     const fixedPerDay = fixedMonthly / 30.44;
-    const roomCount = this.costSettings?.room_count || 1;
+    // roomCount ya fue declarado arriba para los costos variables
     const fixedAllocated = (fixedPerDay / roomCount) * roomNights;
 
     // 4. Taxes
@@ -747,6 +791,12 @@ export class CalculationEngine {
       ch.reservations.push(r);
     }
 
+    // IMPORTANTE: Calcular costos usando noches TOTALES para obtener el costo por noche correcto
+    // Luego prorratear a cada canal según su proporción de noches
+    const totalNightsAllChannels = Array.from(channelMap.values()).reduce((sum, ch) => sum + ch.roomNights, 0);
+    const globalCosts = this.getCostBreakdown(totalNightsAllChannels);
+    const roomCount = this.costSettings?.room_count || 1;
+    
     const channels = Array.from(channelMap.values()).map(ch => {
       const sourceLower = ch.source.toLowerCase();
       const isDirect = ['direct', 'walk-in', 'email', 'pagina web', 'teléfono', 'telefono', 'directo', 'website', 'phone'].includes(sourceLower);
@@ -766,7 +816,12 @@ export class CalculationEngine {
       }
 
     // Calculate net profit for this channel
-    const costs = this.getCostBreakdown(ch.roomNights);
+    // CORREGIDO: Usar el costo variable por noche global y prorratear al canal
+    const channelVariableCost = globalCosts.variablePerNight * ch.roomNights;
+    
+    // Costos fijos prorrateados por proporción de noches vendidas
+    const nightsShare = totalNightsAllChannels > 0 ? ch.roomNights / totalNightsAllChannels : 0;
+    const channelFixedCost = globalCosts.periodFixed * nightsShare;
     
     // Calculate taxes for this channel
     const taxRules = this.costSettings?.tax_rules || [];
@@ -785,7 +840,7 @@ export class CalculationEngine {
       }
     });
 
-    const netProfit = ch.revenue - commission - costs.totalVariable - (costs.fixedPerDay / (this.costSettings?.room_count || 1)) * ch.roomNights - channelTaxes;
+    const netProfit = ch.revenue - commission - channelVariableCost - channelFixedCost - channelTaxes;
 
     const profitPerNight = ch.roomNights > 0 ? netProfit / ch.roomNights : 0;
 

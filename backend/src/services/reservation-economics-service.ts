@@ -1,5 +1,5 @@
 import database from '../db';
-import { CalculationEngine } from './calculation-engine';
+import { CalculationEngine, CalculationEngineOptions } from './calculation-engine';
 import { 
   ReservationEconomics,
   ReservationEconomicsSummary,
@@ -9,8 +9,16 @@ import {
 /**
  * Reservation Economics Service - Unit Economics per Reservation
  * Now uses CalculationEngine as the single source of truth.
+ * 
+ * NOTA: Retorna información sobre el período efectivo usado para que el frontend
+ * pueda detectar si los datos corresponden al período seleccionado o a un fallback histórico.
  */
-export async function calculateReservationEconomicsSummary(propertyId: string, startDateOrDays: string | number = 30, endDate?: string): Promise<any> {
+export async function calculateReservationEconomicsSummary(
+  propertyId: string, 
+  startDateOrDays: string | number = 30, 
+  endDate?: string,
+  options?: CalculationEngineOptions
+): Promise<any> {
   let startStr: string;
   let endStr: string;
   let days: number;
@@ -29,9 +37,18 @@ export async function calculateReservationEconomicsSummary(propertyId: string, s
     endStr = end.toISOString().substring(0, 10);
   }
 
-  const engine = new CalculationEngine(propertyId, { start: startStr, end: endStr, days });
+  const engine = new CalculationEngine(propertyId, { start: startStr, end: endStr, days }, options);
   await engine.init();
-  return engine.getReservationEconomicsSummary();
+  
+  const summary = engine.getReservationEconomicsSummary();
+  
+  // Agregar información sobre el período para que el frontend pueda verificar
+  return {
+    ...summary,
+    requestedPeriod: { start: startStr, end: endStr, days },
+    effectivePeriod: engine.getEffectivePeriod(),
+    usedFallbackPeriod: engine.isUsingFallbackPeriod()
+  };
 }
 
 export async function getReservationEconomicsList(propertyId: string, startDateOrDays: string | number = 30, endDate?: string, filters?: any): Promise<any[]> {

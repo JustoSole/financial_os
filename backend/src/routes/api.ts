@@ -285,7 +285,8 @@ router.get('/metrics/:propertyId/channels', async (req: Request, res: Response) 
 
 router.get('/metrics/:propertyId/collections', async (req: Request, res: Response) => {
   try {
-    const data = await getCollectionsData(req.params.propertyId);
+    const { startDate, endDate, days } = req.query;
+    const data = await getCollectionsData(req.params.propertyId, startDate as string || (parseInt(days as string) || 30), endDate as string);
     res.json({ success: true, data });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });

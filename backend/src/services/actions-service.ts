@@ -1,12 +1,6 @@
 import database from '../db';
 import cacheService from '../services/cache-service';
-import { 
-  calculateHomeMetrics, 
-  calculateCashMetrics, 
-  calculateChannelMetrics,
-  getCollectionsData,
-} from './metrics-service';
-import { calculateReservationEconomicsSummary } from './reservation-economics-service';
+import { CalculationEngine } from './calculation-engine';
 import { 
   RecommendedAction,
   ActionType,
@@ -14,20 +8,50 @@ import {
   HomeMetrics,
   CashMetrics,
   ChannelMetrics,
-  CollectionsData
+  CollectionsData,
+  DatePeriod
 } from '../types';
 
 /**
  * Actions Service - Generates recommended actions based on metrics
+ * 
+ * IMPORTANTE: Las acciones deben generarse SOLO con datos del período seleccionado.
+ * No usamos el fallback automático de datos históricos para evitar errores inflacionarios
+ * donde tarifas antiguas se comparan con costos actuales.
  */
 export async function generateActions(propertyId: string, startDateOrDays: string | number = 30, endDate?: string): Promise<any[]> {
   const actions: any[] = [];
 
-  const home = await calculateHomeMetrics(propertyId, startDateOrDays, endDate);
-  const cash = await calculateCashMetrics(propertyId, startDateOrDays, endDate);
-  const channels = await calculateChannelMetrics(propertyId, startDateOrDays, endDate);
-  const economics = await calculateReservationEconomicsSummary(propertyId, startDateOrDays, endDate);
-  const health = await database.getDataHealth(propertyId);
+  // Calcular el período
+  let startStr: string;
+  let endStr: string;
+  let days: number;
+
+  if (typeof startDateOrDays === 'string' && endDate) {
+    startStr = startDateOrDays;
+    endStr = endDate;
+    const start = new Date(startStr);
+    const end = new Date(endStr);
+    days = Math.ceil((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000));
+  } else {
+    days = typeof startDateOrDays === 'number' ? startDateOrDays : 30;
+    const end = new Date();
+    const start = new Date(end.getTime() - days * 24 * 60 * 60 * 1000);
+    startStr = start.toISOString().substring(0, 10);
+    endStr = end.toISOString().substring(0, 10);
+  }
+
+  const period: DatePeriod = { start: startStr, end: endStr, days };
+
+  // IMPORTANTE: Usamos disableFallback: true para NO usar datos históricos.
+  // Esto evita el problema de comparar tarifas antiguas con costos actuales,
+  // que genera falsos positivos de reservas "no rentables" por inflación.
+  const engine = new CalculationEngine(propertyId, period, { disableFallback: true });
+  await engine.init();
+
+  // Si no hay datos en el período seleccionado, retornamos solo la acción de data health
+  const reservations = engine.getReservations();
+  const health = engine.getDataHealth();
 
   // 1. Data Health Action
   if (health.score < 80) {
@@ -42,6 +66,26 @@ export async function generateActions(propertyId: string, startDateOrDays: strin
       }))
     });
   }
+
+  // Si no hay reservaciones en el período, no generamos acciones de rentabilidad/canales
+  // para evitar análisis incorrectos con datos de otros períodos
+  if (reservations.length === 0) {
+    actions.push({
+      type: 'no_data',
+      title: 'Sin datos en el período seleccionado',
+      description: `No hay reservaciones en los últimos ${days} días. Importá datos más recientes o seleccioná otro período.`,
+      priority: 2,
+      steps: [
+        { text: 'Importar datos más recientes desde Cloudbeds', completed: false },
+        { text: 'O seleccionar un período con datos existentes', completed: false }
+      ]
+    });
+    return actions;
+  }
+
+  // Obtener métricas del engine (usando solo datos del período)
+  const economics = engine.getReservationEconomicsSummary();
+  const channels = engine.getChannelMetrics();
 
   // 2. Unprofitable Reservations Action
   const unprofitable = economics.worstReservations?.filter((r: any) => r.netProfit < 0) || [];
@@ -65,7 +109,8 @@ export async function generateActions(propertyId: string, startDateOrDays: strin
       ],
       evidence: [
         { metric: 'Reservas con pérdida', value: String(unprofitable.length) },
-        { metric: 'Pérdida total', value: `$${Math.round(totalLoss).toLocaleString()}` }
+        { metric: 'Pérdida total', value: `$${Math.round(totalLoss).toLocaleString()}` },
+        { metric: 'Período analizado', value: `${startStr} a ${endStr}` }
       ]
     });
   }

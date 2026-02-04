@@ -86,7 +86,7 @@ export default function Actions() {
       
       const [insightsRes, collectionsRes, economicsRes, cashRes, actionsRes, completedRes] = await Promise.all([
         getInsights(propertyId, days),
-        getCollections(propertyId),
+        getCollections(propertyId, days),
         getReservationEconomics(propertyId, days),
         getCashMetrics(propertyId, days),
         getActions(propertyId, days),
@@ -167,7 +167,11 @@ export default function Actions() {
     }
 
     // CHANNELS: Expensive channel optimization
-    if (insights?.worstChannel && insights.worstChannel.realCostPercent > 18) {
+    // IMPORTANTE: Solo generamos acciones de canales si los datos son del período seleccionado,
+    // NO de un fallback histórico.
+    const insightsIsFromCorrectPeriod = insights && !insights.usedFallbackPeriod && !insights.noDataInPeriod;
+    
+    if (insightsIsFromCorrectPeriod && insights?.worstChannel && insights.worstChannel.realCostPercent > 18) {
       const ch = insights.worstChannel;
       // Deterministic ID based on channel name (normalized, stable)
       const channelSlug = ch.channel.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
@@ -205,7 +209,12 @@ export default function Actions() {
     }
 
     // PRICING: Loss patterns
-    if (economics?.patterns) {
+    // IMPORTANTE: Solo generamos acciones de pricing si los datos son del período seleccionado,
+    // NO de un fallback histórico. Esto evita errores inflacionarios donde tarifas antiguas
+    // se comparan con costos actuales.
+    const economicsIsFromCorrectPeriod = economics && !economics.usedFallbackPeriod;
+    
+    if (economicsIsFromCorrectPeriod && economics?.patterns) {
       economics.patterns.filter((p: any) => p.isLossPattern).forEach((pattern: any) => {
         // Deterministic ID based on source + nights bucket (stable across data changes)
         const sourceSlug = (pattern.source || 'unknown').toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
