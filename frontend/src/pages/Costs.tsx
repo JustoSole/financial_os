@@ -154,7 +154,7 @@ export default function Costs() {
       if (!property?.id) return;
       const res = await getCosts(property.id);
       if (!active) return;
-      setHasTaxRules(res.success && res.data?.tax_rules?.length > 0);
+      setHasTaxRules(res.success && (res.data?.tax_rules?.length ?? 0) > 0);
     }
     checkTaxRules();
     return () => { active = false; };

@@ -73,11 +73,6 @@ export interface DatabaseOperations {
   getDataDateRange: (propertyId: string) => Promise<DataDateRange>;
   resetDatabase: (propertyId: string) => Promise<void>;
 
-  // Monthly close operations
-  countReservationsForMonth: (propertyId: string, monthStart: string, monthEnd: string) => Promise<number>;
-  getOrCreateMonthlyPeriod: (propertyId: string, month: string) => Promise<any>;
-  listMonthlyPeriods: (propertyId: string, limit?: number) => Promise<any[]>;
-  updateMonthlyPeriod: (propertyId: string, month: string, updates: any) => Promise<any>;
   getMonthlyCosts: (propertyId: string, month: string) => Promise<any[]>;
   upsertMonthlyCosts: (propertyId: string, month: string, entries: any[]) => Promise<any>;
   getMonthlyCashBalance: (propertyId: string, month: string) => Promise<any>;

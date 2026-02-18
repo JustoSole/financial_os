@@ -10,7 +10,6 @@ import type {
   ImportStatus, 
   PlanType,
   ChannelCategory,
-  MonthlyPeriodStatus,
   ConfidenceBand,
   CostEntryType,
   CostEntrySource,
@@ -191,29 +190,8 @@ export interface ActionCompletion {
 }
 
 // =====================================================
-// Monthly Period (cierre mensual)
+// Helpers
 // =====================================================
-
-export interface MonthlyPeriod {
-  id: string;
-  propertyId: string;
-  month: string; // YYYY-MM
-  status: MonthlyPeriodStatus;
-  confidenceScore: number;
-  checksJson: Record<string, any>;
-  closedAt: string | null;
-  closedBy: string | null;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface MonthlyCloseCheck {
-  key: string;
-  label: string;
-  type: 'required' | 'recommended';
-  passed: boolean;
-  detail?: string;
-}
 
 export function getConfidenceBand(score: number): ConfidenceBand {
   if (score >= 80) return 'high';

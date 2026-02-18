@@ -596,35 +596,8 @@ export function calculateTotalFixedCosts(costs: FixedCostsInput): number {
 }
 
 // =====================================================
-// Monthly Close
+// Monthly Costs
 // =====================================================
-
-export interface MonthlyPeriodSummary {
-  month: string;
-  status: 'open' | 'closed' | 'closed_with_warnings';
-  confidenceScore: number;
-  confidenceBand: 'high' | 'medium' | 'low';
-  closedAt: string | null;
-}
-
-export interface MonthlyCloseCheck {
-  key: string;
-  label: string;
-  type: 'required' | 'recommended';
-  passed: boolean;
-  detail?: string;
-}
-
-export interface MonthlyCloseDetail {
-  month: string;
-  status: 'open' | 'closed' | 'closed_with_warnings';
-  confidenceScore: number;
-  confidenceBand: 'high' | 'medium' | 'low';
-  checks: MonthlyCloseCheck[];
-  costs: MonthlyCostEntry[];
-  cashBalance: number | null;
-  closedAt: string | null;
-}
 
 export interface MonthlyCostEntry {
   categoryKey: string;
@@ -648,26 +621,6 @@ export interface MonthlyCostsResponse {
   cashBalance: number | null;
   categories: CostCategoryOption[];
 }
-
-export const getMonthlyPeriods = (propertyId: string, limit: number = 12) =>
-  request<MonthlyPeriodSummary[]>(`/close/${propertyId}/periods?limit=${limit}`);
-
-export const getMonthlyCloseDetail = (propertyId: string, month: string) =>
-  request<MonthlyCloseDetail>(`/close/${propertyId}/period/${month}`);
-
-export const getMonthlyChecks = (propertyId: string, month: string) =>
-  request<{ checks: MonthlyCloseCheck[]; score: number; band: string }>(
-    `/close/${propertyId}/period/${month}/checks`
-  );
-
-export const openMonth = (propertyId: string, month: string) =>
-  request<any>(`/close/${propertyId}/period/${month}/open`, { method: 'POST' });
-
-export const closeMonth = (propertyId: string, month: string) =>
-  request<any>(`/close/${propertyId}/period/${month}/close`, { method: 'POST' });
-
-export const reopenMonth = (propertyId: string, month: string) =>
-  request<any>(`/close/${propertyId}/period/${month}/reopen`, { method: 'POST' });
 
 export const getMonthlyCosts = (propertyId: string, month: string) =>
   request<MonthlyCostsResponse & { entries: MonthlyCostEntry[]; categories: CostCategoryOption[] }>(`/costs/${propertyId}/monthly/${month}`);

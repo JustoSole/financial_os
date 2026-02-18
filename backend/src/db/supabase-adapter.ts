@@ -65,18 +65,6 @@ export const supabaseDatabase = {
     return data;
   },
 
-  countReservationsForMonth: async (propertyId: string, monthStart: string, monthEnd: string) => {
-    const { count, error } = await getClient()
-      .from('reservation_financials')
-      .select('*', { count: 'exact', head: true })
-      .eq('property_id', propertyId)
-      .not('status', 'in', '("Cancelled","No Show")')
-      .lte('check_in', monthEnd)
-      .gte('check_out', monthStart);
-    if (error) return 0;
-    return count ?? 0;
-  },
-
   getAllReservations: async (propertyId: string, options?: { startDate?: string; endDate?: string }) => {
     const RESERVATION_COLS = 'property_id,reservation_number,guest_name,status,source,source_category,check_in,check_out,reservation_date,room_nights,room_revenue_total,taxes_total,paid_amount,balance_due,suggested_deposit,hotel_collect_flag,source_file_id';
     const PAGE_SIZE = 1000;
@@ -267,8 +255,6 @@ export const supabaseDatabase = {
     if (errMcb) throw errMcb;
     const { error: errIj } = await getClient().from('import_jobs').delete().eq('property_id', propertyId);
     if (errIj) throw errIj;
-    const { error: errMp } = await getClient().from('monthly_periods').delete().eq('property_id', propertyId);
-    if (errMp) throw errMp;
 
     const { error: error1 } = await getClient().from('ledger_transactions').delete().eq('property_id', propertyId);
     if (error1) throw error1;
@@ -1077,54 +1063,6 @@ export const supabaseDatabase = {
   // Data Range Detection (para resolver desfase de fechas)
   // =====================================================
   
-  // =====================================================
-  // Monthly Periods
-  // =====================================================
-
-  getOrCreateMonthlyPeriod: async (propertyId: string, month: string) => {
-    const { error } = await getClient()
-      .from('monthly_periods')
-      .upsert(
-        { property_id: propertyId, month, status: 'open' },
-        { onConflict: 'property_id,month', ignoreDuplicates: true }
-      );
-    if (error) throw error;
-
-    const { data, error: fetchError } = await getClient()
-      .from('monthly_periods')
-      .select('*')
-      .eq('property_id', propertyId)
-      .eq('month', month)
-      .single();
-    if (fetchError) throw fetchError;
-    return data;
-  },
-
-  listMonthlyPeriods: async (propertyId: string, limit: number = 12) => {
-    const { data, error } = await getClient()
-      .from('monthly_periods')
-      .select('*')
-      .eq('property_id', propertyId)
-      .order('month', { ascending: false })
-      .limit(limit);
-
-    if (error) return [];
-    return data;
-  },
-
-  updateMonthlyPeriod: async (propertyId: string, month: string, updates: any) => {
-    const { data, error } = await getClient()
-      .from('monthly_periods')
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('property_id', propertyId)
-      .eq('month', month)
-      .select()
-      .single();
-
-    if (error) throw error;
-    return data;
-  },
-
   // =====================================================
   // Monthly Cost Entries
   // =====================================================

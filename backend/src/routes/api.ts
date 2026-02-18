@@ -33,16 +33,6 @@ import { calculateTrendMetrics } from '../services/trends-service';
 import { CalculationEngine } from '../services/calculation-engine';
 import { backfillReservationDailySnapshots } from '../services/snapshot-backfill-service';
 import { reconstructReservationSnapshotAsOf } from '../services/snapshot-reconstruction-service';
-import {
-  openMonthlyPeriod,
-  closeMonthlyPeriod,
-  reopenMonthlyPeriod,
-  getMonthlyCloseDetail,
-  calculateMonthlyChecks,
-  calculateConfidenceScore,
-} from '../services/monthly-close-service';
-import { getConfidenceBand } from '@financial-os/shared';
-
 const router = Router();
 
 const MONTH_REGEX = /^\d{4}-(0[1-9]|1[0-2])$/;
@@ -722,90 +712,6 @@ router.put('/costs/:propertyId', async (req: Request, res: Response) => {
 });
 
 // =====================================================
-// Monthly Close Routes
-// =====================================================
-
-router.get('/close/:propertyId/periods', async (req: Request, res: Response) => {
-  try {
-    const limit = parseInt(req.query.limit as string) || 12;
-    const periods = await database.listMonthlyPeriods(req.params.propertyId, limit);
-    const data = periods.map((p: any) => ({
-      month: p.month,
-      status: p.status,
-      confidenceScore: Number(p.confidence_score),
-      confidenceBand: getConfidenceBand(Number(p.confidence_score)),
-      closedAt: p.closed_at,
-    }));
-    res.json({ success: true, data });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-router.get('/close/:propertyId/period/:month', async (req: Request, res: Response) => {
-  try {
-    const { propertyId, month } = req.params;
-    if (!validateMonth(month)) return res.status(400).json({ success: false, error: 'Invalid month format (expected YYYY-MM)' });
-    const detail = await getMonthlyCloseDetail(propertyId, month);
-    res.json({ success: true, data: detail });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-router.get('/close/:propertyId/period/:month/checks', async (req: Request, res: Response) => {
-  try {
-    const { propertyId, month } = req.params;
-    if (!validateMonth(month)) return res.status(400).json({ success: false, error: 'Invalid month format (expected YYYY-MM)' });
-    const checks = await calculateMonthlyChecks(propertyId, month);
-    const score = calculateConfidenceScore(checks);
-    res.json({ success: true, data: { checks, score, band: getConfidenceBand(score) } });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-router.post('/close/:propertyId/period/:month/open', async (req: Request, res: Response) => {
-  try {
-    const { propertyId, month } = req.params;
-    if (!validateMonth(month)) return res.status(400).json({ success: false, error: 'Invalid month format (expected YYYY-MM)' });
-    const period = await openMonthlyPeriod(propertyId, month);
-    res.json({ success: true, data: period });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-router.post('/close/:propertyId/period/:month/close', async (req: Request, res: Response) => {
-  try {
-    const { propertyId, month } = req.params;
-    if (!validateMonth(month)) return res.status(400).json({ success: false, error: 'Invalid month format (expected YYYY-MM)' });
-    const user = (req as any).user;
-    const result = await closeMonthlyPeriod(propertyId, month, user?.id);
-    if (result.error) {
-      return res.status(400).json({ success: false, error: result.error, data: { checks: result.checks } });
-    }
-    cacheService.clear();
-    res.json({ success: true, data: result });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-router.post('/close/:propertyId/period/:month/reopen', async (req: Request, res: Response) => {
-  try {
-    const { propertyId, month } = req.params;
-    if (!validateMonth(month)) return res.status(400).json({ success: false, error: 'Invalid month format (expected YYYY-MM)' });
-    const user = (req as any).user;
-    const result = await reopenMonthlyPeriod(propertyId, month, user?.id);
-    cacheService.clear();
-    res.json({ success: true, data: result });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// =====================================================
 // Monthly Costs Routes (by month)
 // =====================================================
 
@@ -861,14 +767,6 @@ router.put('/costs/:propertyId/monthly/:month', async (req: Request, res: Respon
     if (!validateMonth(month)) return res.status(400).json({ success: false, error: 'Invalid month format (expected YYYY-MM)' });
     const { entries, cashBalance } = req.body;
 
-    const period = await database.getOrCreateMonthlyPeriod(propertyId, month);
-    if (period.status === 'closed' || period.status === 'closed_with_warnings') {
-      return res.status(409).json({
-        success: false,
-        error: `El período ${month} está cerrado. Reabrilo antes de editar.`,
-      });
-    }
-
     if (entries && entries.length > 0) {
       const dbEntries = entries.map((e: any) => ({
         category_key: e.categoryKey,
@@ -920,14 +818,6 @@ router.post('/costs/:propertyId/monthly/:month/copy-previous', async (req: Reque
     const prevCosts = await database.getMonthlyCosts(propertyId, prevMonth);
     if (prevCosts.length === 0) {
       return res.status(404).json({ success: false, error: `No hay costos en ${prevMonth}` });
-    }
-
-    const period = await database.getOrCreateMonthlyPeriod(propertyId, month);
-    if (period.status === 'closed' || period.status === 'closed_with_warnings') {
-      return res.status(409).json({
-        success: false,
-        error: `El período ${month} está cerrado. Reabrilo antes de editar.`,
-      });
     }
 
     const entries = prevCosts.map((e: any) => ({

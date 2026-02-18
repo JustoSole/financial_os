@@ -1,17 +1,14 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { 
-  CheckCircle, Circle, AlertTriangle, Lock, Unlock,
-  ChevronDown, ChevronUp, Shield, Calendar, Save, Copy,
+  CheckCircle, ChevronDown, ChevronUp, Save, Copy,
   Upload, Calculator, Plus, Trash2, Receipt, Info,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { 
   getImportJobs, trackEvent,
-  getMonthlyCloseDetail, closeMonth, reopenMonth,
   getMonthlyCosts, updateMonthlyCosts, copyPreviousMonthCosts, getCostCategories,
   getCosts, updateCosts,
-  MonthlyCloseDetail, MonthlyCloseCheck,
   type MonthlyCostEntry, type CostCategoryOption,
 } from '../api';
 import { useAsyncActionFeedback } from '../hooks/useAsyncActionFeedback';
@@ -47,50 +44,12 @@ const TAX_METHOD_OPTIONS: { value: TaxRule['method']; label: string }[] = [
   { value: 'fixed_per_stay', label: 'Fijo por estadía' },
 ];
 
-const CONFIDENCE_COLORS: Record<string, string> = {
-  high: '#16a34a',
-  medium: '#d97706',
-  low: '#dc2626',
-};
-
-function ConfidenceBadge({ score, band }: { score: number; band: string }) {
-  return (
-    <span style={{
-      display: 'inline-flex', alignItems: 'center', gap: 4,
-      padding: '2px 10px', borderRadius: 12, fontSize: '0.75rem', fontWeight: 600,
-      background: `${CONFIDENCE_COLORS[band]}15`, color: CONFIDENCE_COLORS[band],
-    }}>
-      <Shield size={12} /> {score}%
-    </span>
-  );
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, { label: string; bg: string; color: string }> = {
-    open: { label: 'Abierto', bg: '#dbeafe', color: '#1d4ed8' },
-    closed: { label: 'Cerrado', bg: '#dcfce7', color: '#16a34a' },
-    closed_with_warnings: { label: 'Cerrado c/alertas', bg: '#fef3c7', color: '#d97706' },
-  };
-  const s = map[status] || map.open;
-  return (
-    <span style={{
-      padding: '2px 10px', borderRadius: 12, fontSize: '0.75rem', fontWeight: 600,
-      background: s.bg, color: s.color,
-    }}>
-      {s.label}
-    </span>
-  );
-}
-
 export default function Import() {
   const { property, refreshData } = useApp();
   const [searchParams] = useSearchParams();
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().slice(0, 7));
-  const [closeDetail, setCloseDetail] = useState<MonthlyCloseDetail | null>(null);
-  const [detailLoading, setDetailLoading] = useState(false);
-  const [showChecks, setShowChecks] = useState(true);
   const [monthlyEntries, setMonthlyEntries] = useState<MonthlyCostEntry[]>([]);
   const [monthlyCashBalance, setMonthlyCashBalance] = useState<number | null>(null);
   const [categoryOptions, setCategoryOptions] = useState<CostCategoryOption[]>([]);
@@ -101,18 +60,6 @@ export default function Import() {
   const [activeTab, setActiveTab] = useState<'reportes' | 'costos'>(
     searchParams.get('tab') === 'costos' ? 'costos' : 'reportes'
   );
-
-  const closeFeedback = useAsyncActionFeedback({
-    successMessage: 'Mes cerrado exitosamente',
-    errorMessage: 'No se pudo cerrar el mes',
-    successResetMs: 5000,
-  });
-
-  const reopenFeedback = useAsyncActionFeedback({
-    successMessage: 'Mes reabierto',
-    errorMessage: 'Error al reabrir',
-    successResetMs: 3000,
-  });
 
   const costsSaveFeedback = useAsyncActionFeedback({
     successMessage: 'Costos guardados',
@@ -136,8 +83,8 @@ export default function Import() {
       if (!property?.id) return;
       const res = await getCosts(property.id);
       if (!active) return;
-      if (res.success && res.data?.tax_rules?.length > 0) {
-        setTaxRules(res.data.tax_rules.map((r: any) => ({
+      if (res.success && (res.data?.tax_rules?.length ?? 0) > 0) {
+        setTaxRules((res.data!.tax_rules ?? []).map((r: any) => ({
           id: r.id || crypto.randomUUID(),
           name: r.name || r.type,
           type: r.type || 'VAT',
@@ -207,7 +154,6 @@ export default function Import() {
       const res = await updateMonthlyCosts(property.id, selectedMonth, { entries, cashBalance: monthlyCashBalance });
       if (!res.success) throw new Error(res.error || 'Error al guardar');
       await loadMonthlyCosts();
-      await loadCloseDetail();
       refreshData();
     });
   };
@@ -218,7 +164,6 @@ export default function Import() {
       const res = await copyPreviousMonthCosts(property.id, selectedMonth);
       if (!res.success) throw new Error(res.error || 'Error al copiar');
       await loadMonthlyCosts();
-      await loadCloseDetail();
     });
   };
 
@@ -273,44 +218,6 @@ export default function Import() {
     }
   }, [property?.id, loadAll]);
 
-  const loadCloseDetail = useCallback(async () => {
-    if (!property?.id) return;
-    setDetailLoading(true);
-    try {
-      const res = await getMonthlyCloseDetail(property.id, selectedMonth);
-      if (res.success && res.data) setCloseDetail(res.data);
-    } catch (err) {
-      console.error('Error loading close detail:', err);
-    } finally {
-      setDetailLoading(false);
-    }
-  }, [property?.id, selectedMonth]);
-
-  useEffect(() => {
-    loadCloseDetail();
-  }, [loadCloseDetail]);
-
-  const handleClose = async () => {
-    if (!property?.id) return;
-    await closeFeedback.run(async () => {
-      const res = await closeMonth(property.id, selectedMonth);
-      if (!res.success) throw new Error(res.error || 'Faltan requisitos para cerrar');
-      refreshData();
-      await loadCloseDetail();
-      await loadAll();
-    });
-  };
-
-  const handleReopen = async () => {
-    if (!property?.id) return;
-    await reopenFeedback.run(async () => {
-      const res = await reopenMonth(property.id, selectedMonth);
-      if (!res.success) throw new Error(res.error || 'Error al reabrir');
-      await loadCloseDetail();
-      await loadAll();
-    });
-  };
-
   const monthOptions = useMemo(() => generateMonthOptions(12, 1), []);
 
   const reportNames: Record<string, string> = {
@@ -319,23 +226,17 @@ export default function Import() {
     unknown: 'Desconocido',
   };
 
-  const isClosed = closeDetail?.status === 'closed' || closeDetail?.status === 'closed_with_warnings';
-  const requiredChecks = closeDetail?.checks?.filter(c => c.type === 'required') || [];
-  const recommendedChecks = closeDetail?.checks?.filter(c => c.type === 'recommended') || [];
-  const allRequiredPassed = requiredChecks.every(c => c.passed);
-
   return (
     <div className={styles.pageImport}>
       <div className={styles.pageHeader}>
         <div>
           <h1 className={styles.pageTitle}>Datos</h1>
-          <p className={styles.pageSubtitle}>Subí reportes, cargá costos y cerrá {formatMonth(selectedMonth)}</p>
+          <p className={styles.pageSubtitle}>Subí reportes y cargá costos para {formatMonth(selectedMonth)}</p>
         </div>
       </div>
 
-      {/* Month selector + status bar */}
+      {/* Month selector */}
       <div className={styles.closeBar}>
-        <Calendar size={18} className={styles.closeBarIcon} />
         <select
           className={styles.closeBarSelect}
           value={selectedMonth}
@@ -345,51 +246,7 @@ export default function Import() {
             <option key={m} value={m}>{formatMonth(m)}</option>
           ))}
         </select>
-
-        {closeDetail && (
-          <>
-            <StatusBadge status={closeDetail.status} />
-            <ConfidenceBadge score={closeDetail.confidenceScore} band={closeDetail.confidenceBand} />
-          </>
-        )}
-
-        <div className={styles.closeBarActions}>
-          {isClosed ? (
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={handleReopen}
-              loading={reopenFeedback.loading}
-              icon={<Unlock size={14} />}
-            >
-              Reabrir
-            </Button>
-          ) : (
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={handleClose}
-              loading={closeFeedback.loading}
-              disabled={!allRequiredPassed}
-              icon={<Lock size={14} />}
-            >
-              Cerrar mes
-            </Button>
-          )}
-        </div>
       </div>
-
-      {/* Feedback */}
-      {closeFeedback.error && (
-        <Alert variant="error" title="No se pudo cerrar" dismissible onDismiss={closeFeedback.reset}>
-          {closeFeedback.error}
-        </Alert>
-      )}
-      {closeFeedback.success && (
-        <Alert variant="success" title="Mes cerrado" dismissible onDismiss={closeFeedback.reset}>
-          El mes {formatMonth(selectedMonth)} fue cerrado exitosamente.
-        </Alert>
-      )}
 
       {/* Tabs */}
       <div className={styles.dataTabs}>
@@ -413,38 +270,8 @@ export default function Import() {
       {activeTab === 'reportes' && (
         <>
           <div className={styles.importSection}>
-            <ImportWizard onComplete={loadCloseDetail} />
+            <ImportWizard onComplete={loadAll} />
           </div>
-
-          {/* Checklist de cierre */}
-          {closeDetail && !detailLoading && (
-            <div className={styles.checksSection}>
-              <button
-                type="button"
-                className={styles.checksToggle}
-                onClick={() => setShowChecks(!showChecks)}
-              >
-                <span>Checklist de cierre — {formatMonth(selectedMonth)}</span>
-                {showChecks ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-              </button>
-              {showChecks && (
-                <div className={styles.checksBody}>
-                  {requiredChecks.length > 0 && (
-                    <div>
-                      <div className={styles.checksGroupLabel}>Requerido</div>
-                      {requiredChecks.map(c => <CheckItem key={c.key} check={c} />)}
-                    </div>
-                  )}
-                  {recommendedChecks.length > 0 && (
-                    <div style={{ marginTop: 8 }}>
-                      <div className={styles.checksGroupLabel}>Recomendado</div>
-                      {recommendedChecks.map(c => <CheckItem key={c.key} check={c} />)}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          )}
 
           <div className={styles.historySection}>
             <h3 className={styles.sectionTitle}>Historial de importaciones</h3>
@@ -583,7 +410,7 @@ export default function Import() {
                       </div>
                     )}
 
-                    {taxRules.map((rule, idx) => (
+                    {taxRules.map((rule) => (
                       <div key={rule.id} className={styles.taxRuleRow}>
                         <div className={styles.taxRuleInputs}>
                           <input
@@ -682,27 +509,6 @@ export default function Import() {
           )}
         </div>
       )}
-    </div>
-  );
-}
-
-function CheckItem({ check }: { check: MonthlyCloseCheck }) {
-  const itemClass = [
-    styles.checkItem,
-    check.passed ? styles.checkItemPassed : styles.checkItemFailed,
-  ].filter(Boolean).join(' ');
-  return (
-    <div className={itemClass}>
-      {check.passed
-        ? <CheckCircle size={16} style={{ color: '#16a34a' }} />
-        : check.type === 'required'
-          ? <AlertTriangle size={16} style={{ color: '#dc2626' }} />
-          : <Circle size={16} style={{ color: '#d97706' }} />
-      }
-      <div className={styles.checkLabel}>
-        <div>{check.label}</div>
-        {check.detail && <div className={styles.checkDetail}>{check.detail}</div>}
-      </div>
     </div>
   );
 }

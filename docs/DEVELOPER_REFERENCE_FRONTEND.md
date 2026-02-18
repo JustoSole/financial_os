@@ -57,7 +57,7 @@ Página de **visualización read-only** del resumen mensual:
 ### `frontend/src/api.ts`
 Cliente API centralizado:
 - Inserta `Authorization: Bearer <token>` automáticamente.
-- Funciones principales para monthly close: `getMonthlyCosts`, `updateMonthlyCosts`, `copyPreviousMonthCosts`, `getCostCategories`, `getMonthlyCloseDetail`, `closeMonth`, `reopenMonth`, `getImportJobs`.
+- Funciones principales para costos mensuales: `getMonthlyCosts`, `updateMonthlyCosts`, `copyPreviousMonthCosts`, `getCostCategories`, `getImportJobs`.
 
 ### `frontend/src/utils/formatters.ts`
 Utilidades compartidas:

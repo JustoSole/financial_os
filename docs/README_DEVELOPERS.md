@@ -18,7 +18,7 @@ Documentación de referencia para desarrollar en `financial_os_cloudbeds`.
 
 - `BACKEND_DEV_REFERENCE.md` (raíz): Arquitectura backend, esquema de DB y endpoints.
 - `docs/TESTING.md`: Tests y escenarios de validación.
-- `docs/implementation_plan_monthly_close_costs_v1.md`: Plan del módulo de cierre mensual y costos.
+- Plan de costos mensuales: ver migraciones `20260218100000_monthly_close_and_costs.sql` y documentación en BACKEND_DEV_REFERENCE.
 
 ## Arquitectura del repositorio
 

@@ -10,7 +10,6 @@ Patrón de **Adaptador de Base de Datos** con Supabase como almacenamiento princ
 - **Express API (`backend/src/routes/api.ts`):** Rutas REST.
 - **Database Adapter (`backend/src/db/supabase-adapter.ts`):** Implementación de la interfaz de DB.
 - **Calculation Engine (`backend/src/services/calculation-engine.ts`):** Procesamiento de datos financieros en memoria.
-- **Monthly Close Service (`backend/src/services/monthly-close-service.ts`):** Cierre mensual con checklist de validación.
 - **Import Service (`backend/src/services/import-service.ts`):** Procesamiento de reportes CSV de Cloudbeds.
 
 ---
@@ -25,7 +24,6 @@ Patrón de **Adaptador de Base de Datos** con Supabase como almacenamiento princ
 | `reservation_financials` | Reservations with Financials (P&L, cobranzas, canales). |
 | `cost_settings` | Configuración legacy de costos (JSONB). |
 | `action_completions` | Tracking de pasos completados en recomendaciones. |
-| `monthly_periods` | Períodos mensuales (open/closed/closed_with_warnings). |
 | `cost_categories` | Catálogo de categorías de costos (fijos y variables). |
 | `monthly_cost_entries` | Costos cargados por mes y categoría. |
 | `monthly_cash_balances` | Saldo de caja por mes. |
@@ -37,19 +35,13 @@ Patrón de **Adaptador de Base de Datos** con Supabase como almacenamiento princ
 Las migraciones SQL están en `supabase/migrations/` y se aplican con Supabase MCP o `supabase db push`. Incluyen:
 - Esquema inicial (`20260123134500_initial_schema_v1.sql`)
 - Snapshots de reservas (`20260215123000_create_reservation_daily_snapshots.sql`)
-- **Monthly close y costos** (`20260218100000_monthly_close_and_costs.sql`): crea `monthly_periods`, `cost_categories` (con seed), `monthly_cost_entries`, `monthly_cash_balances`, `import_jobs`.
+- **Costos por mes** (`20260218100000_monthly_close_and_costs.sql`): crea `cost_categories` (con seed), `monthly_cost_entries`, `monthly_cash_balances`, `import_jobs`. La tabla `monthly_periods` fue eliminada en `20260218180000_drop_monthly_periods.sql`.
 
-> **Nota:** Las tablas principales (`properties`, `ledger_transactions`, etc.) tienen RLS deshabilitado. Las nuevas tablas de monthly close también tienen RLS deshabilitado para mantener consistencia (el backend usa `anon key`).
+> **Nota:** Las tablas principales (`properties`, `ledger_transactions`, etc.) tienen RLS deshabilitado. Las tablas de costos mensuales también tienen RLS deshabilitado para mantener consistencia (el backend usa `anon key`).
 
 ---
 
 ## 3. Motores de Cálculo (Services)
-
-### Monthly Close Service
-Gestiona el flujo de cierre mensual:
-- **Checklist de cierre**: verifica cobertura de transacciones, reservas, costos y saldo de caja.
-- **Score de confianza**: calcula un % basado en checks pasados.
-- **Guard de período cerrado**: los endpoints PUT de costos rechazan cambios en meses cerrados (409).
 
 ### Calculation Engine
 Núcleo de cálculos financieros (métricas, rentabilidad, proyecciones):
@@ -69,11 +61,7 @@ P&L detallado por reserva con memoria de cálculo.
 - `GET /api/import/jobs/:propertyId`: Historial de importaciones con filtro por mes.
 - `GET /api/data-health/:propertyId`: Evaluación de calidad de datos.
 
-### Monthly Close y Costos
-- `GET /api/close/:propertyId/periods`: Lista de períodos mensuales.
-- `GET /api/close/:propertyId/period/:month`: Detalle de cierre con checks.
-- `POST /api/close/:propertyId/period/:month/close`: Cerrar mes.
-- `POST /api/close/:propertyId/period/:month/reopen`: Reabrir mes.
+### Costos mensuales
 - `GET /api/costs/:propertyId/monthly/:month`: Costos del mes (read).
 - `PUT /api/costs/:propertyId/monthly/:month`: Guardar costos del mes.
 - `POST /api/costs/:propertyId/monthly/:month/copy-previous`: Copiar mes anterior.

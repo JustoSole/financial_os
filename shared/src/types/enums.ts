@@ -50,9 +50,6 @@ export type ReservationStatus =
 /** Import file status */
 export type ImportStatus = 'processed' | 'failed';
 
-/** Monthly period status */
-export type MonthlyPeriodStatus = 'open' | 'closed' | 'closed_with_warnings';
-
 /** Confidence band */
 export type ConfidenceBand = 'high' | 'medium' | 'low';
 
