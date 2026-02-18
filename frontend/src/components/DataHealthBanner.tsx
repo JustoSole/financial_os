@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { AlertCircle, CheckCircle, AlertTriangle, Upload, ChevronRight } from 'lucide-react';
 import styles from './DataHealthBanner.module.css';
 
@@ -72,11 +73,11 @@ export default function DataHealthBanner({ score, issues }: DataHealthBannerProp
         </div>
 
         {status !== 'excellent' && (
-          <a href="/importar" className={`btn btn-secondary ${styles.action}`}>
+          <Link to="/importar" className={`btn btn-secondary ${styles.action}`}>
             <Upload size={16} />
             Importar datos
             <ChevronRight size={16} />
-          </a>
+          </Link>
         )}
       </div>
 
@@ -85,9 +86,9 @@ export default function DataHealthBanner({ score, issues }: DataHealthBannerProp
         <div className={styles.suggestions}>
           <span className={styles.suggestionsLabel}>Para mejorar:</span>
           {suggestions.slice(0, 2).map((suggestion, i) => (
-            <a key={i} href="/importar" className={styles.suggestionChip}>
+            <Link key={i} to="/importar" className={styles.suggestionChip}>
               {suggestion.text}
-            </a>
+            </Link>
           ))}
         </div>
       )}

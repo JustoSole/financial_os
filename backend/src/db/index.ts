@@ -29,7 +29,7 @@ export interface DatabaseOperations {
   getLastImportByType: (propertyId: string, reportType: ReportType) => Promise<string | null>;
   insertTransactions: (transactions: any[]) => Promise<void>;
   clearTransactionsByFile: (fileId: string) => Promise<void>;
-  getTransactionsByProperty: (propertyId: string, startDate?: string, endDate?: string) => Promise<any[]>;
+  getTransactionsByProperty: (propertyId: string, startDate?: string, endDate?: string, roomType?: string) => Promise<any[]>;
   sumCredits: (propertyId: string, startDate: string, endDate: string) => Promise<number>;
   sumDebits: (propertyId: string, startDate: string, endDate: string) => Promise<number>;
   getDailyFlow: (propertyId: string, startDate: string, endDate: string) => Promise<any[]>;
@@ -37,7 +37,24 @@ export interface DatabaseOperations {
   insertReservations: (reservations: any[]) => Promise<void>;
   clearReservationsByFile: (fileId: string) => Promise<void>;
   getReservationsByProperty: (propertyId: string) => Promise<any[]>;
+  getReservationsBySourceFile: (propertyId: string, sourceFileId: string) => Promise<any[]>;
   getAllReservations: (propertyId: string) => Promise<any[]>;
+  isReservationDailySnapshotsReady: () => Promise<boolean>;
+  upsertReservationDailySnapshots: (rows: any[]) => Promise<void>;
+  getReservationDailySnapshotMetrics: (
+    propertyId: string,
+    snapshotDate: string,
+    startDate: string,
+    endDate: string
+  ) => Promise<{
+    snapshotDate: string;
+    occupiedNights: number;
+    revenue: number;
+    paidAmount: number;
+    pendingAmount: number;
+    snapshotSource: 'imported' | 'reconstructed';
+  } | null>;
+  getReservationDailySnapshotDates: (propertyId: string, limit?: number) => Promise<string[]>;
   getReservationsWithBalance: (propertyId: string, minBalance?: number) => Promise<any[]>;
   getTotalBalanceDue: (propertyId: string) => Promise<number>;
   getDepositGaps: (propertyId: string) => Promise<any[]>;

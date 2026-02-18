@@ -1,6 +1,7 @@
 import database from '../db';
 import { CalculationEngine } from './calculation-engine';
 import { DatePeriod } from '../types';
+import { isDirectChannel } from './metrics-core';
 
 /**
  * Insights Service - Intelligent Business Analysis
@@ -109,7 +110,7 @@ export async function generateInsights(propertyId: string, startDateOrDays: stri
 
     // Direct Channel Performance Insight
     const directRevenue = channelData
-      .filter((c: any) => ['direct', 'walk-in', 'email', 'pagina web', 'teléfono', 'telefono', 'directo', 'website', 'phone'].includes(c.source?.toLowerCase() || ''))
+      .filter((c: any) => isDirectChannel(c.source, c.sourceCategory))
       .reduce((sum: number, c: any) => sum + c.revenue, 0);
     
     const directShare = totalRevenue > 0 ? (directRevenue / totalRevenue) * 100 : 0;
@@ -130,7 +131,7 @@ export async function generateInsights(propertyId: string, startDateOrDays: stri
     if (worstChannel && worstChannel.effectiveCommissionRate > 0.15) {
       // Calcular el "real cost" como la diferencia de ADR con el canal directo
       const directChannel = channelData.find((c: any) => 
-        ['direct', 'walk-in', 'email', 'pagina web', 'teléfono', 'telefono', 'directo', 'website', 'phone'].includes(c.source?.toLowerCase() || '')
+        isDirectChannel(c.source, c.sourceCategory)
       );
       const directAdr = directChannel?.adr || worstChannel.adr;
       const realCostPercent = worstChannel.effectiveCommissionRate * 100;

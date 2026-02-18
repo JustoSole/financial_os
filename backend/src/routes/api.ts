@@ -31,6 +31,8 @@ import {
 import { getCommandCenterData, getBreakEvenAnalysis } from '../services/command-center-service';
 import { calculateTrendMetrics } from '../services/trends-service';
 import { CalculationEngine } from '../services/calculation-engine';
+import { backfillReservationDailySnapshots } from '../services/snapshot-backfill-service';
+import { reconstructReservationSnapshotAsOf } from '../services/snapshot-reconstruction-service';
 
 const router = Router();
 
@@ -325,13 +327,14 @@ router.get('/metrics/:propertyId/comparison', async (req: Request, res: Response
 
 router.get('/metrics/:propertyId/structure', async (req: Request, res: Response) => {
   try {
-    const { startDate, endDate, days } = req.query;
+    const { startDate, endDate, days, roomType } = req.query;
+    const options = roomType ? { roomType: roomType as string } : undefined;
     let data;
     if (startDate && endDate) {
-      data = await calculateStructureMetrics(req.params.propertyId, startDate as string, endDate as string);
+      data = await calculateStructureMetrics(req.params.propertyId, startDate as string, endDate as string, options);
     } else {
       const d = parseInt(days as string) || 30;
-      data = await calculateStructureMetrics(req.params.propertyId, d);
+      data = await calculateStructureMetrics(req.params.propertyId, d, undefined, options);
     }
     res.json({ success: true, data });
   } catch (error: any) {
@@ -455,13 +458,14 @@ router.get('/metrics/:propertyId/projections', async (req: Request, res: Respons
 // Reservation Economics Routes
 router.get('/metrics/:propertyId/reservation-economics', async (req: Request, res: Response) => {
   try {
-    const { startDate, endDate, days } = req.query;
+    const { startDate, endDate, days, roomType } = req.query;
+    const options = roomType ? { roomType: roomType as string } : undefined;
     let data;
     if (startDate && endDate) {
-      data = await calculateReservationEconomicsSummary(req.params.propertyId, startDate as string, endDate as string);
+      data = await calculateReservationEconomicsSummary(req.params.propertyId, startDate as string, endDate as string, options);
     } else {
       const d = parseInt(days as string) || 30;
-      data = await calculateReservationEconomicsSummary(req.params.propertyId, d);
+      data = await calculateReservationEconomicsSummary(req.params.propertyId, d, undefined, options);
     }
     res.json({ success: true, data: data });
   } catch (error: any) {
@@ -471,13 +475,18 @@ router.get('/metrics/:propertyId/reservation-economics', async (req: Request, re
 
 router.get('/metrics/:propertyId/reservation-economics/list', async (req: Request, res: Response) => {
   try {
-    const { startDate, endDate, days, source, unprofitableOnly } = req.query;
+    const { startDate, endDate, days, source, unprofitableOnly, roomType } = req.query;
+    const filters: any = {};
+    if (source) filters.source = source as string;
+    if (unprofitableOnly === 'true') filters.unprofitableOnly = true;
+    if (roomType) filters.roomType = roomType as string;
+    
     let data;
     if (startDate && endDate) {
-      data = await getReservationEconomicsList(req.params.propertyId, startDate as string, endDate as string, { source: source as any, unprofitableOnly: unprofitableOnly === 'true' } as any);
+      data = await getReservationEconomicsList(req.params.propertyId, startDate as string, endDate as string, filters);
     } else {
       const d = parseInt(days as string) || 30;
-      data = await getReservationEconomicsList(req.params.propertyId, d, { source: source as any, unprofitableOnly: unprofitableOnly === 'true' } as any);
+      data = await getReservationEconomicsList(req.params.propertyId, d, filters);
     }
     res.json({ success: true, data: data });
   } catch (error: any) {
@@ -518,12 +527,19 @@ router.get('/actions/:propertyId', async (req: Request, res: Response) => {
       actions = await generateActions(req.params.propertyId, d);
     }
     const completed = await getCompletedSteps(req.params.propertyId);
-    // Apply legacy completed steps to backend-generated actions
+    // Apply legacy completed steps and whole-action status to backend-generated actions
     for (const action of actions) {
+      const actionId = action.id || action.type;
       if (completed.byActionType[action.type]) {
-        for (let i = 0; i < action.steps.length; i++) {
+        for (let i = 0; i < (action.steps || []).length; i++) {
           if (completed.byActionType[action.type].includes(i)) action.steps[i].completed = true;
         }
+      }
+      if (completed.actionStatus && completed.actionStatus[actionId]) {
+        action.status = completed.actionStatus[actionId].status;
+        action.completedAt = completed.actionStatus[actionId].completedAt;
+      } else {
+        action.status = 'pending';
       }
     }
     res.json({ success: true, data: actions });
@@ -556,6 +572,76 @@ router.post('/actions/:propertyId/step', async (req: Request, res: Response) => 
       return res.status(400).json({ success: false, error: 'Missing actionId/stepId or actionType/stepIndex' });
     }
     res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Set whole-action status (done | dismissed)
+router.post('/actions/:propertyId/status', async (req: Request, res: Response) => {
+  try {
+    const { actionId, status } = req.body;
+    if (!actionId || !status || !['done', 'dismissed'].includes(status)) {
+      return res.status(400).json({ success: false, error: 'Missing or invalid actionId/status (use done or dismissed)' });
+    }
+    await completeActionStep(req.params.propertyId, actionId, status);
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Meta Routes
+router.get('/meta/:propertyId/room-types', async (req: Request, res: Response) => {
+  try {
+    const { propertyId } = req.params;
+    const { startDate, endDate, days } = req.query;
+    
+    // Obtener transacciones con room_type
+    let transactions: any[];
+    if (startDate && endDate) {
+      transactions = await database.getTransactionsByProperty(propertyId, startDate as string, endDate as string);
+    } else {
+      const d = parseInt(days as string) || 90;
+      const end = new Date();
+      const start = new Date(end.getTime() - d * 24 * 60 * 60 * 1000);
+      transactions = await database.getTransactionsByProperty(
+        propertyId, 
+        start.toISOString().substring(0, 10), 
+        end.toISOString().substring(0, 10)
+      );
+    }
+    
+    // Filtrar solo transacciones con room_type y que sean room charges (debits > 0)
+    const roomCharges = transactions.filter(t => 
+      t.room_type && 
+      t.room_type.trim() !== '' && 
+      Number(t.debits) > 0
+    );
+    
+    // Agrupar por room_type
+    const roomTypeMap = new Map<string, { count: number; totalDebits: number }>();
+    for (const txn of roomCharges) {
+      const rt = txn.room_type;
+      if (!roomTypeMap.has(rt)) {
+        roomTypeMap.set(rt, { count: 0, totalDebits: 0 });
+      }
+      const entry = roomTypeMap.get(rt)!;
+      entry.count++;
+      entry.totalDebits += Number(txn.debits) || 0;
+    }
+    
+    const total = roomCharges.length;
+    const result = Array.from(roomTypeMap.entries())
+      .map(([roomType, stats]) => ({
+        roomType,
+        count: stats.count,
+        share: total > 0 ? (stats.count / total) * 100 : 0,
+        totalRevenue: stats.totalDebits
+      }))
+      .sort((a, b) => b.count - a.count);
+    
+    res.json({ success: true, data: result });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -710,6 +796,52 @@ router.post('/property/:propertyId/reset', async (req: Request, res: Response) =
     res.json({ success: true, message: 'Database reset successfully' });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ADMIN: Backfill reservation daily snapshots for exact historical pacing
+router.post('/admin/:propertyId/backfill-snapshots', async (req: Request, res: Response) => {
+  try {
+    const { propertyId } = req.params;
+    const user = (req as any).user;
+    const limit = Number.isFinite(Number(req.body?.limit)) ? Number(req.body.limit) : 5000;
+    const dryRun = Boolean(req.body?.dryRun);
+
+    const property = await database.getPropertyById(propertyId);
+    if (!property || property.user_id !== user.id) {
+      return res.status(403).json({ success: false, error: 'Unauthorized' });
+    }
+
+    const result = await backfillReservationDailySnapshots(propertyId, { limit, dryRun });
+    cacheService.clear();
+    return res.json({ success: true, data: result });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// ADMIN: Reconstruct a specific as-of snapshot date (operational fallback when historical import snapshot is missing)
+router.post('/admin/:propertyId/reconstruct-snapshot-asof', async (req: Request, res: Response) => {
+  try {
+    const { propertyId } = req.params;
+    const user = (req as any).user;
+    const snapshotDate = String(req.body?.snapshotDate || '').substring(0, 10);
+    const dryRun = Boolean(req.body?.dryRun);
+
+    if (!snapshotDate) {
+      return res.status(400).json({ success: false, error: 'snapshotDate is required (YYYY-MM-DD)' });
+    }
+
+    const property = await database.getPropertyById(propertyId);
+    if (!property || property.user_id !== user.id) {
+      return res.status(403).json({ success: false, error: 'Unauthorized' });
+    }
+
+    const result = await reconstructReservationSnapshotAsOf(propertyId, { snapshotDate, dryRun });
+    cacheService.clear();
+    return res.json({ success: true, data: result });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, error: error.message });
   }
 });
 

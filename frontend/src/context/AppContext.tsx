@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
+import { useLocation } from 'react-router-dom';
 import { getProperty, getMetrics, getActions, trackEvent } from '../api';
 import { setGlobalCurrency } from '../utils/formatters';
 import { useAuth } from './AuthContext';
@@ -39,6 +40,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const { session } = useAuth();
+  const location = useLocation();
   const [property, setProperty] = useState<Property | null>(null);
   const [metrics, setMetrics] = useState<any | null>(null);
   const [actions, setActions] = useState<any[] | null>(null);
@@ -105,20 +107,21 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       const startStr = dateRange.start.toISOString().substring(0, 10);
       const endStr = dateRange.end.toISOString().substring(0, 10);
+      const shouldFetchMetrics = location.pathname !== '/';
 
       const [metricsRes, actionsRes] = await Promise.all([
-        getMetrics(property.id, startStr, endStr),
+        shouldFetchMetrics ? getMetrics(property.id, startStr, endStr) : Promise.resolve(null),
         getActions(property.id),
       ]);
 
-      if (metricsRes.success) setMetrics(metricsRes.data);
+      if (metricsRes?.success) setMetrics(metricsRes.data);
       if (actionsRes.success) setActions(actionsRes.data || null);
     } catch (err: any) {
       setError(err.message);
     } finally {
       setLoading(false);
     }
-  }, [property?.id, dateRange.days, session]);
+  }, [property?.id, dateRange.days, session, location.pathname]);
 
   // Effect 1: Initialize property when session changes
   useEffect(() => {

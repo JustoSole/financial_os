@@ -1,9 +1,23 @@
 import { Shield, Clock, Database, AlertTriangle, CheckCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import styles from './ConfidenceHeader.module.css';
 
+export function getCompletarDatosDestination(issues: string[]): string {
+  const hasCostosIssue = issues.some(
+    (i) => /costos|configurar costos|costos fijos/i.test(i)
+  );
+  const hasImportIssue = issues.some(
+    (i) => /importar|falta|transactions|reservations|reporte/i.test(i)
+  );
+  if (hasCostosIssue && !hasImportIssue) return '/costos';
+  if (hasImportIssue) return '/importar';
+  return '/importar';
+}
+
 export default function ConfidenceHeader() {
   const { metrics, loading } = useApp();
+  const navigate = useNavigate();
 
   if (loading || !metrics?.dataHealth) return null;
 
@@ -12,6 +26,7 @@ export default function ConfidenceHeader() {
   
   const lastImportDate = lastImport ? new Date(lastImport) : null;
   const isOldData = lastImportDate ? (Date.now() - lastImportDate.getTime()) > (7 * 24 * 60 * 60 * 1000) : false;
+  const completarDatosTo = getCompletarDatosDestination(issues || []);
 
   return (
     <div className={`${styles.header} ${styles[healthLevel]}`}>
@@ -53,7 +68,7 @@ export default function ConfidenceHeader() {
             </div>
             <button 
               className={styles.fixButton}
-              onClick={() => window.location.href = '/importar'}
+              onClick={() => navigate(completarDatosTo)}
             >
               Completar datos
             </button>

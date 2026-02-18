@@ -5,20 +5,28 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc && cp -r ../sample-data dist/sample-data 2>/dev/null || true",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "backfill:snapshots": "tsx src/scripts/backfill-reservation-daily-snapshots.ts",
+    "backfill:snapshots:all": "tsx src/scripts/backfill-reservation-daily-snapshots-all.ts",
+    "reconstruct:snapshot:asof": "tsx src/scripts/reconstruct-reservation-snapshot-asof.ts",
+    "reconstruct:snapshot:asof:all": "tsx src/scripts/reconstruct-reservation-snapshot-asof-all.ts"
   },
   "dependencies": {
     "@financial-os/shared": "*",
     "@supabase/supabase-js": "^2.91.1",
+    "compression": "^1.8.1",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^4.18.2",
     "multer": "^1.4.5-lts.1",
     "nanoid": "^3.3.7",
     "papaparse": "^5.4.1",
-    "uuid": "^13.0.0"
+    "uuid": "^13.0.0",
+    "vitest": "^1.6.1"
   },
   "devDependencies": {
+    "@types/compression": "^1.8.1",
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/multer": "^1.4.11",

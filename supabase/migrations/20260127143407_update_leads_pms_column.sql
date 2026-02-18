@@ -1,0 +1,4 @@
+ALTER TABLE public.leads 
+DROP COLUMN IF EXISTS uses_cloudbeds,
+ADD COLUMN IF NOT EXISTS pms TEXT;
+;

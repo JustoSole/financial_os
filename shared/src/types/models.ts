@@ -60,6 +60,7 @@ export interface LedgerTransaction {
   description: string | null;
   notes: string | null;
   txnSource: string | null;
+  roomType: string | null;
   sourceFileId: string;
   createdAt: string;
 }

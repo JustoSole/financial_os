@@ -34,3 +34,9 @@
   margin-top: var(--space-2);
 }
 
+.actionLink {
+  text-decoration: none;
+  color: inherit;
+  display: inline-block;
+}
+

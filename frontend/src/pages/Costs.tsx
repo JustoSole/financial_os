@@ -122,6 +122,9 @@ export default function Costs() {
   const [showOTASection, setShowOTASection] = useState(true);
   const [showPaymentSection, setShowPaymentSection] = useState(true);
   const [showExtraordinarySection, setShowExtraordinarySection] = useState(true);
+  // Step flow: 1 = base, 2 = monthly, 3 = distribution, 4 = review. When advancedMode, show full form.
+  const [costStep, setCostStep] = useState<1 | 2 | 3 | 4>(1);
+  const [advancedMode, setAdvancedMode] = useState(false);
   
   // New category inputs
   const [newVariableName, setNewVariableName] = useState('');
@@ -528,16 +531,56 @@ export default function Costs() {
             <DollarSign size={14} />
             <span>{currentCurrency}</span>
           </div>
-          <button 
-            className={`${styles.btnSave} ${saved ? styles.saved : ''}`}
-            onClick={handleSave}
-            disabled={saving}
-          >
-            {saved ? <><CheckCircle size={18} /> Guardado</> : 
-             saving ? 'Guardando...' : <><Save size={18} /> Guardar</>}
-          </button>
+          {advancedMode && (
+            <button 
+              className={`${styles.btnSave} ${saved ? styles.saved : ''}`}
+              onClick={handleSave}
+              disabled={saving}
+            >
+              {saved ? <><CheckCircle size={18} /> Guardado</> : 
+               saving ? 'Guardando...' : <><Save size={18} /> Guardar</>}
+            </button>
+          )}
         </div>
       </header>
+
+      {/* Step flow or advanced mode link */}
+      {!advancedMode ? (
+        <div className={styles.stepper}>
+          <div className={styles.stepperSteps}>
+            {([1, 2, 3, 4] as const).map((s) => (
+              <button
+                key={s}
+                type="button"
+                className={`${styles.stepperStep} ${costStep === s ? styles.stepperStepActive : ''} ${costStep > s ? styles.stepperStepDone : ''}`}
+                onClick={() => setCostStep(s)}
+              >
+                <span className={styles.stepperNumber}>{s}</span>
+                <span className={styles.stepperLabel}>
+                  {s === 1 ? 'Base' : s === 2 ? 'Mensuales' : s === 3 ? 'Canales' : 'Revisión'}
+                </span>
+              </button>
+            ))}
+          </div>
+          <button
+            type="button"
+            className={styles.advancedModeLink}
+            onClick={() => setAdvancedMode(true)}
+          >
+            Ver formulario completo
+          </button>
+        </div>
+      ) : (
+        <div className={styles.stepper}>
+          <button
+            type="button"
+            className={styles.advancedModeLink}
+            onClick={() => setAdvancedMode(false)}
+          >
+            Volver al flujo por pasos
+          </button>
+        </div>
+      )}
 
       {/* Data Banner */}
       {hasOccupancyData ? (
@@ -561,7 +604,8 @@ export default function Costs() {
         </div>
       )}
 
-      {/* Summary Cards */}
+      {/* Summary Cards - show in step 4 (review) or advanced mode */}
+      {(advancedMode || costStep === 4) && (
       <div className={styles.summaryGrid}>
         <div className={styles.summaryCard}>
           <div className={styles.summaryLabel}>Total Costos Variables</div>
@@ -603,12 +647,24 @@ export default function Costs() {
           </div>
         </div>
       </div>
+      )}
 
-      {/* Main Grid */}
-      <div className={styles.costsGrid}>
+      {/* Main Grid - step flow or full */}
+      {!advancedMode && costStep === 4 ? (
+        <div className={styles.stepActions}>
+          <button type="button" className={styles.btnSecondary} onClick={() => setCostStep(3)}>
+            Anterior
+          </button>
+          <button type="button" className={styles.btnPrimary} onClick={handleSave} disabled={saving}>
+            {saving ? 'Guardando...' : <><Save size={18} /> Guardar configuración</>}
+          </button>
+        </div>
+      ) : (
+      <div className={styles.costsGrid} data-step={advancedMode ? undefined : costStep}>
         {/* LEFT COLUMN - Costs */}
         <div className={styles.costsColumn}>
-          {/* Cash Balance */}
+          {/* Cash Balance - Step 1 or advanced */}
+          {(advancedMode || costStep === 1) && (
           <section className={styles.costCard}>
             <div className={styles.cardHeader}>
               <div className={`${styles.cardIcon} ${styles.blue}`}><DollarSign size={18} /></div>
@@ -631,8 +687,10 @@ export default function Costs() {
               </div>
             </div>
           </section>
+          )}
 
-          {/* Cleaning Per Stay - CRITICAL for Unit Economics */}
+          {/* Cleaning Per Stay - Step 1 or advanced */}
+          {(advancedMode || costStep === 1) && (
           <section className={styles.costCard}>
             <div className={styles.cardHeader}>
               <div className={`${styles.cardIcon} ${styles.green}`}><Sparkles size={18} /></div>
@@ -670,8 +728,10 @@ export default function Costs() {
               )}
             </div>
           </section>
+          )}
 
-          {/* Variable Costs */}
+          {/* Variable Costs - Step 2 or advanced */}
+          {(advancedMode || costStep === 2) && (
           <section className={styles.costCard}>
             <div className={styles.cardHeader}>
               <div className={`${styles.cardIcon} ${styles.amber}`}><TrendingUp size={18} /></div>
@@ -749,8 +809,10 @@ export default function Costs() {
               )}
             </div>
           </section>
+          )}
 
-          {/* Fixed Costs */}
+          {/* Fixed Costs - Step 2 or advanced */}
+          {(advancedMode || costStep === 2) && (
           <section className={styles.costCard}>
             <div className={styles.cardHeader}>
               <div className={`${styles.cardIcon} ${styles.red}`}><Building size={18} /></div>
@@ -831,8 +893,10 @@ export default function Costs() {
               )}
             </div>
           </section>
+          )}
 
-          {/* Extraordinary Costs */}
+          {/* Extraordinary Costs - advanced only */}
+          {advancedMode && (
           <section className={styles.costCard}>
             <div 
               className={`${styles.cardHeader} ${styles.clickable}`}
@@ -917,10 +981,13 @@ export default function Costs() {
               </div>
             )}
           </section>
+          )}
         </div>
 
-        {/* RIGHT COLUMN - Commissions */}
+        {/* RIGHT COLUMN - Commissions - Step 3 or advanced */}
         <div className={styles.costsColumn}>
+          {(advancedMode || costStep === 3) && (
+          <>
           {/* OTA Commissions */}
           <section className={styles.costCard}>
             <div 
@@ -1121,8 +1188,32 @@ export default function Costs() {
               </button>
             </div>
           </section>
+          </>
+          )}
         </div>
       </div>
+      )}
+
+      {/* Step navigation for steps 1-3 */}
+      {!advancedMode && costStep < 4 && (
+        <div className={styles.stepActions}>
+          <button
+            type="button"
+            className={styles.btnSecondary}
+            onClick={() => setCostStep((s) => (s - 1) as 1 | 2 | 3)}
+            disabled={costStep === 1}
+          >
+            Anterior
+          </button>
+          <button
+            type="button"
+            className={styles.btnPrimary}
+            onClick={() => setCostStep((s) => (s + 1) as 1 | 2 | 3 | 4)}
+          >
+            Siguiente
+          </button>
+        </div>
+      )}
     </div>
   );
 }

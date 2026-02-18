@@ -27,6 +27,7 @@ import {
   getActions,
   getCompletedSteps,
   completeActionStep,
+  setActionStatus,
   trackEvent,
 } from '../api';
 import { formatCurrencyShort } from '../utils/formatters';
@@ -41,6 +42,8 @@ const ACTION_CATEGORIES = [
   { value: 'pricing', label: 'Pricing', icon: Target },
   // { value: 'cash', label: 'Caja', icon: AlertTriangle },
 ];
+
+type ActionStatus = 'pending' | 'done' | 'dismissed';
 
 interface ActionItem {
   id: string;
@@ -57,6 +60,8 @@ interface ActionItem {
   evidence: Array<{ label: string; value: string }>;
   href?: string;
   completed?: boolean;
+  status?: ActionStatus;
+  completedAt?: string;
 }
 
 export default function Actions() {
@@ -69,8 +74,11 @@ export default function Actions() {
   const [backendActions, setBackendActions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // Track completed steps from backend (synced across devices)
+  // Track completed steps and whole-action status from backend
   const [completedSteps, setCompletedSteps] = useState<Record<string, string[]>>({});
+  const [actionStatuses, setActionStatuses] = useState<Record<string, { status: 'done' | 'dismissed'; completedAt: string }>>({});
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'done' | 'dismissed'>('all');
+  const [settingStatusId, setSettingStatusId] = useState<string | null>(null);
 
   // Use primitive values to prevent infinite re-renders
   const propertyId = property?.id;
@@ -102,6 +110,7 @@ export default function Actions() {
       if (actionsRes.success) setBackendActions(actionsRes.data || []);
       if (completedRes.success && completedRes.data) {
         setCompletedSteps(completedRes.data.byActionId || {});
+        setActionStatuses(completedRes.data.actionStatus || {});
       }
 
       setLoading(false);
@@ -162,6 +171,7 @@ export default function Actions() {
           ],
           href: undefined,
           completed,
+          status: actionStatuses[actionId]?.status || 'pending',
         });
       });
     }
@@ -205,6 +215,7 @@ export default function Actions() {
         ],
         href: '/canales',
         completed,
+        status: actionStatuses[actionId]?.status || 'pending',
       });
     }
 
@@ -247,6 +258,7 @@ export default function Actions() {
           ],
           href: '/rentabilidad',
           completed,
+          status: actionStatuses[actionId]?.status || 'pending',
         });
       });
     }
@@ -313,14 +325,18 @@ export default function Actions() {
         href: ba.type === 'ota_dependency' || ba.type === 'channel_cost' ? '/canales' : 
               ba.type === 'unprofitable_reservations' || ba.type === 'one_night_loss_pattern' ? '/rentabilidad' : undefined,
         completed: ba.steps.every((s: any) => s.completed),
+        status: (ba.status as ActionStatus) || 'pending',
+        completedAt: ba.completedAt,
       });
     });
 
     // Sort: critical first, then by impact
     return actions.sort((a, b) => {
-      // Completed goes last
-      if (a.completed && !b.completed) return 1;
-      if (!a.completed && b.completed) return -1;
+      // Done/dismissed goes after pending
+      const aDone = a.status === 'done' || a.status === 'dismissed';
+      const bDone = b.status === 'done' || b.status === 'dismissed';
+      if (aDone && !bDone) return 1;
+      if (!aDone && bDone) return -1;
       
       // Priority order
       const typeOrder = { critical: 0, warning: 1, info: 2, positive: 3 };
@@ -330,22 +346,31 @@ export default function Actions() {
       // Then by impact value
       return b.impact.value - a.impact.value;
     });
-  }, [insights, collections, economics, cash, backendActions, completedSteps]);
+  }, [insights, collections, economics, cash, backendActions, completedSteps, actionStatuses]);
 
-  // Filtered actions
+  // Resolved = user marked as done or dismissed (whole-action status)
+  const isResolved = (a: ActionItem) => a.status === 'done' || a.status === 'dismissed';
+
+  // Filtered actions (by category and status)
   const filteredActions = useMemo(() => {
-    if (selectedCategory === 'all') return allActions;
-    return allActions.filter(a => a.category === selectedCategory);
-  }, [allActions, selectedCategory]);
+    let list = allActions;
+    if (selectedCategory !== 'all') {
+      list = list.filter(a => a.category === selectedCategory);
+    }
+    if (statusFilter !== 'all') {
+      list = list.filter(a => (a.status || 'pending') === statusFilter);
+    }
+    return list;
+  }, [allActions, selectedCategory, statusFilter]);
 
-  // Metrics
+  // Metrics (pending = not resolved)
   const totalPotentialSavings = allActions
-    .filter(a => !a.completed && (a.impact.type === 'savings' || a.impact.type === 'loss'))
+    .filter(a => !isResolved(a) && (a.impact.type === 'savings' || a.impact.type === 'loss'))
     .reduce((sum, a) => sum + a.impact.value, 0);
 
-  const urgentCount = allActions.filter(a => a.type === 'critical' && !a.completed).length;
-  const completedCount = allActions.filter(a => a.completed).length;
-  const pendingCollections = allActions.filter(a => a.category === 'collections' && !a.completed)
+  const urgentCount = allActions.filter(a => a.type === 'critical' && !isResolved(a)).length;
+  const completedCount = allActions.filter(a => isResolved(a)).length;
+  const pendingCollections = allActions.filter(a => a.category === 'collections' && !isResolved(a))
     .reduce((sum, a) => sum + a.impact.value, 0);
 
   // Handle step completion - saves to backend (Supabase)
@@ -375,10 +400,32 @@ export default function Actions() {
     }
   };
 
-  // Get category counts
+  // Get category counts (pending only)
   const getCategoryCount = (cat: string) => {
-    if (cat === 'all') return allActions.filter(a => !a.completed).length;
-    return allActions.filter(a => a.category === cat && !a.completed).length;
+    if (cat === 'all') return allActions.filter(a => !isResolved(a)).length;
+    return allActions.filter(a => a.category === cat && !isResolved(a)).length;
+  };
+
+  // Set whole-action status (done | dismissed) with confirmation
+  const handleSetActionStatus = async (actionId: string, status: 'done' | 'dismissed') => {
+    if (!property?.id) return;
+    const message = status === 'done'
+      ? '¿Marcar esta acción como hecha?'
+      : '¿Descartar esta acción? No se mostrará como pendiente.';
+    if (!window.confirm(message)) return;
+    setSettingStatusId(actionId);
+    try {
+      await setActionStatus(property.id, actionId, status);
+      const res = await getCompletedSteps(property.id);
+      if (res.success && res.data?.actionStatus) {
+        setActionStatuses(res.data.actionStatus);
+      }
+      trackEvent(property.id, 'action_status_set', { actionId, status });
+    } catch (err) {
+      console.error('Error setting action status:', err);
+    } finally {
+      setSettingStatusId(null);
+    }
   };
 
   if (loading) {
@@ -414,7 +461,7 @@ export default function Actions() {
             format="currency"
             status="positive"
             icon={<DollarSign size={20} />}
-            subtitle={`${allActions.filter(a => !a.completed).length} acciones pendientes`}
+            subtitle={`${allActions.filter(a => !isResolved(a)).length} acciones pendientes`}
             tooltip="Suma de ahorro/recupero si completás todas las acciones"
           />
         </section>
@@ -463,6 +510,21 @@ export default function Actions() {
         })}
       </div>
 
+      {/* Status Filter */}
+      <div className={styles.statusFilter}>
+        <span className={styles.statusFilterLabel}>Estado:</span>
+        {(['all', 'pending', 'done', 'dismissed'] as const).map(value => (
+          <button
+            key={value}
+            type="button"
+            className={`${styles.statusFilterBtn} ${statusFilter === value ? styles.statusFilterBtnActive : ''}`}
+            onClick={() => setStatusFilter(value)}
+          >
+            {value === 'all' ? 'Todas' : value === 'pending' ? 'Pendientes' : value === 'done' ? 'Hechas' : 'Descartadas'}
+          </button>
+        ))}
+      </div>
+
       {/* Actions List */}
       <div className={styles.actionsList}>
         {filteredActions.length === 0 ? (
@@ -470,30 +532,49 @@ export default function Actions() {
         ) : (
           <>
             {/* Pending actions */}
-            {filteredActions.filter(a => !a.completed).map(action => (
-              <ActionableInsight
-                key={action.id}
-                type={action.type}
-                title={action.title}
-                description={action.description}
-                impact={action.impact}
-                steps={action.steps}
-                evidence={action.evidence}
-                action={action.href ? { label: 'Ver detalle', href: action.href } : undefined}
-                onStepComplete={(stepId) => handleStepComplete(action.id, stepId)}
-                expandable
-                defaultExpanded={action.type === 'critical'}
-              />
+            {filteredActions.filter(a => !isResolved(a)).map(action => (
+              <div key={action.id} className={styles.actionCardWrap}>
+                <ActionableInsight
+                  type={action.type}
+                  title={action.title}
+                  description={action.description}
+                  impact={action.impact}
+                  steps={action.steps}
+                  evidence={action.evidence}
+                  action={action.href ? { label: 'Ver detalle', href: action.href } : undefined}
+                  onStepComplete={(stepId) => handleStepComplete(action.id, stepId)}
+                  expandable
+                  defaultExpanded={action.type === 'critical'}
+                />
+                <div className={styles.actionCardFooter}>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={settingStatusId === action.id}
+                    onClick={() => handleSetActionStatus(action.id, 'done')}
+                  >
+                    {settingStatusId === action.id ? '...' : 'Marcar como hecha'}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={settingStatusId === action.id}
+                    onClick={() => handleSetActionStatus(action.id, 'dismissed')}
+                  >
+                    Descartar
+                  </Button>
+                </div>
+              </div>
             ))}
 
-            {/* Completed actions */}
-            {filteredActions.some(a => a.completed) && (
+            {/* Resolved actions (done / dismissed) */}
+            {filteredActions.some(a => isResolved(a)) && (
               <>
                 <div className={styles.actionsCompletedHeader}>
-                      <CheckCircle size={18} />
+                  <CheckCircle size={18} />
                   <h3>Completadas</h3>
                 </div>
-                {filteredActions.filter(a => a.completed).map(action => (
+                {filteredActions.filter(a => isResolved(a)).map(action => (
                   <ActionableInsight
                     key={action.id}
                     type="positive"

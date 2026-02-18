@@ -15,6 +15,7 @@ export default function Channels() {
   const { property, dateRange } = useApp();
   const [channelData, setChannelData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (property) loadChannels();
@@ -23,11 +24,20 @@ export default function Channels() {
   const loadChannels = async () => {
     if (!property) return;
     setLoading(true);
-    const res = await getChannels(property.id, dateRange.days);
-    if (res.success && res.data) {
-      setChannelData(res.data);
+    setError(null);
+    try {
+      const res = await getChannels(property.id, dateRange.days);
+      if (res.success && res.data) {
+        setChannelData(res.data);
+      } else {
+        setError(res.error || 'No se pudieron cargar los datos de canales.');
+      }
+    } catch (err) {
+      setError('Error al conectar con el servidor. Revisá tu conexión e intentá de nuevo.');
+      setChannelData(null);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const channels = useMemo(() => {
@@ -95,9 +105,29 @@ export default function Channels() {
     return <LoadingState message="Analizando canales..." />;
   }
 
+  if (error) {
+    return (
+      <div className={styles.page}>
+        <div className="page-header">
+          <div>
+            <h1 className="page-title">Rentabilidad por Canal</h1>
+            <p className="page-subtitle">Cuánto ganás realmente después de comisiones</p>
+          </div>
+          <PeriodSelector />
+        </div>
+        <EmptyState
+          icon={<Target size={40} />}
+          title="No se pudieron cargar los canales"
+          description={error}
+          action={{ label: 'Ir a Importar', to: '/importar' }}
+        />
+      </div>
+    );
+  }
+
   if (channels.length === 0) {
     return (
-      <div className="channels-page">
+      <div className={styles.page}>
         <div className="page-header">
           <div>
             <h1 className="page-title">Rentabilidad por Canal</h1>

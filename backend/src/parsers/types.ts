@@ -31,6 +31,7 @@ export interface ParsedTransaction {
   description: string | null;
   notes: string | null;
   txnSource: string | null;
+  roomType: string | null;
   rowHash: string;
 }
 

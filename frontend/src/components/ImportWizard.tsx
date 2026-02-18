@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Upload, FileText, CheckCircle, AlertCircle, X, ExternalLink, Loader2, ArrowRight, Zap, Search, Filter, Download, ChevronDown, ChevronUp, Copy, Check } from 'lucide-react';
 import { validateFile, importFiles, trackEvent } from '../api';
 import { useApp } from '../context/AppContext';
@@ -44,6 +45,7 @@ interface ImportWizardProps {
 }
 
 export default function ImportWizard({ onComplete, variant = 'default' }: ImportWizardProps) {
+  const navigate = useNavigate();
   const { property, refreshData } = useApp();
   const [files, setFiles] = useState<FileInfo[]>([]);
   const [step, setStep] = useState<'upload' | 'validate' | 'importing' | 'complete'>('upload');
@@ -455,7 +457,7 @@ export default function ImportWizard({ onComplete, variant = 'default' }: Import
                   <ArrowRight size={18} />
                 </button>
               ) : (
-                <button onClick={() => window.location.href = '/'} className={styles.btnPrimary}>
+                <button onClick={() => navigate('/')} className={styles.btnPrimary}>
                 Ver mi Dashboard
                   <ArrowRight size={18} />
                 </button>

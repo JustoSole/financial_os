@@ -1,4 +1,5 @@
 import database from '../db';
+import cacheService from './cache-service';
 import { CalculationEngine, CalculationEngineOptions } from './calculation-engine';
 import { 
   ReservationEconomics,
@@ -37,18 +38,24 @@ export async function calculateReservationEconomicsSummary(
     endStr = end.toISOString().substring(0, 10);
   }
 
+  const roomTypeKey = (options as any)?.roomType ?? '';
+  const cacheKey = `res-econ-summary-${propertyId}-${startStr}-${endStr}-${roomTypeKey}`;
+  const cached = cacheService.get<any>(cacheKey);
+  if (cached) return cached;
+
   const engine = new CalculationEngine(propertyId, { start: startStr, end: endStr, days }, options);
   await engine.init();
   
   const summary = engine.getReservationEconomicsSummary();
   
-  // Agregar información sobre el período para que el frontend pueda verificar
-  return {
+  const result = {
     ...summary,
     requestedPeriod: { start: startStr, end: endStr, days },
     effectivePeriod: engine.getEffectivePeriod(),
     usedFallbackPeriod: engine.isUsingFallbackPeriod()
   };
+  cacheService.set(cacheKey, result);
+  return result;
 }
 
 export async function getReservationEconomicsList(propertyId: string, startDateOrDays: string | number = 30, endDate?: string, filters?: any): Promise<any[]> {
@@ -70,9 +77,17 @@ export async function getReservationEconomicsList(propertyId: string, startDateO
     endStr = end.toISOString().substring(0, 10);
   }
 
-  const engine = new CalculationEngine(propertyId, { start: startStr, end: endStr, days });
+  const roomTypeKey = filters?.roomType ?? '';
+  const cacheKey = `res-econ-list-${propertyId}-${startStr}-${endStr}-${roomTypeKey}`;
+  const cached = cacheService.get<any[]>(cacheKey);
+  if (cached) return cached;
+
+  const options = filters?.roomType ? { roomType: filters.roomType } : undefined;
+  const engine = new CalculationEngine(propertyId, { start: startStr, end: endStr, days }, options);
   await engine.init();
-  return engine.getReservationEconomicsList(filters);
+  const list = engine.getReservationEconomicsList(filters);
+  cacheService.set(cacheKey, list);
+  return list;
 }
 
 export async function getReservationEconomicsDetail(propertyId: string, reservationNumber: string): Promise<any> {

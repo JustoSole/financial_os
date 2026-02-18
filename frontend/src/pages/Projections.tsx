@@ -6,6 +6,7 @@ import {
   PeriodSelector, 
   HelpTooltip, 
   LoadingState,
+  EmptyState,
   Badge,
   ProgressBar,
   PacingChart,
@@ -55,7 +56,24 @@ export default function Projections() {
   }, [property?.id, horizon]);
 
   if (loading) return <LoadingState message="Calculando proyecciones y ritmo de venta..." />;
-  if (!data) return <div>Error al cargar proyecciones</div>;
+  if (!data) {
+    return (
+      <div className={styles.container}>
+        <header className={styles.header}>
+          <div className={styles.titleSection}>
+            <h1>Proyecciones OTB</h1>
+            <p className={styles.subtitle}>Radar de ingresos y ritmo de venta (On-The-Books)</p>
+          </div>
+        </header>
+        <EmptyState
+          icon={<DollarSign size={48} />}
+          title="No se pudieron cargar las proyecciones"
+          description="Importá reservas y transacciones para ver proyecciones OTB y ritmo de venta."
+          action={{ label: 'Ir a Importar', to: '/importar' }}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className={styles.container}>
@@ -91,10 +109,10 @@ export default function Projections() {
           <div className={styles.progressSection}>
             <div className={styles.progressLabel}>
               <span>Cobrado vs Pendiente</span>
-              <span>{formatPercent((data.summary.revenueOTB - data.summary.pendingCollections) / data.summary.revenueOTB * 100)}</span>
+              <span>{formatPercent(data.summary.collectedPercent)}</span>
             </div>
             <ProgressBar 
-              value={(data.summary.revenueOTB - data.summary.pendingCollections) / data.summary.revenueOTB * 100} 
+              value={data.summary.collectedPercent} 
               variant="success"
             />
           </div>
@@ -157,8 +175,30 @@ export default function Projections() {
             </CardHeader>
             <div className={styles.pacingInfo}>
               <Info size={16} />
-              <p>Comparación de ocupación actual vs. ocupación que tenías el año pasado a esta misma distancia del check-in (DBA).</p>
+              <p>
+                Comparación de ocupación actual vs. ocupación que tenías el año pasado a esta misma distancia del check-in (DBA).
+                {data.pacing.isApproximate ? ' Actualmente incluye tramos aproximados por falta de snapshot histórico exacto.' : ''}
+              </p>
             </div>
+            {data.pacing.isApproximate && data.pacing.diagnostics && (
+              <div className={styles.pacingInfo}>
+                <AlertTriangle size={16} />
+                <p>
+                  Snapshot as-of requerido: <strong>{data.pacing.diagnostics.requestedAsOfSnapshotDate}</strong>. Cobertura exacta:
+                  {' '}
+                  <strong>{data.pacing.diagnostics.exactCoveragePercent}%</strong>
+                  {' '}
+                  ({data.pacing.diagnostics.totalWeeks - data.pacing.diagnostics.missingWeeks}/{data.pacing.diagnostics.totalWeeks} semanas).
+                  {' '}
+                  Importadas: {data.pacing.diagnostics.importedWeeks},
+                  {' '}reconstruidas: {data.pacing.diagnostics.reconstructedWeeks},
+                  {' '}aprox directas: {data.pacing.diagnostics.approximatedWeeks}.
+                  {data.pacing.diagnostics.availableSnapshotDates.length > 0
+                    ? ` Snapshots disponibles: ${data.pacing.diagnostics.availableSnapshotDates.join(', ')}.`
+                    : ' No hay snapshots históricos disponibles para comparar.'}
+                </p>
+              </div>
+            )}
             
             <PacingChart 
               data={data.pacing.periods.map(p => ({

@@ -4,6 +4,12 @@ import {
   ReportType, 
   calculateTotalFixedCosts,
 } from '../types';
+import {
+  dateToIsoDay,
+  isExcludedReservationStatus,
+  prorateReservationToPeriod,
+  reservationOverlapsPeriod,
+} from '../services/metrics-core';
 
 /**
  * Context para operaciones que requieren autenticación.
@@ -94,6 +100,136 @@ export const supabaseDatabase = {
     
     console.log(`[DB] Fetched ${allData.length} total reservations from DB for property ${propertyId}`);
     return allData;
+  },
+
+  upsertReservationDailySnapshots: async (rows: any[]) => {
+    if (!rows || rows.length === 0) {
+      return;
+    }
+
+    const BATCH_SIZE = 1000;
+    for (let i = 0; i < rows.length; i += BATCH_SIZE) {
+      const batch = rows.slice(i, i + BATCH_SIZE);
+      const { error } = await getClient()
+        .from('reservation_daily_snapshots')
+        .upsert(batch, { onConflict: 'property_id,snapshot_date,stay_date' });
+
+      if (error) {
+        throw error;
+      }
+    }
+  },
+
+  isReservationDailySnapshotsReady: async () => {
+    const { error } = await getClient()
+      .from('reservation_daily_snapshots')
+      .select('property_id')
+      .limit(1);
+
+    if (!error) {
+      return true;
+    }
+
+    const message = String(error.message || '');
+    if (message.includes('Could not find the table')) {
+      return false;
+    }
+
+    // For other errors (e.g. permissions), assume table exists and let caller continue.
+    return true;
+  },
+
+  getReservationDailySnapshotMetrics: async (
+    propertyId: string,
+    snapshotDate: string,
+    startDate: string,
+    endDate: string
+  ) => {
+    const { data, error } = await getClient()
+      .from('reservation_daily_snapshots')
+      .select('occupied_nights, revenue, paid_amount, pending_amount, snapshot_source')
+      .eq('property_id', propertyId)
+      .eq('snapshot_date', snapshotDate)
+      .gte('stay_date', startDate)
+      .lt('stay_date', endDate);
+
+    if (error) {
+      return null;
+    }
+
+    if (!data || data.length === 0) {
+      // If snapshot_date exists but there are no rows in this stay range,
+      // this is still an exact historical "zero occupancy" case.
+      const { data: anyDateRows, error: existsError } = await getClient()
+        .from('reservation_daily_snapshots')
+        .select('snapshot_source')
+        .eq('property_id', propertyId)
+        .eq('snapshot_date', snapshotDate);
+
+      if (!existsError && anyDateRows && anyDateRows.length > 0) {
+        return {
+          snapshotDate,
+          occupiedNights: 0,
+          revenue: 0,
+          paidAmount: 0,
+          pendingAmount: 0,
+          snapshotSource: String(anyDateRows[0].snapshot_source || 'imported') === 'reconstructed'
+            ? 'reconstructed'
+            : 'imported',
+        };
+      }
+
+      return null;
+    }
+
+    return {
+      snapshotDate,
+      occupiedNights: data.reduce((sum: number, row: any) => sum + (Number(row.occupied_nights) || 0), 0),
+      revenue: data.reduce((sum: number, row: any) => sum + (Number(row.revenue) || 0), 0),
+      paidAmount: data.reduce((sum: number, row: any) => sum + (Number(row.paid_amount) || 0), 0),
+      pendingAmount: data.reduce((sum: number, row: any) => sum + (Number(row.pending_amount) || 0), 0),
+      snapshotSource: data.some((row: any) => row.snapshot_source === 'reconstructed')
+        ? 'reconstructed'
+        : 'imported',
+    };
+  },
+
+  getReservationDailySnapshotDates: async (propertyId: string, limit: number = 30) => {
+    const PAGE_SIZE = 1000;
+    const uniqueDates: string[] = [];
+    const seen = new Set<string>();
+    let from = 0;
+    let hasMore = true;
+
+    while (hasMore && uniqueDates.length < limit) {
+      const { data, error } = await getClient()
+        .from('reservation_daily_snapshots')
+        .select('snapshot_date')
+        .eq('property_id', propertyId)
+        .order('snapshot_date', { ascending: false })
+        .range(from, from + PAGE_SIZE - 1);
+
+      if (error || !data || data.length === 0) {
+        break;
+      }
+
+      for (const row of data as any[]) {
+        const value = String(row.snapshot_date || '');
+        if (!value || seen.has(value)) {
+          continue;
+        }
+        seen.add(value);
+        uniqueDates.push(value);
+        if (uniqueDates.length >= limit) {
+          break;
+        }
+      }
+
+      from += PAGE_SIZE;
+      hasMore = data.length === PAGE_SIZE;
+    }
+
+    return uniqueDates;
   },
 
   getLastImport: async (propertyId: string) => {
@@ -293,6 +429,7 @@ export const supabaseDatabase = {
       description: t.description,
       notes: t.notes,
       txn_source: t.txnSource,
+      room_type: t.roomType,
       row_hash: t.rowHash
     }));
 
@@ -335,6 +472,7 @@ export const supabaseDatabase = {
       description: t.description,
       notes: t.notes,
       txn_source: t.txnSource,
+      room_type: t.roomType,
       row_hash: t.rowHash
     }));
 
@@ -356,7 +494,7 @@ export const supabaseDatabase = {
     }
   },
 
-  getTransactionsByProperty: async (propertyId: string, startDate?: string, endDate?: string) => {
+  getTransactionsByProperty: async (propertyId: string, startDate?: string, endDate?: string, roomType?: string) => {
     // Supabase por defecto limita a 1000 registros. Usamos paginación.
     const PAGE_SIZE = 1000;
     let allData: any[] = [];
@@ -374,6 +512,7 @@ export const supabaseDatabase = {
       // Ensure we are comparing just the date part if the column is a timestamp
       if (startDate) query = query.gte('txn_at', `${startDate}T00:00:00`);
       if (endDate) query = query.lte('txn_at', `${endDate}T23:59:59`);
+      if (roomType) query = query.eq('room_type', roomType);
       
       const { data, error } = await query;
       
@@ -597,6 +736,38 @@ export const supabaseDatabase = {
     return allData;
   },
 
+  getReservationsBySourceFile: async (propertyId: string, sourceFileId: string) => {
+    const PAGE_SIZE = 1000;
+    let allData: any[] = [];
+    let from = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+      const { data, error } = await getClient()
+        .from('reservation_financials')
+        .select('*')
+        .eq('property_id', propertyId)
+        .eq('source_file_id', sourceFileId)
+        .range(from, from + PAGE_SIZE - 1)
+        .order('check_in', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching reservations by source file:', error);
+        break;
+      }
+
+      if (data && data.length > 0) {
+        allData = allData.concat(data);
+        from += PAGE_SIZE;
+        hasMore = data.length === PAGE_SIZE;
+      } else {
+        hasMore = false;
+      }
+    }
+
+    return allData;
+  },
+
   getReservationsWithBalance: async (propertyId: string, minBalance: number = 0) => {
     const { data, error } = await getClient()
       .from('reservation_financials')
@@ -709,21 +880,25 @@ export const supabaseDatabase = {
   getOccupancyStats: async (propertyId: string, days: number = 30) => {
     const endDate = new Date();
     const startDate = new Date(endDate.getTime() - days * 24 * 60 * 60 * 1000);
-    const startStr = startDate.toISOString().substring(0, 10);
-    const endStr = endDate.toISOString().substring(0, 10);
+    const startStr = dateToIsoDay(startDate);
+    const endStr = dateToIsoDay(endDate);
     
     const { data, error } = await getClient()
       .from('reservation_financials')
-      .select('room_nights')
+      .select('status, check_in, check_out, room_revenue_total, paid_amount, balance_due')
       .eq('property_id', propertyId)
-      .not('status', 'in', '("Cancelled","No Show")')
-      .gte('check_in', startStr)
-      .lte('check_in', endStr);
+      .not('status', 'in', '("Cancelled","No Show")');
     
     if (error) return { occupiedNights: 0, totalReservations: 0, avgNightsPerStay: 0 };
-    
-    const totalNights = data.reduce((sum, r) => sum + (Number(r.room_nights) || 0), 0);
-    const totalReservations = data.length;
+
+    const period = { start: startStr, end: endStr, days };
+    const inPeriod = data.filter((r: any) =>
+      !isExcludedReservationStatus(r.status) && reservationOverlapsPeriod(r, period)
+    );
+    const totalNights = inPeriod.reduce((sum: number, r: any) => {
+      return sum + prorateReservationToPeriod(r, period).nightsInPeriod;
+    }, 0);
+    const totalReservations = inPeriod.length;
     const avgNightsPerStay = totalReservations > 0 ? totalNights / totalReservations : 0;
     
     return {

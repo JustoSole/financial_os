@@ -12,6 +12,7 @@ import {
 } from '../parsers';
 import { cacheService } from './cache-service';
 import logger from './logger';
+import { buildReservationDailySnapshotRows, dateToIsoDay } from './metrics-core';
 
 /**
  * Import Service - Handles CSV parsing and data ingestion
@@ -89,6 +90,20 @@ export async function importCSV(propertyId: string, filename: string, content: s
           const batch = reservations.slice(i, i + batchSize);
           await database.insertReservations(batch);
         }
+
+        // Build a historical-ready daily snapshot for exact pacing by as-of date.
+        // If snapshot storage fails (e.g. migration not yet applied), import still succeeds.
+        try {
+          const snapshotDate = dateToIsoDay(new Date(importFile.uploaded_at || new Date()));
+          const snapshotRows = buildReservationDailySnapshotRows(propertyId, snapshotDate, reservations);
+          await database.upsertReservationDailySnapshots(snapshotRows);
+        } catch (snapshotError: any) {
+          logger.warn('IMPORT', 'Could not persist reservation daily snapshot', {
+            propertyId,
+            error: snapshotError?.message || String(snapshotError),
+          });
+        }
+
         count = reservations.length;
       }
 

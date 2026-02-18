@@ -1,5 +1,6 @@
 import { ReactNode } from 'react';
-import Button from './Button';
+import { Link } from 'react-router-dom';
+import Button, { ButtonLinkStyles } from './Button';
 import styles from './EmptyState.module.css';
 
 interface EmptyStateProps {
@@ -12,6 +13,10 @@ interface EmptyStateProps {
     onClick?: () => void;
   };
   className?: string;
+}
+
+function isInternalPath(to: string): boolean {
+  return to.startsWith('/') && !to.startsWith('//');
 }
 
 export default function EmptyState({
@@ -38,9 +43,15 @@ export default function EmptyState({
       {action && (
         <div className={styles.action}>
           {action.to ? (
-            <Button variant="primary" onClick={() => window.location.href = action.to!}>
-              {action.label}
-            </Button>
+            isInternalPath(action.to) ? (
+              <Link to={action.to} className={styles.actionLink}>
+                <ButtonLinkStyles variant="primary">{action.label}</ButtonLinkStyles>
+              </Link>
+            ) : (
+              <Button variant="primary" onClick={() => window.open(action.to!, '_blank', 'noopener,noreferrer')}>
+                {action.label}
+              </Button>
+            )
           ) : (
             <Button variant="primary" onClick={action.onClick}>
               {action.label}

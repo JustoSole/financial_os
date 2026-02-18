@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { Sparkles, ArrowRight, Lock, Zap } from 'lucide-react';
 
 interface UpgradeBannerProps {
@@ -17,13 +18,15 @@ export default function UpgradeBanner({
 
   if (variant === 'minimal') {
     return (
-      <a href="/configuracion" className="upgrade-minimal">
+      <Link to="/configuracion" className="upgrade-minimal">
         <Lock size={14} />
         <span>Upgrade para usar {feature}</span>
         <ArrowRight size={14} />
 
         <style>{`
           .upgrade-minimal {
+            text-decoration: none;
+            color: inherit;
             display: inline-flex;
             align-items: center;
             gap: var(--space-2);
@@ -41,7 +44,7 @@ export default function UpgradeBanner({
             background: linear-gradient(135deg, rgba(139, 92, 246, 0.25) 0%, rgba(99, 102, 241, 0.15) 100%);
           }
         `}</style>
-      </a>
+      </Link>
     );
   }
 
@@ -55,10 +58,10 @@ export default function UpgradeBanner({
           <strong>Desbloquear {feature}</strong>
           <span>Disponible en plan {planNames[plan]}</span>
         </div>
-        <a href="/configuracion" className="btn btn-sm upgrade-btn">
+        <Link to="/configuracion" className="btn btn-sm upgrade-btn">
           Upgrade
           <ArrowRight size={14} />
-        </a>
+        </Link>
 
         <style>{`
           .upgrade-inline {
@@ -143,10 +146,10 @@ export default function UpgradeBanner({
         </div>
       </div>
 
-      <a href="/configuracion" className="btn btn-primary btn-lg upgrade-btn">
+      <Link to="/configuracion" className="btn btn-primary btn-lg upgrade-btn">
         <Sparkles size={18} />
         Ver planes
-      </a>
+      </Link>
 
       <style>{`
         .upgrade-card {

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import {
   getReservationEconomics,
@@ -7,6 +8,7 @@ import {
   getBreakEven,
   getMinimumPrice,
   getTrends,
+  getRoomTypes,
 } from '../api';
 import {
   PeriodSelector,
@@ -117,6 +119,7 @@ export default function Profitability() {
 
   const [comparisons, setComparisons] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('thresholds');
 
   // Sandbox state
@@ -127,6 +130,8 @@ export default function Profitability() {
   // Filters
   const [sourceFilter, setSourceFilter] = useState<string>('all');
   const [nightsFilter, setNightsFilter] = useState<NightsBucket>('all');
+  const [roomTypeFilter, setRoomTypeFilter] = useState<string>('all');
+  const [roomTypes, setRoomTypes] = useState<Array<{ roomType: string; count: number; share: number }>>([]);
 
   // Drawer
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -138,39 +143,58 @@ export default function Profitability() {
     async function load() {
       if (!property?.id) return;
       setLoading(true);
+      setLoadError(null);
+      try {
+        const startStr = dateRange.start.toISOString().substring(0, 10);
+        const endStr = dateRange.end.toISOString().substring(0, 10);
 
-      const startStr = dateRange.start.toISOString().substring(0, 10);
-      const endStr = dateRange.end.toISOString().substring(0, 10);
+        const { getCommandCenter } = await import('../api');
 
-      // We use a temporary commandRes to get comparisons data which was in Home but belongs here now
-      const { getCommandCenter } = await import('../api');
+        const roomTypesRes = await getRoomTypes(property.id, startStr, endStr);
+        if (roomTypesRes.success && roomTypesRes.data) {
+          setRoomTypes(roomTypesRes.data);
+        }
 
-      const [summaryRes, listRes, breakEvenRes, trendsRes, commandRes] = await Promise.all([
-        getReservationEconomics(property.id, startStr, endStr),
-        getReservationEconomicsList(property.id, startStr, endStr),
-        getBreakEven(property.id, startStr, endStr),
-        getTrends(property.id, 6),
-        getCommandCenter(property.id, startStr, endStr)
-      ]);
+        const roomTypeParam = roomTypeFilter !== 'all' ? roomTypeFilter : undefined;
 
-      if (summaryRes.success) setSummary(summaryRes.data);
-      if (listRes.success) setReservations(listRes.data || []);
-      if (breakEvenRes.success) setBreakEven(breakEvenRes.data);
-      if (trendsRes.success) setTrends(trendsRes.data);
-      if (commandRes.success) setComparisons(commandRes.data.comparisons);
+        const [summaryRes, listRes, breakEvenRes, trendsRes, commandRes] = await Promise.all([
+          getReservationEconomics(property.id, startStr, endStr, roomTypeParam),
+          getReservationEconomicsList(property.id, startStr, endStr, { roomType: roomTypeParam } as any),
+          getBreakEven(property.id, startStr, endStr),
+          getTrends(property.id, 6),
+          getCommandCenter(property.id, startStr, endStr)
+        ]);
 
-      setLoading(false);
+        if (summaryRes.success) setSummary(summaryRes.data);
+        if (listRes.success) setReservations(listRes.data || []);
+        if (breakEvenRes.success) setBreakEven(breakEvenRes.data);
+        if (trendsRes.success) setTrends(trendsRes.data);
+        if (commandRes.success) setComparisons(commandRes.data.comparisons);
+
+        if (!summaryRes.success && !listRes.success) {
+          setLoadError(summaryRes.error || listRes.error || 'No se pudieron cargar los datos de rentabilidad.');
+        }
+      } catch (err) {
+        setLoadError('Error al conectar con el servidor. Revisá tu conexión e intentá de nuevo.');
+        setSummary(null);
+        setReservations([]);
+      } finally {
+        setLoading(false);
+      }
     }
     load();
-  }, [property?.id, dateRange]);
+  }, [property?.id, dateRange, roomTypeFilter]);
 
   useEffect(() => {
     async function runSim() {
       if (!property?.id || activeTab !== 'thresholds') return;
       setSimLoading(true);
-      const res = await getMinimumPrice(property.id, marginPct);
-      if (res.success) setSimulation(res.data);
-      setSimLoading(false);
+      try {
+        const res = await getMinimumPrice(property.id, marginPct);
+        if (res.success) setSimulation(res.data);
+      } finally {
+        setSimLoading(false);
+      }
     }
     const timer = setTimeout(runSim, 300);
     return () => clearTimeout(timer);
@@ -223,12 +247,14 @@ export default function Profitability() {
     if (!property?.id) return;
     setDrawerLoading(true);
     setDrawerOpen(true);
-
-    const res = await getReservationEconomicsDetail(property.id, reservationNumber);
-    if (res.success && res.data) {
-      setSelectedReservation(res.data);
+    try {
+      const res = await getReservationEconomicsDetail(property.id, reservationNumber);
+      if (res.success && res.data) {
+        setSelectedReservation(res.data);
+      }
+    } finally {
+      setDrawerLoading(false);
     }
-    setDrawerLoading(false);
   };
 
   const closeDrawer = () => {
@@ -238,6 +264,29 @@ export default function Profitability() {
 
   if (loading) {
     return <LoadingState message="Analizando rentabilidad..." />;
+  }
+
+  if (loadError) {
+    return (
+      <div className={styles.page}>
+        <div className="page-header">
+          <div>
+            <h1 className="page-title">
+              Rentabilidad por Noche
+              <HelpTooltip termKey="unitEconomics" size="md" />
+            </h1>
+            <p className="page-subtitle">Ganancia neta y margen operativo prorrateado por noche ocupada</p>
+          </div>
+          <PeriodSelector />
+        </div>
+        <EmptyState
+          icon={<Database size={48} />}
+          title="No se pudo cargar el análisis"
+          description={loadError}
+          action={{ label: 'Ir a Importar', to: '/importar' }}
+        />
+      </div>
+    );
   }
 
   if (!summary || summary.totalReservations === 0) {
@@ -392,6 +441,20 @@ export default function Profitability() {
               <option value="2">2 noches</option>
               <option value="3+">3+ noches</option>
             </select>
+            {roomTypes.length > 0 && (
+              <select
+                value={roomTypeFilter}
+                onChange={(e) => setRoomTypeFilter(e.target.value)}
+                className={styles.filterSelect}
+              >
+                <option value="all">Todos los tipos</option>
+                {roomTypes.slice(0, 10).map((rt) => (
+                  <option key={rt.roomType} value={rt.roomType}>
+                    {rt.roomType} ({rt.count})
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
         )}
       </div>
@@ -856,7 +919,7 @@ function ThresholdsView({
               <Info size={14} />
               <p>
                 <strong>⚠️ Sin costos configurados:</strong> No tenés costos fijos ni variables registrados. 
-                <a href="/costs" style={{ marginLeft: '4px', textDecoration: 'underline' }}>Configurá tus costos</a> para ver el precio sugerido real.
+                <Link to="/costos" style={{ marginLeft: '4px', textDecoration: 'underline' }}>Configurá tus costos</Link> para ver el precio sugerido real.
               </p>
             </div>
           )}

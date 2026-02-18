@@ -10,6 +10,7 @@ import {
   HomeMetrics,
   TrustLevel
 } from '../types';
+import { isDirectChannel } from './metrics-core';
 
 /**
  * Single Source of Truth for Financial Calculations
@@ -23,6 +24,8 @@ import {
 export interface CalculationEngineOptions {
   /** Si es true, no hace fallback a datos históricos cuando no hay datos en el período */
   disableFallback?: boolean;
+  /** Filtro opcional por roomType */
+  roomType?: string;
 }
 
 export class CalculationEngine {
@@ -121,9 +124,24 @@ export class CalculationEngine {
     }
     
     // 5. Cargar transacciones del período (ya sea original o ajustado)
-    this.transactions = await database.getTransactionsByProperty(this.propertyId, this.period.start, this.period.end);
+    this.transactions = await database.getTransactionsByProperty(this.propertyId, this.period.start, this.period.end, this.options.roomType);
     
-    // 6. Aplicar prorrateo a las reservaciones filtradas
+    // 6. Si hay filtro por roomType, filtrar reservaciones basándose en las transacciones
+    if (this.options.roomType) {
+      // Obtener reservation_numbers únicos de las transacciones filtradas por roomType
+      const reservationNumbersWithRoomType = new Set(
+        this.transactions
+          .filter(t => t.reservation_number && t.room_type === this.options.roomType)
+          .map(t => t.reservation_number)
+      );
+      
+      // Filtrar reservaciones para incluir solo aquellas con transacciones del roomType especificado
+      filteredReservations = filteredReservations.filter((r: any) => 
+        reservationNumbersWithRoomType.has(r.reservation_number)
+      );
+    }
+    
+    // 7. Aplicar prorrateo a las reservaciones filtradas
     this.reservations = filteredReservations.map(r => this.prorateReservation(r));
 
     logger.info('ENGINE', `Initialized with ${this.reservations.length} reservations and ${this.transactions.length} transactions.`);
@@ -496,7 +514,7 @@ export class CalculationEngine {
     
     const totalCommissions = this.reservations.reduce((sum, r) => {
       const source = r.source?.toLowerCase() || 'directo';
-      const isDirect = ['walk-in', 'email', 'pagina web', 'teléfono', 'telefono', 'direct', 'website', 'phone'].includes(source);
+      const isDirect = isDirectChannel(r.source, r.source_category);
       if (isDirect) return sum;
       const rate = overrides[source] || DEFAULT_CHANNEL_COMMISSIONS[source] || defaultRate;
       return sum + (r.room_revenue_total * rate);
@@ -564,7 +582,7 @@ export class CalculationEngine {
     
     // 1. Commissions
     const source = r.source?.toLowerCase() || 'directo';
-    const isDirect = ['walk-in', 'email', 'pagina web', 'teléfono', 'telefono', 'direct', 'website', 'phone', 'directo'].includes(source);
+    const isDirect = isDirectChannel(r.source, r.source_category);
     
     const defaultRate = this.costSettings?.channel_commissions?.defaultRate || 0;
     const overrides = this.costSettings?.channel_commissions?.byChannel || {};
@@ -799,7 +817,7 @@ export class CalculationEngine {
     
     const channels = Array.from(channelMap.values()).map(ch => {
       const sourceLower = ch.source.toLowerCase();
-      const isDirect = ['direct', 'walk-in', 'email', 'pagina web', 'teléfono', 'telefono', 'directo', 'website', 'phone'].includes(sourceLower);
+      const isDirect = isDirectChannel(ch.source, ch.sourceCategory);
       const rate = isDirect ? 0 : (overrides[sourceLower] || DEFAULT_CHANNEL_COMMISSIONS[sourceLower] || defaultRate);
       
       const commission = ch.revenue * rate;
@@ -929,7 +947,7 @@ export class CalculationEngine {
     const finalChannels = channelsWithProfitShare.map(({ _rawReservations, ...rest }) => rest);
 
     // Calcular insights de canales
-    const directChannel = finalChannels.find(c => ['direct', 'walk-in', 'email', 'pagina web', 'teléfono', 'telefono', 'directo', 'website', 'phone'].includes(c.source.toLowerCase()));
+    const directChannel = finalChannels.find(c => isDirectChannel(c.source, c.sourceCategory));
     const directAdr = directChannel?.adr || (finalChannels.length > 0 ? Math.max(...finalChannels.map(c => c.adr)) : 0);
     const directNetProfitPerNight = directChannel?.profitPerNight || (finalChannels.length > 0 ? Math.max(...finalChannels.map(c => c.profitPerNight)) : 0);
 
@@ -938,14 +956,14 @@ export class CalculationEngine {
     const worstChannel = sortedByNet[sortedByNet.length - 1] || null;
 
     const otaRevenue = finalChannels
-      .filter(c => !['direct', 'walk-in', 'email', 'pagina web', 'teléfono', 'telefono', 'directo', 'website', 'phone'].includes(c.source.toLowerCase()))
+      .filter(c => !isDirectChannel(c.source, c.sourceCategory))
       .reduce((sum, c) => sum + c.revenue, 0);
     
     const otaShare = totalRevenue > 0 ? (otaRevenue / totalRevenue) * 100 : 0;
 
     // Potential savings: More accurate calculation
     // If we replace OTA revenue with Direct revenue, we save the commission but also gain/lose based on ADR difference
-    const otaChannels = finalChannels.filter(c => !['direct', 'walk-in', 'email', 'pagina web', 'teléfono', 'telefono', 'directo', 'website', 'phone'].includes(c.source.toLowerCase()));
+    const otaChannels = finalChannels.filter(c => !isDirectChannel(c.source, c.sourceCategory));
     let totalSavingsPotential = 0;
     
     otaChannels.forEach(ota => {

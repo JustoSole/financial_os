@@ -1,4 +1,5 @@
 import database from '../db';
+import cacheService from './cache-service';
 import { CalculationEngine } from './calculation-engine';
 import { 
   ProjectionsData, 
@@ -8,6 +9,14 @@ import {
   AlertSeverity
 } from '../types';
 import logger from './logger';
+import {
+  aggregatePeriodMetrics,
+  calculateOccupancyPercent,
+  dateToIsoDay,
+  getOverlappingNights,
+  isExcludedReservationStatus,
+  prorateReservationToPeriod,
+} from './metrics-core';
 
 /**
  * Projections Service - On-The-Books (OTB) and Pacing Analysis
@@ -25,6 +34,10 @@ export class ProjectionsService {
    * Get all projection data including OTB, Pacing and Gaps
    */
   async getProjections(): Promise<ProjectionsData> {
+    const cacheKey = `projections-${this.propertyId}-${this.horizon}`;
+    const cached = cacheService.get<ProjectionsData>(cacheKey);
+    if (cached) return cached;
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
@@ -48,36 +61,40 @@ export class ProjectionsService {
     );
 
     // 2. Calculate OTB Summary
-    const summary = this.calculateOTBSummary(activeReservations, today, horizonEnd);
+    const summary = this.calculateOTBSummary(activeReservations, today, horizonEnd, roomCount);
 
     // 3. Calculate Pacing (Weekly)
-    const pacingPeriods = await this.calculatePacing(activeReservations, today, this.horizon, roomCount);
+    const pacing = await this.calculatePacing(activeReservations, today, this.horizon, roomCount);
 
     // 4. Calculate Daily Metrics for Calendar (including past 30 days for context)
     const dailyMetrics = this.calculateDailyMetrics(activeReservations, today, this.horizon, roomCount);
 
     // 5. Detect Gaps
-    const gaps = this.detectGaps(pacingPeriods);
+    const gaps = this.detectGaps(pacing.periods);
 
     // 6. Calculate Weekly Cash Flow
     const cashFlow = this.calculateWeeklyCashFlow(activeReservations, today, this.horizon);
 
     // 7. Overall Trend
-    const deltaVsLastYear = pacingPeriods.reduce((sum, p) => sum + (p.current.occupancy - p.historical.occupancy), 0) / (pacingPeriods.length || 1);
+    const deltaVsLastYear = pacing.periods.reduce((sum, p) => sum + (p.current.occupancy - p.historical.occupancy), 0) / (pacing.periods.length || 1);
     const overallTrend = deltaVsLastYear > 2 ? 'ahead' : deltaVsLastYear < -2 ? 'behind' : 'on_track';
 
-    return {
+    const result: ProjectionsData = {
       horizon: this.horizon,
       summary,
       pacing: {
-        periods: pacingPeriods,
+        periods: pacing.periods,
         overallTrend,
-        deltaVsLastYear: Math.round(deltaVsLastYear * 10) / 10
+        deltaVsLastYear: Math.round(deltaVsLastYear * 10) / 10,
+        isApproximate: pacing.isApproximate,
+        diagnostics: pacing.diagnostics
       },
       daily: dailyMetrics,
       gaps,
       cashFlow
     };
+    cacheService.set(cacheKey, result);
+    return result;
   }
 
   private calculateDailyMetrics(reservations: any[], today: Date, horizon: number, roomCount: number) {
@@ -110,7 +127,7 @@ export class ProjectionsService {
     return daily;
   }
 
-  private calculateOTBSummary(reservations: any[], today: Date, horizonEnd: Date) {
+  private calculateOTBSummary(reservations: any[], today: Date, horizonEnd: Date, roomCount: number) {
     const todayStr = today.toISOString().substring(0, 10);
     const endStr = horizonEnd.toISOString().substring(0, 10);
     
@@ -125,18 +142,10 @@ export class ProjectionsService {
     let pendingCollections = 0;
 
     futureRes.forEach(r => {
-      const checkIn = new Date(r.check_in);
-      const checkOut = new Date(r.check_out);
-      const actualStart = checkIn > today ? checkIn : today;
-      const actualEnd = checkOut < horizonEnd ? checkOut : horizonEnd;
-      
-      const nightsInPeriod = Math.max(0, Math.ceil((actualEnd.getTime() - actualStart.getTime()) / (24 * 60 * 60 * 1000)));
-      const totalNights = Math.max(1, Math.ceil((checkOut.getTime() - checkIn.getTime()) / (24 * 60 * 60 * 1000)));
-      const ratio = nightsInPeriod / totalNights;
-      
-      revenueOTB += (Number(r.room_revenue_total) || 0) * ratio;
-      occupiedNights += nightsInPeriod;
-      pendingCollections += (Number(r.balance_due) || 0) * ratio;
+      const prorated = prorateReservationToPeriod(r, { start: todayStr, end: endStr });
+      revenueOTB += prorated.revenueInPeriod;
+      occupiedNights += prorated.nightsInPeriod;
+      pendingCollections += prorated.pendingInPeriod;
     });
 
     // Pickup last 7 days
@@ -149,8 +158,11 @@ export class ProjectionsService {
 
     return {
       revenueOTB: Math.round(revenueOTB),
-      occupancyOTB: Math.round((occupiedNights / (this.horizon * (reservations[0]?.room_count || 10))) * 1000) / 10, // Fallback room count
+      occupancyOTB: Math.round(calculateOccupancyPercent(occupiedNights, roomCount, this.horizon) * 10) / 10,
       pendingCollections: Math.round(pendingCollections),
+      collectedPercent: revenueOTB > 0
+        ? Math.max(0, Math.min(100, ((revenueOTB - pendingCollections) / revenueOTB) * 100))
+        : 100,
       pickupLast7Days: {
         reservations: pickupRes.length,
         revenue: Math.round(pickupRes.reduce((sum, r) => sum + (Number(r.room_revenue_total) || 0), 0))
@@ -158,9 +170,35 @@ export class ProjectionsService {
     };
   }
 
-  private async calculatePacing(reservations: any[], today: Date, horizon: number, roomCount: number): Promise<PacingPeriod[]> {
+  private async calculatePacing(
+    reservations: any[],
+    today: Date,
+    horizon: number,
+    roomCount: number
+  ): Promise<{
+    periods: PacingPeriod[];
+    isApproximate: boolean;
+    diagnostics?: {
+      requestedAsOfSnapshotDate: string;
+      availableSnapshotDates: string[];
+      missingWeeks: number;
+      totalWeeks: number;
+      exactCoveragePercent: number;
+      importedWeeks: number;
+      reconstructedWeeks: number;
+      approximatedWeeks: number;
+    };
+  }> {
     const periods: PacingPeriod[] = [];
+    let usedApproximation = false;
+    let missingWeeks = 0;
+    let importedWeeks = 0;
+    let reconstructedWeeks = 0;
+    let approximatedWeeks = 0;
     const weeksCount = Math.ceil(horizon / 7);
+    const lyAsOfDate = new Date(today);
+    lyAsOfDate.setFullYear(today.getFullYear() - 1);
+    const lyAsOfSnapshotDate = dateToIsoDay(lyAsOfDate);
 
     for (let w = 0; w < weeksCount; w++) {
       const weekStart = new Date(today.getTime() + w * 7 * 24 * 60 * 60 * 1000);
@@ -187,10 +225,43 @@ export class ProjectionsService {
         days: 7
       };
 
-      const lyAsOfDate = new Date(today);
-      lyAsOfDate.setFullYear(today.getFullYear() - 1);
+      const exactSnapshot = await database.getReservationDailySnapshotMetrics(
+        this.propertyId,
+        lyAsOfSnapshotDate,
+        lyWeekPeriod.start,
+        lyWeekPeriod.end
+      );
 
-      const historicalMetrics = this.getMetricsForPeriod(reservations, lyWeekPeriod, lyAsOfDate, roomCount);
+      let historicalMetrics: { revenue: number; occupancy: number; adr: number; nights: number };
+      if (exactSnapshot && exactSnapshot.snapshotSource === 'imported') {
+        importedWeeks += 1;
+        const nights = exactSnapshot.occupiedNights;
+        const revenue = exactSnapshot.revenue;
+        historicalMetrics = {
+          revenue: Math.round(revenue),
+          occupancy: Math.round(calculateOccupancyPercent(nights, roomCount, lyWeekPeriod.days) * 10) / 10,
+          adr: Math.round(nights > 0 ? revenue / nights : 0),
+          nights: Math.round(nights),
+        };
+      } else if (exactSnapshot && exactSnapshot.snapshotSource === 'reconstructed') {
+        // Reconstructed snapshots are better than raw reservation fallback, but still approximated.
+        usedApproximation = true;
+        missingWeeks += 1;
+        reconstructedWeeks += 1;
+        const nights = exactSnapshot.occupiedNights;
+        const revenue = exactSnapshot.revenue;
+        historicalMetrics = {
+          revenue: Math.round(revenue),
+          occupancy: Math.round(calculateOccupancyPercent(nights, roomCount, lyWeekPeriod.days) * 10) / 10,
+          adr: Math.round(nights > 0 ? revenue / nights : 0),
+          nights: Math.round(nights),
+        };
+      } else {
+        usedApproximation = true;
+        missingWeeks += 1;
+        approximatedWeeks += 1;
+        historicalMetrics = this.getMetricsForPeriod(reservations, lyWeekPeriod, lyAsOfDate, roomCount);
+      }
 
       periods.push({
         label: `Semana ${w + 1}`,
@@ -203,46 +274,37 @@ export class ProjectionsService {
       });
     }
 
-    return periods;
+    if (!usedApproximation) {
+      return { periods, isApproximate: false };
+    }
+
+    const availableSnapshotDates = await database.getReservationDailySnapshotDates(this.propertyId, 12);
+    const exactCoveragePercent = Math.round(((weeksCount - missingWeeks) / weeksCount) * 1000) / 10;
+
+    return {
+      periods,
+      isApproximate: true,
+      diagnostics: {
+        requestedAsOfSnapshotDate: lyAsOfSnapshotDate,
+        availableSnapshotDates,
+        missingWeeks,
+        totalWeeks: weeksCount,
+        exactCoveragePercent,
+        importedWeeks,
+        reconstructedWeeks,
+        approximatedWeeks,
+      }
+    };
   }
 
   private getMetricsForPeriod(reservations: any[], period: DatePeriod, asOfDate: Date, roomCount: number) {
-    const periodRes = reservations.filter(r => {
-      const bookingDate = r.reservation_date ? new Date(r.reservation_date) : null;
-      if (!bookingDate || bookingDate > asOfDate) return false;
-      
-      const checkIn = r.check_in?.substring(0, 10);
-      const checkOut = r.check_out?.substring(0, 10);
-      return checkIn <= period.end && checkOut > period.start;
-    });
-
-    let revenue = 0;
-    let nights = 0;
-    const pStart = new Date(period.start);
-    const pEnd = new Date(period.end);
-
-    periodRes.forEach(r => {
-      const checkIn = new Date(r.check_in);
-      const checkOut = new Date(r.check_out);
-      const actualStart = checkIn > pStart ? checkIn : pStart;
-      const actualEnd = checkOut < pEnd ? checkOut : pEnd;
-      
-      const nightsInPeriod = Math.max(0, Math.ceil((actualEnd.getTime() - actualStart.getTime()) / (24 * 60 * 60 * 1000)));
-      const totalNights = Math.max(1, Math.ceil((checkOut.getTime() - checkIn.getTime()) / (24 * 60 * 60 * 1000)));
-      const ratio = nightsInPeriod / totalNights;
-      
-      revenue += (Number(r.room_revenue_total) || 0) * ratio;
-      nights += nightsInPeriod;
-    });
-
-    const occupancy = (nights / (period.days * roomCount)) * 100;
-    const adr = nights > 0 ? revenue / nights : 0;
+    const metrics = aggregatePeriodMetrics(reservations, period, roomCount, { asOfDate });
 
     return {
-      revenue: Math.round(revenue),
-      occupancy: Math.round(occupancy * 10) / 10,
-      adr: Math.round(adr),
-      nights: Math.round(nights)
+      revenue: Math.round(metrics.revenue),
+      occupancy: Math.round(metrics.occupancy * 10) / 10,
+      adr: Math.round(metrics.adr),
+      nights: Math.round(metrics.nights)
     };
   }
 
@@ -294,13 +356,19 @@ export class ProjectionsService {
       const weekStartStr = weekStart.toISOString().substring(0, 10);
       const weekEndStr = weekEnd.toISOString().substring(0, 10);
 
-      const weekRes = reservations.filter(r => {
-        const checkIn = r.check_in?.substring(0, 10);
-        return checkIn >= weekStartStr && checkIn <= weekEndStr;
+      const weekRes = reservations.filter((r) => {
+        if (isExcludedReservationStatus(r.status)) {
+          return false;
+        }
+        return getOverlappingNights(r, { start: weekStartStr, end: weekEndStr }) > 0;
       });
 
-      const expected = weekRes.reduce((sum, r) => sum + (Number(r.room_revenue_total) || 0), 0);
-      const alreadyPaid = weekRes.reduce((sum, r) => sum + (Number(r.paid_amount) || 0), 0);
+      const expected = weekRes.reduce((sum, r) => {
+        return sum + prorateReservationToPeriod(r, { start: weekStartStr, end: weekEndStr }).revenueInPeriod;
+      }, 0);
+      const alreadyPaid = weekRes.reduce((sum, r) => {
+        return sum + prorateReservationToPeriod(r, { start: weekStartStr, end: weekEndStr }).paidInPeriod;
+      }, 0);
       const pending = expected - alreadyPaid;
 
       byWeek.push({

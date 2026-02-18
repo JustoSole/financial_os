@@ -25,7 +25,24 @@ async function request<T>(
       ...options,
     });
 
-    const json = await response.json();
+    // Be defensive: backend might return non-JSON on errors
+    const raw = await response.text();
+    let json: any;
+    try {
+      json = raw ? JSON.parse(raw) : { success: response.ok };
+    } catch {
+      json = { success: response.ok, error: raw || `HTTP ${response.status}` };
+    }
+
+    // If auth failed, force local sign-out to avoid getting stuck with an invalid/stale token
+    if (response.status === 401) {
+      try {
+        await supabase.auth.signOut({ scope: 'local' });
+      } catch {
+        // Ignore sign-out failures; we still return the 401 payload
+      }
+    }
+
     return json;
   } catch (error: any) {
     return { success: false, error: error.message || 'Error de conexión' };
@@ -41,6 +58,18 @@ export const updateProperty = (id: string, data: any) =>
     method: 'PUT',
     body: JSON.stringify(data),
   });
+
+// =====================================================
+// Meta Routes
+// =====================================================
+export const getRoomTypes = (propertyId: string, startDateOrDays?: string | number, endDate?: string) => {
+  const params = startDateOrDays && typeof startDateOrDays === 'string' && endDate
+    ? new URLSearchParams({ startDate: startDateOrDays, endDate })
+    : startDateOrDays && typeof startDateOrDays === 'number'
+    ? new URLSearchParams({ days: startDateOrDays.toString() })
+    : new URLSearchParams();
+  return request<any[]>(`/meta/${propertyId}/room-types?${params}`);
+};
 
 // =====================================================
 // Metrics (Section 7 PRD)
@@ -164,18 +193,19 @@ export const getProjections = (propertyId: string, horizon: number = 90) =>
 // =====================================================
 // Reservation Economics (P&L por reserva)
 // =====================================================
-export const getReservationEconomics = (propertyId: string, startDateOrDays: string | number = 30, endDate?: string) => {
+export const getReservationEconomics = (propertyId: string, startDateOrDays: string | number = 30, endDate?: string, roomType?: string) => {
   const params = typeof startDateOrDays === 'string' && endDate
     ? new URLSearchParams({ startDate: startDateOrDays, endDate })
     : new URLSearchParams({ days: startDateOrDays.toString() });
+  if (roomType) params.append('roomType', roomType);
   return request<any>(`/metrics/${propertyId}/reservation-economics?${params}`);
 };
 
 export const getReservationEconomicsList = (
   propertyId: string, 
   startDateOrDays: string | number = 30,
-  endDateOrFilters?: string | { source?: string; nightsBucket?: '1' | '2' | '3+'; unprofitableOnly?: boolean },
-  filters?: { source?: string; nightsBucket?: '1' | '2' | '3+'; unprofitableOnly?: boolean }
+  endDateOrFilters?: string | { source?: string; nightsBucket?: '1' | '2' | '3+'; unprofitableOnly?: boolean; roomType?: string },
+  filters?: { source?: string; nightsBucket?: '1' | '2' | '3+'; unprofitableOnly?: boolean; roomType?: string }
 ) => {
   let params: URLSearchParams;
   let actualFilters = filters;
@@ -190,6 +220,7 @@ export const getReservationEconomicsList = (
   if (actualFilters?.source) params.append('source', actualFilters.source);
   if (actualFilters?.nightsBucket) params.append('nightsBucket', actualFilters.nightsBucket);
   if (actualFilters?.unprofitableOnly) params.append('unprofitableOnly', 'true');
+  if (actualFilters?.roomType) params.append('roomType', actualFilters.roomType);
   return request<any[]>(`/metrics/${propertyId}/reservation-economics/list?${params}`);
 };
 
@@ -209,11 +240,24 @@ export const getActions = (propertyId: string, startDateOrDays: string | number 
   return request<any[]>(`/actions/${propertyId}?${params}`);
 };
 
-// Get all completed steps (for frontend-generated actions)
+// Get all completed steps (for frontend-generated actions) and whole-action status
 export const getCompletedSteps = (propertyId: string, daysBack: number = 90) =>
-  request<{ byActionType: Record<string, number[]>; byActionId: Record<string, string[]> }>(
-    `/actions/${propertyId}/completed?daysBack=${daysBack}`
-  );
+  request<{
+    byActionType: Record<string, number[]>;
+    byActionId: Record<string, string[]>;
+    actionStatus?: Record<string, { status: 'done' | 'dismissed'; completedAt: string }>;
+  }>(`/actions/${propertyId}/completed?daysBack=${daysBack}`);
+
+// Set whole-action status (done | dismissed)
+export const setActionStatus = (
+  propertyId: string,
+  actionId: string,
+  status: 'done' | 'dismissed'
+) =>
+  request<void>(`/actions/${propertyId}/status`, {
+    method: 'POST',
+    body: JSON.stringify({ actionId, status }),
+  });
 
 // Complete an action step - supports both formats
 // New format: actionId + stepId (strings) - for frontend-generated actions
@@ -327,6 +371,29 @@ export const importFiles = async (propertyId: string, files: File[]) => {
 
 export const getImportHistory = (propertyId: string) =>
   request<any[]>(`/import/history/${propertyId}`);
+
+// Admin/ops: backfill historical reservation daily snapshots (exact pacing)
+export const backfillSnapshots = (propertyId: string, options?: { limit?: number; dryRun?: boolean }) =>
+  request<any>(`/admin/${propertyId}/backfill-snapshots`, {
+    method: 'POST',
+    body: JSON.stringify({
+      limit: options?.limit,
+      dryRun: options?.dryRun || false,
+    }),
+  });
+
+// Admin/ops: reconstruct a specific historical as-of snapshot date (marked as reconstructed source)
+export const reconstructSnapshotAsOf = (
+  propertyId: string,
+  options: { snapshotDate: string; dryRun?: boolean }
+) =>
+  request<any>(`/admin/${propertyId}/reconstruct-snapshot-asof`, {
+    method: 'POST',
+    body: JSON.stringify({
+      snapshotDate: options.snapshotDate,
+      dryRun: options.dryRun || false,
+    }),
+  });
 
 // =====================================================
 // Costs V4 (uses types from @financial-os/shared)

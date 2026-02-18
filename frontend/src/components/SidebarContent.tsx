@@ -11,6 +11,7 @@ import {
   TrendingUp,
   Calendar,
   BookOpen,
+  ExternalLink,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import GlossaryDrawer from './GlossaryDrawer';
@@ -109,9 +110,11 @@ export default function SidebarContent({ onItemClick }: SidebarContentProps) {
           target="_blank"
           rel="noopener noreferrer"
           className={`${styles.navItem} ${styles.footerItem}`}
+          title="Ayuda de Cloudbeds (se abre en nueva pestaña)"
         >
           <HelpCircle size={18} />
           <span>Ayuda</span>
+          <ExternalLink size={14} className={styles.externalIcon} aria-hidden />
         </a>
       </div>
 

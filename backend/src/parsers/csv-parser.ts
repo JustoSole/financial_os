@@ -257,6 +257,12 @@ const COLUMN_MAPPINGS: Record<string, string[]> = {
     'fuente de transaccion',
     'fuente transaccion'
   ],
+  'room_type': [
+    'room type', 
+    'tipo de habitacion', 
+    'roomtype',
+    'tipo habitacion'
+  ],
   
   // === Reservations with Financials ===
   'primary_guest_full_name': [
@@ -577,6 +583,51 @@ export function getCurrencySymbol(currency: DetectedCurrency): string {
     'unknown': '$',
   };
   return symbols[currency];
+}
+
+// =====================================================
+// Room Type Normalization
+// =====================================================
+
+/**
+ * Normaliza el valor de roomType desde el CSV.
+ * Aplica reglas de limpieza y detección de basura según el plan.
+ */
+export function normalizeRoomType(input: unknown): string | null {
+  const raw0 = (input ?? '').toString();
+  const raw = raw0.trim();
+  if (!raw) return null;
+
+  const v = raw.replace(/\s+/g, ' ').trim();
+  const lower = v.toLowerCase();
+
+  // Valores vacíos conocidos
+  const emptyTokens = new Set(['-', '—', 'n/a', 'na', '']);
+  if (emptyTokens.has(lower)) return null;
+
+  // Detección de basura (notas, datos financieros, etc.)
+  const garbageHints = [
+    'dni', 'abonado', 'fc', '$', '%', 'vto', 'transfer', 'pago', 'pagado', 'ok',
+    'agencia', 'factura', 'cuit', 'cbu', 'banco'
+  ];
+  
+  // Si es muy largo o contiene señales de basura, retornar null
+  if (v.length > 80 || garbageHints.some(h => lower.includes(h))) {
+    return null;
+  }
+
+  // Sanitizar separadores: colapsar espacios alrededor de / y ,
+  const normalized = v
+    .replace(/\s*\/\s*/g, '/')
+    .replace(/\s*,\s*/g, ', ')
+    .trim();
+
+  // Si después de normalizar está vacío, retornar null
+  if (!normalized || normalized.length === 0) {
+    return null;
+  }
+
+  return normalized;
 }
 
 // =====================================================

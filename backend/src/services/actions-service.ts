@@ -232,15 +232,18 @@ export async function completeActionStep(
  * Returns two formats:
  * - byActionType: Legacy format { actionType: [stepIndex, ...] }
  * - byActionId: New format { actionId: [stepId, ...] }
+ * - actionStatus: { actionId: { status: 'done'|'dismissed', completedAt: string } } for whole-action status
  */
 export async function getCompletedSteps(propertyId: string, daysBack: number = 30): Promise<{
   byActionType: Record<string, number[]>;
   byActionId: Record<string, string[]>;
+  actionStatus: Record<string, { status: 'done' | 'dismissed'; completedAt: string }>;
 }> {
   const steps = await database.getCompletedSteps(propertyId, daysBack);
   
   const byActionType: Record<string, number[]> = {};
   const byActionId: Record<string, string[]> = {};
+  const actionStatus: Record<string, { status: 'done' | 'dismissed'; completedAt: string }> = {};
   
   steps.forEach((s: any) => {
     // Legacy format
@@ -250,14 +253,22 @@ export async function getCompletedSteps(propertyId: string, daysBack: number = 3
         byActionType[s.action_type].push(s.step_index);
       }
     }
-    // New format
+    // New format - step completions
     if (s.action_id && s.step_id) {
-      if (!byActionId[s.action_id]) byActionId[s.action_id] = [];
-      if (!byActionId[s.action_id].includes(s.step_id)) {
-        byActionId[s.action_id].push(s.step_id);
+      if (s.step_id === 'done' || s.step_id === 'dismissed') {
+        const existing = actionStatus[s.action_id];
+        const completedAt = s.completed_at || '';
+        if (!existing || new Date(completedAt) > new Date(existing.completedAt)) {
+          actionStatus[s.action_id] = { status: s.step_id as 'done' | 'dismissed', completedAt };
+        }
+      } else {
+        if (!byActionId[s.action_id]) byActionId[s.action_id] = [];
+        if (!byActionId[s.action_id].includes(s.step_id)) {
+          byActionId[s.action_id].push(s.step_id);
+        }
       }
     }
   });
   
-  return { byActionType, byActionId };
+  return { byActionType, byActionId, actionStatus };
 }

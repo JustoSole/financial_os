@@ -1,4 +1,5 @@
 import database from '../db';
+import cacheService from './cache-service';
 import { CalculationEngine } from './calculation-engine';
 import { 
   TrendData,
@@ -10,6 +11,10 @@ import {
  * Trends Service - Historical Performance Analysis
  */
 export async function calculateTrendMetrics(propertyId: string, months: number = 6): Promise<any> {
+  const cacheKey = `trends-${propertyId}-${months}`;
+  const cached = cacheService.get<any>(cacheKey);
+  if (cached) return cached;
+
   const points: any[] = [];
   const today = new Date();
   
@@ -36,9 +41,11 @@ export async function calculateTrendMetrics(propertyId: string, months: number =
     });
   }
 
-  return {
+  const result = {
     propertyId,
     period: `${months} meses`,
     points
   };
+  cacheService.set(cacheKey, result);
+  return result;
 }

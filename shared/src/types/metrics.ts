@@ -356,6 +356,17 @@ export interface PacingPeriod {
   deltaRevenue: number;
 }
 
+export interface PacingDiagnostics {
+  requestedAsOfSnapshotDate: string;
+  availableSnapshotDates: string[];
+  missingWeeks: number;
+  totalWeeks: number;
+  exactCoveragePercent: number;
+  importedWeeks: number;
+  reconstructedWeeks: number;
+  approximatedWeeks: number;
+}
+
 export interface GapAlert {
   id: string;
   weekStart: string;
@@ -374,6 +385,7 @@ export interface ProjectionsData {
     revenueOTB: number;
     occupancyOTB: number;
     pendingCollections: number;
+    collectedPercent: number;
     pickupLast7Days: {
       reservations: number;
       revenue: number;
@@ -383,6 +395,8 @@ export interface ProjectionsData {
     periods: PacingPeriod[];
     overallTrend: 'ahead' | 'behind' | 'on_track';
     deltaVsLastYear: number;
+    isApproximate?: boolean;
+    diagnostics?: PacingDiagnostics;
   };
   daily: DailyMetric[];
   gaps: GapAlert[];

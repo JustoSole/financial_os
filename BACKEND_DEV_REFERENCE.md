@@ -24,7 +24,7 @@ El esquema relacional está optimizado para los reportes de Cloudbeds y el aisla
 | :--- | :--- |
 | `properties` | Entidad principal (Hotel). Vinculada a un `user_id` de Auth. |
 | `import_files` | Registro de archivos CSV subidos para auditoría. |
-| `ledger_transactions` | Datos del *Expanded Transaction Report* (Caja y flujo). |
+| `ledger_transactions` | Datos del *Expanded Transaction Report* (Caja y flujo). Incluye `room_type` para segmentación por tipo de habitación. |
 | `reservation_financials` | Datos del *Reservations with Financials* (P&L, cobranzas y mix de canales). |
 | `cost_settings` | Configuración de costos V4 (Flexible Categories en `JSONB`). |
 | `action_completions` | Tracking de pasos completados en recomendaciones. |
@@ -46,6 +46,16 @@ Genera un P&L detallado para cada reserva individual:
 - **Memoria de Cálculo**: Expone cada paso del cálculo (Revenue - Comisiones - Costos Variables - Costos Fijos).
 - **AI Insights**: Explicaciones textuales automáticas sobre la rentabilidad de la reserva.
 - **Confidence Badges**: Clasificación de datos como `Real` o `Estimado`.
+
+### Segmentación por Tipo de Habitación (Room Type)
+El sistema soporta análisis segmentado por tipo de habitación:
+- **Fuente de Datos**: `room_type` se extrae del CSV de Transactions (columna "Room Type") con alta cobertura.
+- **Normalización**: Función `normalizeRoomType()` limpia y valida valores, detectando basura y valores vacíos.
+- **Filtrado en CalculationEngine**: Las reservaciones se filtran automáticamente basándose en las transacciones del `roomType` especificado.
+- **Endpoints con Filtro**: Los endpoints de métricas aceptan parámetro opcional `?roomType=` para análisis segmentado.
+- **Compatibilidad**: Si no se especifica `roomType`, el comportamiento es idéntico al anterior (sin filtro).
+
+**Migración Requerida**: Ejecutar `backend/migrations/add_room_type_to_ledger_transactions.sql` para agregar la columna `room_type` a `ledger_transactions`.
 
 ---
 
@@ -83,5 +93,34 @@ Si `DB_TYPE` no es `supabase`, el sistema vuelve automáticamente al modo **JSON
 - `GET /api/metrics/:propertyId/trends`: Evolución histórica de KPIs.
 - `GET /api/metrics/:propertyId/projection`: Proyección de ingresos On-the-books.
 
+### Segmentación y Filtros
+- `GET /api/meta/:propertyId/room-types`: Lista de tipos de habitación disponibles con count y share.
+- `GET /api/metrics/:propertyId/structure?roomType=`: Métricas de estructura filtradas por tipo de habitación.
+- `GET /api/metrics/:propertyId/reservation-economics?roomType=`: Análisis de rentabilidad filtrado por tipo de habitación.
+
 ---
-*Documentación actualizada: 26 de Enero, 2026.*
+
+## 7. Integración de Room Type
+
+### Pipeline de Datos
+1. **Parseo CSV**: El parser extrae la columna "Room Type" del Expanded Transaction Report.
+2. **Normalización**: `normalizeRoomType()` aplica reglas de limpieza (trim, detección de basura, sanitización).
+3. **Persistencia**: Se guarda en `ledger_transactions.room_type` (TEXT NULL).
+4. **Filtrado**: `CalculationEngine` filtra transacciones y reservaciones por `roomType` cuando se especifica en opciones.
+
+### Uso en Cálculos
+Cuando se especifica `roomType` en `CalculationEngineOptions`:
+- Las transacciones se filtran directamente por `room_type` en la consulta a la base de datos.
+- Las reservaciones se filtran indirectamente: solo se incluyen aquellas cuyo `reservation_number` aparece en transacciones del `roomType` especificado.
+- Todas las métricas (Structure, Reservation Economics, etc.) se calculan sobre el conjunto filtrado.
+
+### Componentes Modificados
+- `backend/src/parsers/csv-parser.ts`: Mapeo de columnas y función de normalización.
+- `backend/src/parsers/index.ts`: Extracción de `roomType` en `parseTransactions()`.
+- `backend/src/db/supabase-adapter.ts`: Filtrado opcional en `getTransactionsByProperty()`.
+- `backend/src/services/calculation-engine.ts`: Soporte de `roomType` en opciones y filtrado de reservaciones.
+- `backend/src/routes/api.ts`: Endpoints meta y filtros opcionales.
+- `frontend/src/pages/Profitability.tsx`: Selector de roomType en la UI.
+
+---
+*Documentación actualizada: 28 de Enero, 2026.*

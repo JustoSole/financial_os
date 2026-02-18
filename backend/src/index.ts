@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import compression from 'compression';
 import path from 'path';
 import fs from 'fs';
 import { initializeDatabase } from './db';
@@ -50,6 +51,7 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json());
+app.use(compression());
 
 // API Routes
 app.use('/api', apiRoutes);
@@ -75,13 +77,23 @@ if (process.env.NODE_ENV === 'production') {
   const frontendDistPath = path.join(__dirname, '../../frontend/dist');
   console.log(`📁 Serving frontend from: ${frontendDistPath}`);
   
-  // Serve static assets
-  app.use(express.static(frontendDistPath));
+  // Serve immutable cache headers for hashed build assets.
+  app.use(express.static(frontendDistPath, {
+    index: false,
+    setHeaders: (res, filePath) => {
+      if (filePath.includes(`${path.sep}assets${path.sep}`)) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      } else {
+        res.setHeader('Cache-Control', 'no-cache');
+      }
+    },
+  }));
   
   // Handle SPA routing - serve index.html for all non-API routes
   app.get('*', (req, res) => {
     const indexPath = path.join(frontendDistPath, 'index.html');
     if (fs.existsSync(indexPath)) {
+      res.setHeader('Cache-Control', 'no-store');
       res.sendFile(indexPath);
     } else {
       console.error('❌ index.html not found at:', indexPath);

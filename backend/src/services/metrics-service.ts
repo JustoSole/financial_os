@@ -18,6 +18,15 @@ import {
   calculateTotalFixedCosts,
 } from '../types';
 import { getVariableCostPerNight } from './costs-utils';
+import {
+  aggregatePeriodMetrics,
+  dateToIsoDay,
+  isDirectChannel,
+  isExcludedReservationStatus,
+  prorateReservationToPeriod,
+  reservationOverlapsPeriod,
+  toDateOnly,
+} from './metrics-core';
 
 // =====================================================
 // Metrics Service - Home Dashboard (Section 7.1)
@@ -198,8 +207,7 @@ async function calculateSavingsPotentialForPeriod(
   
   for (const ch of channels) {
     const channelLower = ch.source.toLowerCase();
-    const isDirect = ['direct', 'walk-in', 'email', 'pagina web', 'teléfono', 'telefono'].includes(channelLower) ||
-      ch.source_category?.toLowerCase() === 'direct';
+    const isDirect = isDirectChannel(ch.source, ch.source_category);
     if (isDirect) continue;
     
     const rate = overrides[channelLower] || DEFAULT_CHANNEL_COMMISSIONS[channelLower] || defaultRate;
@@ -242,9 +250,11 @@ export async function calculateRevenueProjection(propertyId: string, weeksAhead:
   const endDate = new Date(today.getTime() + weeksAhead * 7 * 24 * 60 * 60 * 1000);
   
   const futureReservations = reservations.filter((r: any) => {
-    if (r.status === 'Cancelled') return false;
-    const checkIn = new Date(r.check_in);
-    return checkIn >= today && checkIn <= endDate;
+    if (isExcludedReservationStatus(r.status)) return false;
+    return reservationOverlapsPeriod(r, {
+      start: dateToIsoDay(today),
+      end: dateToIsoDay(endDate),
+    });
   });
   
   const weeks: RevenueProjection['weeks'] = [];
@@ -254,14 +264,22 @@ export async function calculateRevenueProjection(propertyId: string, weeksAhead:
     const weekStart = new Date(today.getTime() + w * 7 * 24 * 60 * 60 * 1000);
     const weekEnd = new Date(weekStart.getTime() + 6 * 24 * 60 * 60 * 1000);
     
-    const weekReservations = futureReservations.filter((r: any) => {
-      const checkIn = new Date(r.check_in);
-      return checkIn >= weekStart && checkIn <= weekEnd;
-    });
+    const weekStartStr = dateToIsoDay(weekStart);
+    const weekEndStr = dateToIsoDay(new Date(weekEnd.getTime() + 24 * 60 * 60 * 1000));
+
+    const weekReservations = futureReservations.filter((r: any) =>
+      reservationOverlapsPeriod(r, { start: weekStartStr, end: weekEndStr })
+    );
     
-    const confirmedNights = weekReservations.reduce((sum: number, r: any) => sum + (r.room_nights || 0), 0);
-    const expectedRevenue = weekReservations.reduce((sum: number, r: any) => sum + (r.room_revenue_total || 0), 0);
-    const alreadyPaid = weekReservations.reduce((sum: number, r: any) => sum + (r.paid_amount || 0), 0);
+    const confirmedNights = weekReservations.reduce((sum: number, r: any) => {
+      return sum + prorateReservationToPeriod(r, { start: weekStartStr, end: weekEndStr }).nightsInPeriod;
+    }, 0);
+    const expectedRevenue = weekReservations.reduce((sum: number, r: any) => {
+      return sum + prorateReservationToPeriod(r, { start: weekStartStr, end: weekEndStr }).revenueInPeriod;
+    }, 0);
+    const alreadyPaid = weekReservations.reduce((sum: number, r: any) => {
+      return sum + prorateReservationToPeriod(r, { start: weekStartStr, end: weekEndStr }).paidInPeriod;
+    }, 0);
     const pendingPayment = expectedRevenue - alreadyPaid;
     const paidPercent = expectedRevenue > 0 ? (alreadyPaid / expectedRevenue) * 100 : 100;
     
@@ -346,46 +364,48 @@ export async function calculateMoMComparison(propertyId: string, startDateOrDays
   const prevEndStr = prevEnd.toISOString().substring(0, 10);
 
   const getMetricsForPeriod = async (startStr: string, endStr: string) => {
-    const reservations = (await database.getReservationsByProperty(propertyId)).filter((r: any) => {
-      if (r.status === 'Cancelled' || r.status === 'No Show') return false;
-      const checkIn = r.check_in?.substring(0, 10);
-      const checkOut = r.check_out?.substring(0, 10);
-      // Correct inclusive logic for period filtering
-      return checkIn <= endStr && checkOut > startStr;
-    });
+    const period = { start: startStr, end: endStr, days };
+    const reservations = (await database.getReservationsByProperty(propertyId)).filter((r: any) =>
+      reservationOverlapsPeriod(r, period)
+    );
 
     if (reservations.length === 0) return null;
 
-    const revenue = reservations.reduce((sum: number, r: any) => sum + (r.room_revenue_total || 0), 0);
-    const nights = reservations.reduce((sum: number, r: any) => sum + (r.room_nights || 0), 0);
-    const adr = nights > 0 ? revenue / nights : 0;
+    const costSettings = await database.getCostSettings(propertyId);
+    const roomCount = costSettings?.room_count || 1;
+    const metrics = aggregatePeriodMetrics(reservations, period, roomCount);
     
     const directRevenue = reservations
       .filter((r: any) => {
-        const source = r.source?.toLowerCase() || '';
-        return ['walk-in', 'email', 'pagina web', 'teléfono', 'telefono', 'direct', 'website', 'phone'].includes(source);
+        return isDirectChannel(r.source, r.source_category);
       })
-      .reduce((sum: number, r: any) => sum + (r.room_revenue_total || 0), 0);
+      .reduce((sum: number, r: any) => {
+        return sum + prorateReservationToPeriod(r, period).revenueInPeriod;
+      }, 0);
     
-    const directShare = revenue > 0 ? (directRevenue / revenue) * 100 : 0;
+    const directShare = metrics.revenue > 0 ? (directRevenue / metrics.revenue) * 100 : 0;
     const otaShare = 100 - directShare;
 
-    const costSettings = await database.getCostSettings(propertyId);
     const defaultRate = costSettings?.channel_commissions?.defaultRate || 0;
     const overrides = costSettings?.channel_commissions?.byChannel || {};
     
     const totalCommissions = reservations.reduce((sum: number, r: any) => {
       const source = r.source?.toLowerCase() || '';
-      const isDirect = ['walk-in', 'email', 'pagina web', 'teléfono', 'telefono', 'direct', 'website', 'phone'].includes(source);
-      if (isDirect) return sum;
+      if (isDirectChannel(r.source, r.source_category)) return sum;
       const rate = overrides[source] || DEFAULT_CHANNEL_COMMISSIONS[source] || defaultRate;
-      return sum + (r.room_revenue_total * rate);
+      const prorated = prorateReservationToPeriod(r, period);
+      return sum + (prorated.revenueInPeriod * rate);
     }, 0);
 
-    const roomCount = costSettings?.room_count || 1;
-    const occupancy = (nights / (roomCount * days)) * 100;
-
-    return { revenue, adr, occupancy, nights, directShare, otaShare, commissions: totalCommissions };
+    return {
+      revenue: metrics.revenue,
+      adr: metrics.adr,
+      occupancy: metrics.occupancy,
+      nights: metrics.nights,
+      directShare,
+      otaShare,
+      commissions: totalCommissions,
+    };
   };
 
   const current = await getMetricsForPeriod(startStr, endStr);
@@ -471,8 +491,9 @@ export async function calculateMoMComparison(propertyId: string, startDateOrDays
   };
 }
 
-export async function calculateStructureMetrics(propertyId: string, startDateOrDays: string | number = 30, endDate?: string): Promise<any> {
-  const cacheKey = `structure-${propertyId}-${startDateOrDays}-${endDate || ''}`;
+export async function calculateStructureMetrics(propertyId: string, startDateOrDays: string | number = 30, endDate?: string, options?: { roomType?: string }): Promise<any> {
+  const roomType = options?.roomType;
+  const cacheKey = `structure-${propertyId}-${startDateOrDays}-${endDate || ''}-${roomType || 'all'}`;
   const cached = cacheService.get<StructureMetrics>(cacheKey);
   if (cached) return cached;
 
@@ -494,7 +515,7 @@ export async function calculateStructureMetrics(propertyId: string, startDateOrD
     endStr = end.toISOString().substring(0, 10);
   }
 
-  const engine = new CalculationEngine(propertyId, { start: startStr, end: endStr, days });
+  const engine = new CalculationEngine(propertyId, { start: startStr, end: endStr, days }, { roomType });
   await engine.init();
   
   const structure = engine.getStructureMetrics();
@@ -985,13 +1006,10 @@ export async function calculateDOWPerformance(propertyId: string, startDateOrDay
   const startDate = new Date(startStr);
   const endDateObj = new Date(endStr);
 
-  const reservations = (await database.getReservationsByProperty(propertyId)).filter((r: any) => {
-    if (r.status === 'Cancelled' || r.status === 'No Show') return false;
-    const checkIn = r.check_in?.substring(0, 10);
-    const checkOut = r.check_out?.substring(0, 10);
-    // Unified inclusive logic for period filtering (same as CalculationEngine)
-    return checkIn <= endStr && checkOut > startStr;
-  });
+  const period = { start: startStr, end: endStr, days };
+  const reservations = (await database.getReservationsByProperty(propertyId)).filter((r: any) =>
+    reservationOverlapsPeriod(r, period)
+  );
 
   const costSettings = await database.getCostSettings(propertyId);
   const roomCount = costSettings?.room_count || 1;
@@ -1004,11 +1022,21 @@ export async function calculateDOWPerformance(propertyId: string, startDateOrDay
   }
 
   reservations.forEach((r: any) => {
-    const date = new Date(r.check_in);
-    const dow = date.getDay();
-    dowData[dow].nights += (r.room_nights || 0);
-    dowData[dow].revenue += (r.room_revenue_total || 0);
-    dowData[dow].resCount += 1;
+    const checkIn = toDateOnly(r.check_in);
+    const checkOut = toDateOnly(r.check_out);
+    const periodStart = toDateOnly(startStr);
+    const periodEnd = toDateOnly(endStr);
+    const effectiveStart = checkIn > periodStart ? checkIn : periodStart;
+    const effectiveEnd = checkOut < periodEnd ? checkOut : periodEnd;
+    const reservationTotalNights = Math.max(1, Math.ceil((checkOut.getTime() - checkIn.getTime()) / (24 * 60 * 60 * 1000)));
+    const revenuePerNight = (Number(r.room_revenue_total) || 0) / reservationTotalNights;
+
+    for (let cursor = new Date(effectiveStart); cursor < effectiveEnd; cursor = new Date(cursor.getTime() + 24 * 60 * 60 * 1000)) {
+      const dow = cursor.getUTCDay();
+      dowData[dow].nights += 1;
+      dowData[dow].revenue += revenuePerNight;
+      dowData[dow].resCount += 1 / reservationTotalNights;
+    }
   });
 
   const dayLabels = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
@@ -1095,25 +1123,23 @@ export async function calculateYoYComparison(propertyId: string, startDateOrDays
   const prevEndStr = prevEnd.toISOString().substring(0, 10);
 
   const getMetricsForPeriod = async (startStr: string, endStr: string) => {
-    const reservations = (await database.getReservationsByProperty(propertyId)).filter((r: any) => {
-      if (r.status === 'Cancelled' || r.status === 'No Show') return false;
-      const checkIn = r.check_in?.substring(0, 10);
-      const checkOut = r.check_out?.substring(0, 10);
-      // Correct inclusive logic for period filtering
-      return checkIn <= endStr && checkOut > startStr;
-    });
+    const period = { start: startStr, end: endStr, days };
+    const reservations = (await database.getReservationsByProperty(propertyId)).filter((r: any) =>
+      reservationOverlapsPeriod(r, period)
+    );
 
     if (reservations.length === 0) return null;
 
-    const revenue = reservations.reduce((sum: number, r: any) => sum + (r.room_revenue_total || 0), 0);
-    const nights = reservations.reduce((sum: number, r: any) => sum + (r.room_nights || 0), 0);
-    const adr = nights > 0 ? revenue / nights : 0;
-    
     const costSettings = await database.getCostSettings(propertyId);
     const roomCount = costSettings?.room_count || 1;
-    const occupancy = (nights / (roomCount * days)) * 100;
+    const metrics = aggregatePeriodMetrics(reservations, period, roomCount);
 
-    return { revenue, adr, occupancy, nights };
+    return {
+      revenue: metrics.revenue,
+      adr: metrics.adr,
+      occupancy: metrics.occupancy,
+      nights: metrics.nights,
+    };
   };
 
   const current = await getMetricsForPeriod(startStr, endStr);

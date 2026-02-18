@@ -1,9 +1,29 @@
+import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { AppProvider } from './context/AppContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Sidebar, MobileHeader, ConfidenceHeader } from './components';
-import { Home, Landing, Actions, Channels, Costs, Import, Settings, Profitability, Projections, Login, Register } from './pages';
 import styles from './App.module.css';
+
+const Home = lazy(() => import('./pages/Home'));
+const Landing = lazy(() => import('./pages/Landing'));
+const Actions = lazy(() => import('./pages/Actions'));
+const Channels = lazy(() => import('./pages/Channels'));
+const Costs = lazy(() => import('./pages/Costs'));
+const Import = lazy(() => import('./pages/Import'));
+const Settings = lazy(() => import('./pages/Settings'));
+const Profitability = lazy(() => import('./pages/Profitability'));
+const Projections = lazy(() => import('./pages/Projections'));
+const Login = lazy(() => import('./pages/Login'));
+const Register = lazy(() => import('./pages/Register'));
+
+function RouteFallback() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
+      <div className="spin">⌛</div>
+    </div>
+  );
+}
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const { session, user, loading } = useAuth();
@@ -81,11 +101,13 @@ function RootRoute() {
 export default function App() {
   return (
     <AuthProvider>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/registro" element={<Register />} />
-        <Route path="/*" element={<RootRoute />} />
-      </Routes>
+      <Suspense fallback={<RouteFallback />}>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/registro" element={<Register />} />
+          <Route path="/*" element={<RootRoute />} />
+        </Routes>
+      </Suspense>
     </AuthProvider>
   );
 }

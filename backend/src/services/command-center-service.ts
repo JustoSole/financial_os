@@ -1,4 +1,5 @@
 import database from '../db';
+import cacheService from './cache-service';
 import { CalculationEngine } from './calculation-engine';
 import { 
   calculateStructureMetrics, 
@@ -56,6 +57,10 @@ export async function getCommandCenterData(propertyId: string, startDateOrDays: 
       endStr = end.toISOString().substring(0, 10);
     }
 
+    const cacheKey = `command-center-${propertyId}-${startStr}-${endStr}`;
+    const cached = cacheService.get<CommandCenterData>(cacheKey);
+    if (cached) return cached;
+
     const currentPeriod: DatePeriod = { start: startStr, end: endStr, days };
     const engine = new CalculationEngine(propertyId, currentPeriod);
     await engine.init();
@@ -100,7 +105,7 @@ export async function getCommandCenterData(propertyId: string, startDateOrDays: 
     // Get Home Metrics (which now include projections)
     const homeMetrics = engine.getHomeMetrics();
 
-    return {
+    const result: CommandCenterData = {
       period: currentPeriod,
       health,
       structure,
@@ -113,6 +118,8 @@ export async function getCommandCenterData(propertyId: string, startDateOrDays: 
       weeklyAction,
       homeMetrics
     };
+    cacheService.set(cacheKey, result);
+    return result;
   } catch (error) {
     console.error(`❌ Error building Command Center for ${propertyId}:`, error);
     return createEmptyCommandCenter(propertyId, startDateOrDays, endDate);

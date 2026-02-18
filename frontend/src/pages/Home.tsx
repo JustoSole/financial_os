@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { getCommandCenter } from '../api';
 import { PeriodSelector, HelpTooltip, OnboardingWizard } from '../components';
@@ -30,6 +30,7 @@ import {
 // =====================================================
 
 export default function Home() {
+  const navigate = useNavigate();
   const { property, dateRange, refreshData, refreshProperty } = useApp();
   const [data, setData] = useState<CommandCenterData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -195,7 +196,7 @@ export default function Home() {
       {/* Data Confidence Banner */}
       <DataConfidenceBanner 
         confidence={dataConfidence} 
-        onAction={() => window.location.href = '/importar'} 
+        onAction={() => navigate('/importar')} 
       />
 
       {/* Demo Mode Banner - Removed */}
@@ -214,7 +215,7 @@ export default function Home() {
             <p>Solo detectamos {dataConfidence.monthsCovered === 0 ? 'que no hay' : '1'} mes de datos. Importá meses anteriores para habilitar comparativas históricas.</p>
           </div>
           <button 
-            onClick={() => window.location.href = '/importar'} 
+            onClick={() => navigate('/importar')} 
             className={styles.historyWarningAction}
             style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, font: 'inherit', color: 'inherit', fontWeight: 600, textDecoration: 'underline' }}
           >
@@ -563,12 +564,12 @@ function CostsNotConfiguredBanner({ unitEconomics }: { unitEconomics: any }) {
         <strong>⚠️ Tus ganancias no descuentan gastos fijos</strong>
         <p>Los números de profit que ves son irrealmente altos porque no tenés configurados costos fijos (sueldos, alquiler, servicios). Configurá tus costos para ver profit real.</p>
       </div>
-      <a 
-        href="/costos" 
+      <Link 
+        to="/costos" 
         className={styles.costsBannerAction}
       >
         Configurar costos
-      </a>
+      </Link>
     </div>
   );
 }
