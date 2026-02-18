@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { getProjections } from '../api';
+import { getProjections, getBreakEven } from '../api';
 import { 
   Card, 
   PeriodSelector, 
@@ -9,8 +10,8 @@ import {
   EmptyState,
   Badge,
   ProgressBar,
-  PacingChart,
-  CalendarProjection
+  CalendarProjection,
+  ProjectionsTrendChart
 } from '../components';
 import { 
   formatCurrency, 
@@ -27,14 +28,22 @@ import {
   ArrowRight,
   Clock
 } from 'lucide-react';
-import { ProjectionsData } from '@financial-os/shared';
+import type { ProjectionsData, GapAlert } from '@financial-os/shared';
 import styles from './Projections.module.css';
 import { CardHeader, CardTitle } from '../components/ui/Card';
 
+const GAP_ACTION_PATH: Record<GapAlert['actionType'], string> = {
+  price_adjustment: '/rentabilidad#regla-precio',
+  visibility_boost: '/canales#oportunidades',
+  minimum_stay: '/rentabilidad#regla-los',
+  promotion: '/rentabilidad#regla-promo',
+};
+
 export default function Projections() {
-  const { property } = useApp();
-  const [horizon, setHorizon] = useState(90);
+  const { property, dateRange } = useApp();
+  const horizon = dateRange.preset ?? dateRange.days;
   const [data, setData] = useState<ProjectionsData | null>(null);
+  const [breakEven, setBreakEven] = useState<{ breakEvenOccupancy?: number } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -42,10 +51,12 @@ export default function Projections() {
       if (!property?.id) return;
       setLoading(true);
       try {
-        const res = await getProjections(property.id, horizon);
-        if (res.success) {
-          setData(res.data);
-        }
+        const [projRes, beRes] = await Promise.all([
+          getProjections(property.id, horizon),
+          getBreakEven(property.id, 30),
+        ]);
+        if (projRes.success) setData(projRes.data);
+        if (beRes.success && beRes.data) setBreakEven(beRes.data);
       } catch (err) {
         console.error('Error loading projections:', err);
       } finally {
@@ -82,19 +93,10 @@ export default function Projections() {
           <h1>Proyecciones OTB</h1>
           <p className={styles.subtitle}>Radar de ingresos y ritmo de venta (On-The-Books)</p>
         </div>
-        <PeriodSelector 
-          value={horizon} 
-          onChange={setHorizon} 
-          labelPrefix="Horizonte:"
-          options={[
-            { value: 30, label: '30 días' },
-            { value: 60, label: '60 días' },
-            { value: 90, label: '90 días' },
-          ]}
-        />
+        <PeriodSelector labelPrefix="Próximos" />
       </header>
 
-      {/* Nivel 1: Certeza Operativa */}
+      {/* Nivel 1: Certeza Operativa (KPIs) */}
       <section className={styles.summaryGrid}>
         <Card className={styles.metricCard}>
           <div className={styles.metricHeader}>
@@ -155,86 +157,46 @@ export default function Projections() {
         </Card>
       </section>
 
-      {/* Nivel 2: Calendario y Gráfico de Pacing */}
+      {/* Gráfico diario: Ocupación OTB actual vs OTB histórico (debajo de KPIs) */}
+      <section className={styles.chartSection}>
+        <ProjectionsTrendChart
+          data={(() => {
+            const future = data.daily.filter((d) => !d.isPast);
+            const periods = data.pacing.periods;
+            return future.map((d) => {
+              const dateStr = d.date;
+              const period = periods.find(
+                (p) => dateStr >= p.startDate && dateStr < p.endDate
+              );
+              return {
+                label: new Date(dateStr).toLocaleDateString('es-AR', {
+                  day: 'numeric',
+                  month: 'short',
+                }),
+                date: dateStr,
+                actual: d.occupancy ?? 0,
+                historico: period?.historical?.occupancy ?? 0,
+              };
+            });
+          })()}
+          title="Ocupación OTB: actual vs año anterior (por día)"
+          height={320}
+          minOccupancyForProfit={breakEven?.breakEvenOccupancy}
+        />
+      </section>
+
+      {/* Vista diaria (calendario) */}
       <section className={styles.pacingSection}>
-        <div className={styles.gridTwoCols}>
-          <Card>
-            <CardHeader>
-              <CardTitle>Vista Diaria de Proyecciones</CardTitle>
-            </CardHeader>
-            <div className={styles.pacingInfo}>
-              <Info size={16} />
-              <p>Revenue y ocupación estimada día por día para los próximos {horizon} días.</p>
-            </div>
-            <CalendarProjection data={data.daily} />
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Ritmo de Venta Semanal (Pacing YoY)</CardTitle>
-            </CardHeader>
-            <div className={styles.pacingInfo}>
-              <Info size={16} />
-              <p>
-                Comparación de ocupación actual vs. ocupación que tenías el año pasado a esta misma distancia del check-in (DBA).
-                {data.pacing.isApproximate ? ' Actualmente incluye tramos aproximados por falta de snapshot histórico exacto.' : ''}
-              </p>
-            </div>
-            {data.pacing.isApproximate && data.pacing.diagnostics && (
-              <div className={styles.pacingInfo}>
-                <AlertTriangle size={16} />
-                <p>
-                  Snapshot as-of requerido: <strong>{data.pacing.diagnostics.requestedAsOfSnapshotDate}</strong>. Cobertura exacta:
-                  {' '}
-                  <strong>{data.pacing.diagnostics.exactCoveragePercent}%</strong>
-                  {' '}
-                  ({data.pacing.diagnostics.totalWeeks - data.pacing.diagnostics.missingWeeks}/{data.pacing.diagnostics.totalWeeks} semanas).
-                  {' '}
-                  Importadas: {data.pacing.diagnostics.importedWeeks},
-                  {' '}reconstruidas: {data.pacing.diagnostics.reconstructedWeeks},
-                  {' '}aprox directas: {data.pacing.diagnostics.approximatedWeeks}.
-                  {data.pacing.diagnostics.availableSnapshotDates.length > 0
-                    ? ` Snapshots disponibles: ${data.pacing.diagnostics.availableSnapshotDates.join(', ')}.`
-                    : ' No hay snapshots históricos disponibles para comparar.'}
-                </p>
-              </div>
-            )}
-            
-            <PacingChart 
-              data={data.pacing.periods.map(p => ({
-                label: new Date(p.startDate).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' }),
-                current: p.current.occupancy,
-                historical: p.historical.occupancy
-              }))} 
-            />
-
-            <div className={styles.pacingGrid}>
-              {data.pacing.periods.map((period, i) => (
-                <div key={i} className={styles.pacingRow}>
-                  <div className={styles.periodLabel}>
-                    <strong>{period.label}</strong>
-                    <span>{new Date(period.startDate).toLocaleDateString('es-AR', { day: 'numeric', month: 'short' })}</span>
-                  </div>
-                  <div className={styles.pacingBars}>
-                    <div className={styles.barGroup}>
-                      <div className={styles.barLabel}>Actual: {period.current.occupancy}%</div>
-                      <ProgressBar value={period.current.occupancy} variant="primary" height={12} />
-                    </div>
-                    <div className={styles.barGroup}>
-                      <div className={styles.barLabel}>Año Ant: {period.historical.occupancy}%</div>
-                      <ProgressBar value={period.historical.occupancy} variant="info" height={12} />
-                    </div>
-                  </div>
-                  <div className={styles.periodDelta}>
-                    <Badge variant={period.deltaOccupancy >= 0 ? 'success' : 'error'}>
-                      {period.deltaOccupancy >= 0 ? '+' : ''}{period.deltaOccupancy}%
-                    </Badge>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </div>
+        <Card>
+          <CardHeader>
+            <CardTitle>Vista Diaria de Proyecciones</CardTitle>
+          </CardHeader>
+          <div className={styles.pacingInfo}>
+            <Info size={16} />
+            <p>Revenue y ocupación estimada día por día para los próximos {horizon} días.</p>
+          </div>
+          <CalendarProjection data={data.daily} />
+        </Card>
       </section>
 
       {/* Nivel 3: Alertas y Gaps */}
@@ -271,9 +233,9 @@ export default function Projections() {
                     <strong>{gap.historicalOccupancy}%</strong>
                   </div>
                 </div>
-                <button className={styles.actionButton}>
+                <Link to={GAP_ACTION_PATH[gap.actionType]} className={styles.actionButton}>
                   {gap.actionLabel} <ArrowRight size={16} />
-                </button>
+                </Link>
               </Card>
             ))}
           </div>

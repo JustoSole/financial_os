@@ -6,7 +6,11 @@ import {
   PacingPeriod, 
   GapAlert, 
   DatePeriod,
-  AlertSeverity
+  AlertSeverity,
+  DecisionPlan,
+  ForecastScenario,
+  DecisionTopAction,
+  DecisionConfidence,
 } from '../types';
 import logger from './logger';
 import {
@@ -93,8 +97,142 @@ export class ProjectionsService {
       gaps,
       cashFlow
     };
+
+    result.decisionPlan = this.buildDecisionPlan(result);
     cacheService.set(cacheKey, result);
     return result;
+  }
+
+  /**
+   * Build decision plan for next 21 days. Scenarios are data-driven:
+   * - Base = OTB (next 21d) + expected pickup from last 7d rate.
+   * - Bands = spread from pacing deltas (revenue/occupancy vs last year); fallback from pickup magnitude when no variance.
+   */
+  private buildDecisionPlan(data: ProjectionsData): DecisionPlan {
+    const DECISION_HORIZON_DAYS = 21;
+    const daily = data.daily;
+    const pacingPeriods = data.pacing.periods;
+    const summary = data.summary;
+
+    // Index of "today" in daily: daily has 30 days past + horizon. First future day index = 30.
+    const todayIndex = 30;
+    const futureEndIndex = Math.min(todayIndex + DECISION_HORIZON_DAYS, daily.length);
+    const futureDaily = daily.filter((_, i) => i >= todayIndex && i < futureEndIndex);
+
+    const otbRevenue21 = futureDaily.reduce((s, d) => s + (d.revenue ?? 0), 0);
+    const otbOccupancyAvg = futureDaily.length
+      ? futureDaily.reduce((s, d) => s + (d.occupancy ?? 0), 0) / futureDaily.length
+      : 0;
+
+    const pickupPerDay = summary.pickupLast7Days.revenue / 7;
+    const pickupExpected21 = pickupPerDay * DECISION_HORIZON_DAYS;
+    const baseRevenue = Math.round(otbRevenue21 + pickupExpected21);
+    const baseOccupancy = Math.round(otbOccupancyAvg * 10) / 10;
+
+    const deltaVsPacing = data.pacing.deltaVsLastYear;
+
+    // --- Bandas desde datos (sin hardcodear 0.9/1.1) ---
+    const operativeWeeks = pacingPeriods.slice(0, 3);
+    const deltaRevenues = operativeWeeks.map((p) => p.deltaRevenue);
+    const deltaOccupancies = operativeWeeks.map((p) => p.deltaOccupancy);
+
+    const spreadRevenue =
+      deltaRevenues.length >= 2
+        ? (Math.max(...deltaRevenues) - Math.min(...deltaRevenues)) / 2
+        : Math.abs(deltaRevenues[0] ?? 0);
+    const spreadOccupancy =
+      deltaOccupancies.length >= 2
+        ? (Math.max(...deltaOccupancies) - Math.min(...deltaOccupancies)) / 2
+        : Math.abs(deltaOccupancies[0] ?? 0);
+
+    const fallbackSpreadRevenue = Math.round(pickupExpected21 * 0.5);
+    const fallbackSpreadOccupancy = 4;
+    const revenueSpread = Math.max(Math.abs(spreadRevenue), fallbackSpreadRevenue);
+    const occupancySpread = Math.max(Math.abs(spreadOccupancy), deltaOccupancies.length ? fallbackSpreadOccupancy : 5);
+
+    const base: ForecastScenario = {
+      label: 'base',
+      revenue: baseRevenue,
+      occupancy: baseOccupancy,
+      deltaVsPacingPercent: deltaVsPacing,
+    };
+    const conservador: ForecastScenario = {
+      label: 'conservador',
+      revenue: Math.max(0, baseRevenue - revenueSpread),
+      occupancy: Math.max(0, Math.min(100, baseOccupancy - occupancySpread)),
+      deltaVsPacingPercent: deltaVsPacing,
+    };
+    const optimista: ForecastScenario = {
+      label: 'optimista',
+      revenue: baseRevenue + revenueSpread,
+      occupancy: Math.min(100, baseOccupancy + occupancySpread),
+      deltaVsPacingPercent: deltaVsPacing,
+    };
+
+    const confidence: DecisionConfidence = this.getDecisionConfidence(data);
+    const confidenceReasons = this.getConfidenceReasons(data, confidence);
+    const topActions = this.buildTopActionsFromGaps(data.gaps, confidence);
+
+    const impactRange =
+      revenueSpread > 0
+        ? { min: Math.round(-revenueSpread / 3), max: Math.round(revenueSpread / 3) }
+        : undefined;
+
+    return {
+      riskStatus: data.pacing.overallTrend,
+      impactRange,
+      scenarios: { base, conservador, optimista },
+      confidence,
+      confidenceReasons,
+      topActions,
+      horizonDays: DECISION_HORIZON_DAYS,
+    };
+  }
+
+  private getDecisionConfidence(data: ProjectionsData): DecisionConfidence {
+    const { pacing } = data;
+    if (pacing.isApproximate && (pacing.diagnostics?.exactCoveragePercent ?? 0) < 50) return 'low';
+    if (pacing.isApproximate || (pacing.diagnostics?.exactCoveragePercent ?? 100) < 80) return 'medium';
+    return 'high';
+  }
+
+  private getConfidenceReasons(data: ProjectionsData, confidence: DecisionConfidence): string[] {
+    const reasons: string[] = [];
+    if (data.pacing.isApproximate) {
+      reasons.push('Ritmo vs año anterior usa tramos aproximados (snapshots históricos limitados).');
+    }
+    const cov = data.pacing.diagnostics?.exactCoveragePercent;
+    if (cov != null && cov < 100) {
+      reasons.push(`Cobertura exacta de pacing: ${cov}%.`);
+    }
+    if (confidence === 'high') reasons.push('Buena cobertura histórica para comparar.');
+    return reasons;
+  }
+
+  private static readonly GAP_ACTION_CTA: Record<GapAlert['actionType'], string> = {
+    price_adjustment: '/rentabilidad#regla-precio',
+    visibility_boost: '/canales#oportunidades',
+    minimum_stay: '/rentabilidad#regla-los',
+    promotion: '/rentabilidad#regla-promo',
+  };
+
+  private buildTopActionsFromGaps(gaps: GapAlert[], confidence: DecisionConfidence): DecisionTopAction[] {
+    const list: DecisionTopAction[] = [];
+    for (const g of gaps.slice(0, 3)) {
+      list.push({
+        id: g.id,
+        title: g.title,
+        why: g.description,
+        what: g.actionLabel,
+        where: new Date(g.weekStart).toLocaleDateString('es-AR', { month: 'short', day: 'numeric' }),
+        impactExpected: `Ocupación actual ${g.currentOccupancy}% vs histórico ${g.historicalOccupancy}%.`,
+        guardrail: undefined,
+        confidence,
+        actionType: g.actionType,
+        ctaPath: ProjectionsService.GAP_ACTION_CTA[g.actionType] ?? '/rentabilidad',
+      });
+    }
+    return list;
   }
 
   private calculateDailyMetrics(reservations: any[], today: Date, horizon: number, roomCount: number) {

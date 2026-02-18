@@ -379,6 +379,46 @@ export interface GapAlert {
   actionType: 'price_adjustment' | 'visibility_boost' | 'minimum_stay' | 'promotion';
 }
 
+// =====================================================
+// Decision Plan (Fase 1: proyecciones + pacing + forecast simple)
+// =====================================================
+
+export type DecisionConfidence = 'high' | 'medium' | 'low';
+
+export interface ForecastScenario {
+  label: 'base' | 'conservador' | 'optimista';
+  occupancy: number;
+  revenue: number;
+  deltaVsPacingPercent?: number; // vs ritmo año anterior
+}
+
+export interface DecisionTopAction {
+  id: string;
+  title: string;
+  why: string;
+  what: string;
+  where: string;
+  impactExpected?: string;
+  guardrail?: string;
+  confidence: DecisionConfidence;
+  actionType: GapAlert['actionType'];
+  ctaPath: string;
+}
+
+export interface DecisionPlan {
+  riskStatus: 'ahead' | 'on_track' | 'behind';
+  impactRange?: { min: number; max: number }; // impacto semanal estimado en moneda
+  scenarios: {
+    base: ForecastScenario;
+    conservador: ForecastScenario;
+    optimista: ForecastScenario;
+  };
+  confidence: DecisionConfidence;
+  confidenceReasons: string[];
+  topActions: DecisionTopAction[];
+  horizonDays: number; // 21 = operativo
+}
+
 export interface ProjectionsData {
   horizon: number;
   summary: {
@@ -408,6 +448,8 @@ export interface ProjectionsData {
       pending: number;
     }[];
   };
+  /** Plan de decisión semanal (próximos 21 días). Presente si hay datos suficientes. */
+  decisionPlan?: DecisionPlan;
 }
 
 export interface DailyMetric {
