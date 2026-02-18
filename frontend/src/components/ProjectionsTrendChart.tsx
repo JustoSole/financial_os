@@ -87,7 +87,7 @@ export default function ProjectionsTrendChart({
 
       <div style={{ width: '100%', height }}>
         <ResponsiveContainer>
-          <LineChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+          <LineChart data={chartData} margin={{ top: 24, right: 10, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-border)" />
             <XAxis
               dataKey="name"
@@ -115,25 +115,27 @@ export default function ProjectionsTrendChart({
               }}
               content={({ active, payload, label }) => {
                 if (!active || !payload?.length) return null;
-                const p = payload[0].payload;
+                const p = payload[0]?.payload;
+                if (!p) return null;
                 const actual = Number(p.actual);
                 const historico = Number(p.historico);
-                const belowMin = minOccupancyForProfit != null && actual < minOccupancyForProfit;
+                const belowMin = minOccupancyForProfit != null && Number.isFinite(actual) && actual < minOccupancyForProfit;
                 const dateStr = p.date
                   ? new Date(p.date).toLocaleDateString('es-AR', { day: 'numeric', month: 'short', year: 'numeric' })
-                  : String(label);
+                  : String(label ?? '');
+                const fmt = (v: number) => (Number.isFinite(v) ? `${v.toFixed(1)}%` : '–');
                 return (
                   <div className={styles.tooltip}>
                     <div className={styles.tooltipLabel}>Día: {dateStr}</div>
                     <div className={styles.tooltipRow}>
                       <span>OTB actual</span>
-                      <strong>{actual.toFixed(1)}%</strong>
+                      <strong>{fmt(actual)}</strong>
                     </div>
                     <div className={styles.tooltipRow}>
                       <span>OTB año anterior</span>
-                      <strong>{historico.toFixed(1)}%</strong>
+                      <strong>{fmt(historico)}</strong>
                     </div>
-                    {minOccupancyForProfit != null && (
+                    {minOccupancyForProfit != null && Number.isFinite(minOccupancyForProfit) && (
                       <div className={styles.tooltipRow}>
                         <span>Mín. rentable</span>
                         <strong>{minOccupancyForProfit.toFixed(1)}%</strong>
