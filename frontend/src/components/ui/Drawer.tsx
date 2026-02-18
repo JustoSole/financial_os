@@ -117,7 +117,7 @@ export function DrawerSection({ title, children, className = '', variant = 'defa
 
 // Breakdown row for P&L displays
 interface BreakdownRowProps {
-  label: string;
+  label: React.ReactNode;
   value: string | number;
   variant?: 'default' | 'positive' | 'negative' | 'total';
   className?: string;

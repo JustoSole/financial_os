@@ -2,8 +2,7 @@ import { ReactNode } from 'react';
 import { TrendingUp, TrendingDown, Minus, HelpCircle } from 'lucide-react';
 import styles from './MetricDisplay.module.css';
 import Badge from './Badge';
-
-// Unified metric display component
+import { HelpTooltip } from '../HelpTooltip';
 
 type TrustLevel = 'real' | 'estimado' | 'incompleto';
 type MetricVariant = 'default' | 'hero' | 'compact' | 'highlight' | 'danger';
@@ -18,6 +17,7 @@ interface MetricDisplayProps {
   trust?: TrustLevel;
   hint?: string;
   tooltip?: string;
+  helpKey?: string;
   className?: string;
   valueClassName?: string;
 }
@@ -32,6 +32,7 @@ export default function MetricDisplay({
   trust,
   hint,
   tooltip,
+  helpKey,
   className = '',
   valueClassName = '',
 }: MetricDisplayProps) {
@@ -69,12 +70,14 @@ export default function MetricDisplay({
         <span className={styles.label}>
           {icon && <span className={styles.icon}>{icon}</span>}
           {label}
-          {tooltip && (
+          {helpKey ? (
+            <HelpTooltip termKey={helpKey} size="sm" />
+          ) : tooltip ? (
             <span className={styles.tooltip}>
               <HelpCircle size={14} />
               <span className="tooltip-content">{tooltip}</span>
             </span>
-          )}
+          ) : null}
         </span>
         {trustBadge && (
           <Badge variant={trustBadge.variant} size="sm">
@@ -112,10 +115,11 @@ interface SummaryMetricProps {
   value: string | number;
   label: string;
   variant?: 'default' | 'positive' | 'negative' | 'highlight' | 'danger';
+  helpKey?: string;
   className?: string;
 }
 
-export function SummaryMetric({ value, label, variant = 'default', className = '' }: SummaryMetricProps) {
+export function SummaryMetric({ value, label, variant = 'default', helpKey, className = '' }: SummaryMetricProps) {
   const summaryClasses = [
     styles.summaryMetric,
     variant === 'highlight' ? styles.summaryHighlight : '',
@@ -132,7 +136,7 @@ export function SummaryMetric({ value, label, variant = 'default', className = '
   return (
     <div className={summaryClasses}>
       <div className={valueClasses}>{value}</div>
-      <div className={styles.summaryLabel}>{label}</div>
+      <div className={styles.summaryLabel}>{label} {helpKey && <HelpTooltip termKey={helpKey} size="sm" />}</div>
     </div>
   );
 }

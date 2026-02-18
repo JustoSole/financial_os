@@ -8,4 +8,5 @@ export { default as Drawer, DrawerSection, BreakdownRow, InfoGrid } from './Draw
 export { default as MetricDisplay, SummaryMetric } from './MetricDisplay';
 export { default as ProgressBar, BarChartRow } from './ProgressBar';
 export { default as Alert, InfoCard } from './Alert';
+export { default as ConfirmDialog } from './ConfirmDialog';
 

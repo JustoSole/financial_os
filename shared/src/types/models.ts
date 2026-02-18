@@ -10,6 +10,12 @@ import type {
   ImportStatus, 
   PlanType,
   ChannelCategory,
+  MonthlyPeriodStatus,
+  ConfidenceBand,
+  CostEntryType,
+  CostEntrySource,
+  ImportJobType,
+  ImportJobStatus,
 } from './enums';
 
 // =====================================================
@@ -60,7 +66,6 @@ export interface LedgerTransaction {
   description: string | null;
   notes: string | null;
   txnSource: string | null;
-  roomType: string | null;
   sourceFileId: string;
   createdAt: string;
 }
@@ -137,6 +142,17 @@ export interface PaymentFees {
   byMethod: Record<string, number>;
 }
 
+/** Tax rule configuration */
+export interface TaxRule {
+  id: string;
+  name: string;
+  type: 'VAT' | 'OCCUPANCY' | 'CITY_TAX' | 'OTHER';
+  appliesTo: 'room_rate' | 'total';
+  method: 'percentage' | 'fixed_per_night' | 'fixed_per_stay';
+  value: number;
+  includedInRate: boolean;
+}
+
 /** Full cost settings (V4 with backward compatibility) */
 export interface CostSettings {
   propertyId: string;
@@ -155,6 +171,9 @@ export interface CostSettings {
   // Commissions & fees
   channelCommissions: ChannelCommissions;
   paymentFees: PaymentFees;
+
+  // Tax rules
+  taxRules: TaxRule[];
   
   updatedAt: string;
 }
@@ -169,6 +188,105 @@ export interface ActionCompletion {
   actionType: string;
   stepIndex: number;
   completedAt: string;
+}
+
+// =====================================================
+// Monthly Period (cierre mensual)
+// =====================================================
+
+export interface MonthlyPeriod {
+  id: string;
+  propertyId: string;
+  month: string; // YYYY-MM
+  status: MonthlyPeriodStatus;
+  confidenceScore: number;
+  checksJson: Record<string, any>;
+  closedAt: string | null;
+  closedBy: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MonthlyCloseCheck {
+  key: string;
+  label: string;
+  type: 'required' | 'recommended';
+  passed: boolean;
+  detail?: string;
+}
+
+export function getConfidenceBand(score: number): ConfidenceBand {
+  if (score >= 80) return 'high';
+  if (score >= 60) return 'medium';
+  return 'low';
+}
+
+// =====================================================
+// Monthly Cost Entry
+// =====================================================
+
+export interface MonthlyCostEntry {
+  id: string;
+  propertyId: string;
+  month: string;
+  categoryKey: string;
+  costType: CostEntryType;
+  amount: number;
+  source: CostEntrySource;
+  note: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// =====================================================
+// Monthly Cash Balance
+// =====================================================
+
+export interface MonthlyCashBalance {
+  id: string;
+  propertyId: string;
+  month: string;
+  balance: number;
+  asOfDate: string;
+  source: string;
+  createdAt: string;
+}
+
+// =====================================================
+// Import Job
+// =====================================================
+
+export interface ImportJob {
+  id: string;
+  propertyId: string;
+  jobType: ImportJobType;
+  sourceSystem: string;
+  status: ImportJobStatus;
+  targetMonth: string | null;
+  coverageStart: string | null;
+  coverageEnd: string | null;
+  monthsCovered: string[] | null;
+  fileName: string;
+  fileHash: string;
+  rowsTotal: number;
+  rowsOk: number;
+  rowsError: number;
+  errorLog: any[];
+  importFileId: string | null;
+  createdAt: string;
+}
+
+// =====================================================
+// Cost Category (catalog)
+// =====================================================
+
+export interface CostCategoryCatalog {
+  categoryKey: string;
+  displayName: string;
+  costTypeDefault: CostEntryType;
+  sortOrder: number;
+  active: boolean;
+  isSystem: boolean;
 }
 
 // =====================================================

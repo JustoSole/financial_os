@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, memo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { getCommandCenter } from '../api';
+import { useApiQuery, useInvalidate } from '../hooks/useApiQuery';
 import { PeriodSelector, HelpTooltip, OnboardingWizard } from '../components';
 import { formatCurrency, formatCurrencyShort } from '../utils/formatters';
 import { isOnboardingCompleted, markOnboardingCompleted, resetOnboarding } from '../utils/onboarding';
@@ -32,26 +33,21 @@ import {
 export default function Home() {
   const navigate = useNavigate();
   const { property, dateRange, refreshData, refreshProperty } = useApp();
-  const [data, setData] = useState<CommandCenterData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const invalidate = useInvalidate();
   
-  // Check URL for forced onboarding (useful for demos)
   const urlParams = new URLSearchParams(window.location.search);
   const forceOnboarding = urlParams.get('setup') === '1';
   const resetOnboardingFlag = urlParams.get('reset_onboarding') === '1';
   
-  // Initialize showOnboarding based on URL params and persistent state
   const [showOnboarding, setShowOnboarding] = useState(() => {
     if (forceOnboarding) return true;
     if (property?.id && isOnboardingCompleted(property.id)) return false;
-    return true; // Default to showing onboarding until we check data
+    return true;
   });
 
-  // Handle reset onboarding URL param (for testing/demo)
   useEffect(() => {
     if (resetOnboardingFlag && property?.id) {
       resetOnboarding(property.id);
-      // Remove the query param from URL
       const url = new URL(window.location.href);
       url.searchParams.delete('reset_onboarding');
       window.history.replaceState({}, '', url.toString());
@@ -59,90 +55,40 @@ export default function Home() {
     }
   }, [resetOnboardingFlag, property?.id]);
 
+  const startStr = useMemo(() => dateRange.start.toISOString().substring(0, 10), [dateRange.start]);
+  const endStr = useMemo(() => dateRange.end.toISOString().substring(0, 10), [dateRange.end]);
+
+  const { data, isLoading: loading } = useApiQuery<CommandCenterData>(
+    ['command-center', property?.id, startStr, endStr],
+    () => getCommandCenter(property!.id, startStr, endStr),
+    { enabled: !!property?.id }
+  );
+
   useEffect(() => {
-    async function load() {
-      if (!property?.id) return;
-      setLoading(true);
-
-      const startStr = dateRange.start.toISOString().substring(0, 10);
-      const endStr = dateRange.end.toISOString().substring(0, 10);
-
-      try {
-        const [commandRes] = await Promise.all([
-          getCommandCenter(property.id, startStr, endStr),
-        ]);
-
-        if (commandRes.success) {
-          setData(commandRes.data);
-          
-          // Determine if we should show onboarding
-          // Priority: 1) URL force, 2) Already completed (persisted), 3) Check data
-          if (forceOnboarding) {
-            setShowOnboarding(true);
-          } else if (property?.id && isOnboardingCompleted(property.id)) {
-            // CRITICAL FIX: If onboarding is marked as completed in localStorage, 
-            // NEVER show it again, regardless of what the data says.
-            setShowOnboarding(false);
-          } else {
-            // First time - check if there's real data
-            // We check for both health KPIs and data confidence to be more robust
-            const hasRealData = commandRes.data?.health && 
-              ((commandRes.data?.health?.kpis?.occupancy?.value || 0) > 0 || 
-               (commandRes.data?.dataConfidence?.monthsCovered && commandRes.data?.dataConfidence?.monthsCovered > 0));
-            
-            setShowOnboarding(!hasRealData);
-            
-            // If there's real data, mark onboarding as implicitly completed
-            // (they might have imported data through other means)
-            if (hasRealData && property?.id) {
-              markOnboardingCompleted(property.id);
-            }
-          }
-        } else {
-          // API error - only show onboarding if not completed before
-          if (property?.id && !isOnboardingCompleted(property.id)) {
-            setShowOnboarding(true);
-          } else {
-            setShowOnboarding(false);
-          }
-        }
-      } catch (err) {
-        console.error('Error loading command center:', err);
-        if (property?.id && !isOnboardingCompleted(property.id)) {
-          setShowOnboarding(true);
-        }
-      }
-
-      setLoading(false);
+    if (!data || !property?.id) return;
+    if (forceOnboarding) {
+      setShowOnboarding(true);
+    } else if (isOnboardingCompleted(property.id)) {
+      setShowOnboarding(false);
+    } else {
+      const hasRealData = data?.health && 
+        ((data?.health?.kpis?.occupancy?.value || 0) > 0 || 
+         (data?.dataConfidence?.monthsCovered && data?.dataConfidence?.monthsCovered > 0));
+      setShowOnboarding(!hasRealData);
+      if (hasRealData) markOnboardingCompleted(property.id);
     }
-    load();
-  }, [property?.id, dateRange, forceOnboarding]);
+  }, [data, property?.id, forceOnboarding]);
 
   const handleOnboardingComplete = async () => {
-    // Mark onboarding as completed in persistent storage
-    if (property?.id) {
-      markOnboardingCompleted(property.id);
-    }
-    
-    // Set loading to true while we refresh everything
-    setLoading(true);
+    if (property?.id) markOnboardingCompleted(property.id);
     setShowOnboarding(false);
     
     try {
       await refreshProperty();
       await refreshData();
-      
-      // Reload data
-      if (property?.id) {
-        const startStr = dateRange.start.toISOString().substring(0, 10);
-        const endStr = dateRange.end.toISOString().substring(0, 10);
-        const commandRes = await getCommandCenter(property.id, startStr, endStr);
-        if (commandRes.success) setData(commandRes.data);
-      }
+      invalidate(['command-center']);
     } catch (error) {
       console.error('Error refreshing after onboarding:', error);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -241,11 +187,11 @@ export default function Home() {
               </div>
               <div className={styles.projectionMain}>
                 <div className={styles.projectionItem}>
-                  <span className={styles.projectionLabel}>Ingresos Proyectados</span>
+                  <span className={styles.projectionLabel}>Ingresos Proyectados <HelpTooltip termKey="projectedRevenue" size="sm" /></span>
                   <span className={styles.projectionValue}>{formatCurrencyShort(data.homeMetrics.projections.projectedRevenue)}</span>
                 </div>
                 <div className={styles.projectionItem}>
-                  <span className={styles.projectionLabel}>Ocupación Proyectada</span>
+                  <span className={styles.projectionLabel}>Ocupación Proyectada <HelpTooltip termKey="projectedOccupancy" size="sm" /></span>
                   <span className={styles.projectionValue}>{(data.homeMetrics.projections.projectedOccupancy * 100).toFixed(1)}%</span>
                 </div>
               </div>
@@ -256,11 +202,11 @@ export default function Home() {
 
             <div className={styles.projectionHighlights}>
               <div className={styles.highlightMini}>
-                <span className={styles.highlightMiniLabel}>Anticipación (Booking Window)</span>
+                <span className={styles.highlightMiniLabel}>Anticipación (Booking Window) <HelpTooltip termKey="avgBookingWindow" size="sm" /></span>
                 <span className={styles.highlightMiniValue}>{data.homeMetrics.projections.avgBookingWindow} días</span>
               </div>
               <div className={styles.highlightMini}>
-                <span className={styles.highlightMiniLabel}>Total On-the-Books (OTB)</span>
+                <span className={styles.highlightMiniLabel}>Total On-the-Books (OTB) <HelpTooltip termKey="totalOTB" size="sm" /></span>
                 <span className={styles.highlightMiniValue}>{formatCurrencyShort(data.homeMetrics.projections.totalOTB)}</span>
               </div>
             </div>
@@ -277,7 +223,7 @@ export default function Home() {
           <div className={styles.heroProfitContent}>
             <div className={styles.heroProfitMain}>
           <div className={styles.heroProfitLabel}>
-                ¿Ganancia Neta del período?
+                ¿Ganancia Neta del período? <HelpTooltip termKey="netProfit" size="sm" />
           </div>
           <div className={`${styles.heroProfitValue} ${data.health.netProfit.isPositive ? styles.positive : styles.negative}`}>
             {data.health.netProfit.isPositive ? '+' : ''}{formatCurrency(data.health.netProfit.value)}
@@ -467,7 +413,7 @@ export default function Home() {
 // Sub-Components
 // =====================================================
 
-function StatusCard({ 
+const StatusCard = memo(function StatusCard({ 
   title, 
   value, 
   status, 
@@ -520,38 +466,13 @@ function StatusCard({
       </div>
     </div>
   );
-}
+});
 
-function DataConfidenceBanner({ confidence: _confidence, onAction: _onAction }: { confidence: any; onAction: () => void }) {
+const DataConfidenceBanner = memo(function DataConfidenceBanner({ confidence: _confidence, onAction: _onAction }: { confidence: any; onAction: () => void }) {
   return null;
-  // const score = typeof confidence.score === 'number' ? confidence.score : 0;
-  // const missing = Array.isArray(confidence.missingForHighConfidence) ? confidence.missingForHighConfidence : [];
-  
-  // return (
-  //   <div className={`confidence-banner confidence-banner--${confidence.level}`}>
-  //     <div className="confidence-banner__icon">
-  //       {confidence.level === 'low' ? <AlertCircle size={20} /> : <AlertCircle size={20} />}
-  //     </div>
-  //     <div className="confidence-banner__content">
-  //       <strong>
-  //         Confianza de datos: {confidence.level === 'low' ? 'BAJA' : 'MEDIA'} ({score}/100)
-  //       </strong>
-  //       <p>
-  //         {missing.slice(0, 2).join(' • ')}
-  //       </p>
-  //     </div>
-  //     <button 
-  //       onClick={onAction} 
-  //       className="confidence-banner__action"
-  //       style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, font: 'inherit', color: 'inherit', fontWeight: 600, textDecoration: 'underline' }}
-  //     >
-  //       Completar
-  //     </button>
-  //   </div>
-  // );
-}
+});
 
-function CostsNotConfiguredBanner({ unitEconomics }: { unitEconomics: any }) {
+const CostsNotConfiguredBanner = memo(function CostsNotConfiguredBanner({ unitEconomics }: { unitEconomics: any }) {
   // Si no hay costos fijos configurados, mostrar advertencia
   if (!unitEconomics || unitEconomics.cporBreakdown?.fixed > 0) return null;
   
@@ -572,9 +493,9 @@ function CostsNotConfiguredBanner({ unitEconomics }: { unitEconomics: any }) {
       </Link>
     </div>
   );
-}
+});
 
-function TopAlert({ alert }: { alert: any }) {
+const TopAlert = memo(function TopAlert({ alert }: { alert: any }) {
   return (
     <div className={`top-alert top-alert--${alert.severity}`}>
       <AlertTriangle size={24} />
@@ -588,9 +509,9 @@ function TopAlert({ alert }: { alert: any }) {
       </Link>
     </div>
   );
-}
+});
 
-function PeriodSummaryStats({ 
+const PeriodSummaryStats = memo(function PeriodSummaryStats({ 
   health, 
   breakeven,
   comparisons 
@@ -622,7 +543,7 @@ function PeriodSummaryStats({
     <div className={styles.periodSummary}>
       <div className={styles.periodSummaryItem}>
         <span className={styles.periodSummaryValue}>{formatCurrencyShort(revenue)}</span>
-        <span className={styles.periodSummaryLabel}>Revenue</span>
+        <span className={styles.periodSummaryLabel}>Revenue <HelpTooltip termKey="revenue" size="sm" /></span>
         {formatChange(revenueChange) && (
           <span className={`${styles.periodSummaryChange} ${revenueChange && revenueChange >= 0 ? styles.positive : styles.negative}`}>
             {formatChange(revenueChange)} vs ant.
@@ -632,7 +553,7 @@ function PeriodSummaryStats({
       <div className={styles.periodSummaryDivider} />
       <div className={styles.periodSummaryItem}>
         <span className={styles.periodSummaryValue}>{formatCurrencyShort(adr)}</span>
-        <span className={styles.periodSummaryLabel}>ADR</span>
+        <span className={styles.periodSummaryLabel}>ADR <HelpTooltip termKey="adr" size="sm" /></span>
         {formatChange(adrChange) && (
           <span className={`${styles.periodSummaryChange} ${adrChange && adrChange >= 0 ? styles.positive : styles.negative}`}>
             {formatChange(adrChange)} vs ant.
@@ -642,7 +563,7 @@ function PeriodSummaryStats({
       <div className={styles.periodSummaryDivider} />
       <div className={styles.periodSummaryItem}>
         <span className={styles.periodSummaryValue}>{nightsSold}</span>
-        <span className={styles.periodSummaryLabel}>Noches vendidas</span>
+        <span className={styles.periodSummaryLabel}>Noches vendidas <HelpTooltip termKey="roomNights" size="sm" /></span>
       </div>
       <div className={styles.periodSummaryDivider} />
       <div className={styles.periodSummaryItem}>
@@ -651,9 +572,9 @@ function PeriodSummaryStats({
       </div>
     </div>
   );
-}
+});
 
-function PeriodComparisonWidget({ comparisons }: { comparisons: CommandCenterData['comparisons'] }) {
+const PeriodComparisonWidget = memo(function PeriodComparisonWidget({ comparisons }: { comparisons: CommandCenterData['comparisons'] }) {
   const mom = comparisons?.mom;
   
   // Check if we have valid comparison data
@@ -704,9 +625,9 @@ function PeriodComparisonWidget({ comparisons }: { comparisons: CommandCenterDat
       </span>
     </div>
   );
-}
+});
 
-function SectionHeader({ 
+const SectionHeader = memo(function SectionHeader({ 
   icon, 
   title, 
   subtitle,
@@ -738,9 +659,9 @@ function SectionHeader({
       )}
     </div>
   );
-}
+});
 
-function OperationalHealthWidget({ 
+const OperationalHealthWidget = memo(function OperationalHealthWidget({ 
   unitEconomics, 
   breakeven
 }: { 
@@ -802,14 +723,14 @@ function OperationalHealthWidget({
               <div className={styles.legendItem}>
                 <span className={`${styles.legendDot} ${styles.bgError}`} />
                 <div className={styles.legendInfo}>
-                  <span className={styles.legendLabel}>Fijos</span>
+                  <span className={styles.legendLabel}>Fijos <HelpTooltip termKey="fixedCosts" size="sm" /></span>
                   <span className={styles.legendValue}>{formatCurrencyShort(fixedCosts)}</span>
                 </div>
               </div>
               <div className={styles.legendItem}>
                 <span className={`${styles.legendDot} ${styles.bgWarning}`} />
                 <div className={styles.legendInfo}>
-                  <span className={styles.legendLabel}>Variables</span>
+                  <span className={styles.legendLabel}>Variables <HelpTooltip termKey="variableCosts" size="sm" /></span>
                   <span className={styles.legendValue}>{formatCurrencyShort(variableCosts)}</span>
                 </div>
               </div>
@@ -837,12 +758,12 @@ function OperationalHealthWidget({
           </div>
           <div className={styles.efficiencyContent}>
             <div className={styles.efficiencyMetric}>
-              <span className={styles.efficiencyLabel}>Costo Base por Noche</span>
+              <span className={styles.efficiencyLabel}>Costo Base por Noche <HelpTooltip termKey="cpor" size="sm" /></span>
               <span className={styles.efficiencyValue}>{formatCurrencyShort(totalCpor)}</span>
             </div>
             <div className={styles.efficiencyDivider} />
             <div className={styles.efficiencyMetric}>
-              <span className={styles.efficiencyLabel}>Precio de Equilibrio</span>
+              <span className={styles.efficiencyLabel}>Precio de Equilibrio <HelpTooltip termKey="breakEvenPrice" size="sm" /></span>
               <span className={styles.efficiencyValue}>{formatCurrencyShort(breakeven.breakEvenPrice)}</span>
             </div>
           </div>
@@ -863,7 +784,4 @@ function OperationalHealthWidget({
       </div>
     </section>
   );
-}
-
-
-
+});

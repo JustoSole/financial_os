@@ -1,13 +1,49 @@
-import { useState, useEffect } from 'react';
-import { User, Building, Bell, Sparkles, Check, Crown, Star, Lock, Info, LogOut } from 'lucide-react';
+import { useState, useEffect, useCallback } from 'react';
+import { User, Building, Bell, Sparkles, Check, Crown, Star, Lock, Info, LogOut, Receipt, Plus, Trash2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { getCosts, trackEvent, updateCosts, updateProperty } from '../api';
-import { Button } from '../components/ui';
+import { Button, Alert } from '../components/ui';
+import { useAsyncActionFeedback } from '../hooks/useAsyncActionFeedback';
 import { supabase } from '../lib/supabase';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import styles from './Settings.module.css';
 
 type PlanType = 'free' | 'pro';
+
+interface TaxRule {
+  id: string;
+  name: string;
+  type: 'VAT' | 'OCCUPANCY' | 'CITY_TAX' | 'OTHER';
+  appliesTo: 'room_rate' | 'total';
+  method: 'percentage' | 'fixed_per_night' | 'fixed_per_stay';
+  value: number;
+  includedInRate: boolean;
+}
+
+const DEFAULT_TAX_RULES: TaxRule[] = [
+  {
+    id: 'iva',
+    name: 'IVA',
+    type: 'VAT',
+    appliesTo: 'room_rate',
+    method: 'percentage',
+    value: 21,
+    includedInRate: true,
+  },
+];
+
+const TAX_TYPE_LABELS: Record<TaxRule['type'], string> = {
+  VAT: 'IVA / VAT',
+  OCCUPANCY: 'Tasa de ocupación',
+  CITY_TAX: 'Tasa municipal',
+  OTHER: 'Otro',
+};
+
+const TAX_METHOD_LABELS: Record<TaxRule['method'], string> = {
+  percentage: 'Porcentaje (%)',
+  fixed_per_night: 'Fijo por noche',
+  fixed_per_stay: 'Fijo por estadía',
+};
 
 interface PlanConfig {
   name: string;
@@ -47,15 +83,25 @@ const PLANS: Record<PlanType, PlanConfig> = {
 export default function Settings() {
   const { property, refreshProperty } = useApp();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState('plans');
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'plans');
   const rawPlan = property?.plan;
   const currentPlan: PlanType = rawPlan === 'pro' ? 'pro' : 'free';
   const [propertyName, setPropertyName] = useState('');
   const [currency, setCurrency] = useState('ARS');
   const [roomCount, setRoomCount] = useState(13);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
+  const [taxRules, setTaxRules] = useState<TaxRule[]>(DEFAULT_TAX_RULES);
+  const [taxRulesLoaded, setTaxRulesLoaded] = useState(false);
+  const saveFeedback = useAsyncActionFeedback({
+    successMessage: 'Cambios guardados',
+    errorMessage: 'No se pudieron guardar los cambios',
+    successResetMs: 3000,
+  });
+  const taxFeedback = useAsyncActionFeedback({
+    successMessage: 'Impuestos guardados',
+    errorMessage: 'No se pudieron guardar los impuestos',
+    successResetMs: 3000,
+  });
 
   useEffect(() => {
     if (property) trackEvent(property.id, 'view_settings');
@@ -76,6 +122,18 @@ export default function Settings() {
       if (res.success && res.data) {
         const currentRoomCount = res.data.room_count || 0;
         setRoomCount(currentRoomCount > 0 ? currentRoomCount : 13);
+        if (res.data.tax_rules && res.data.tax_rules.length > 0) {
+          setTaxRules(res.data.tax_rules.map((r: any) => ({
+            id: r.id || crypto.randomUUID(),
+            name: r.name || TAX_TYPE_LABELS[r.type as TaxRule['type']] || r.type,
+            type: r.type || 'VAT',
+            appliesTo: r.appliesTo || 'room_rate',
+            method: r.method || 'percentage',
+            value: r.value ?? 21,
+            includedInRate: r.includedInRate ?? true,
+          })));
+        }
+        setTaxRulesLoaded(true);
       }
     }
     loadCosts();
@@ -84,16 +142,50 @@ export default function Settings() {
     };
   }, [property]);
 
+  const handleAddTaxRule = useCallback(() => {
+    setTaxRules(prev => [...prev, {
+      id: crypto.randomUUID(),
+      name: '',
+      type: 'OTHER',
+      appliesTo: 'room_rate',
+      method: 'percentage',
+      value: 0,
+      includedInRate: true,
+    }]);
+    taxFeedback.reset();
+  }, [taxFeedback]);
+
+  const handleRemoveTaxRule = useCallback((id: string) => {
+    setTaxRules(prev => prev.filter(r => r.id !== id));
+    taxFeedback.reset();
+  }, [taxFeedback]);
+
+  const handleUpdateTaxRule = useCallback((id: string, field: keyof TaxRule, value: any) => {
+    setTaxRules(prev => prev.map(r => {
+      if (r.id !== id) return r;
+      const updated = { ...r, [field]: value };
+      if (field === 'type' && !r.name) {
+        updated.name = TAX_TYPE_LABELS[value as TaxRule['type']] || '';
+      }
+      return updated;
+    }));
+    taxFeedback.reset();
+  }, [taxFeedback]);
+
+  const handleSaveTaxRules = async () => {
+    if (!property) return;
+    await taxFeedback.run(async () => {
+      const res = await updateCosts(property.id, { tax_rules: taxRules });
+      if (!res.success) throw new Error(res.error || 'No se pudieron guardar los impuestos');
+    });
+  };
+
   const handleSave = async () => {
     if (!property) return;
-    setSaving(true);
-    setSaved(false);
-    setSaveError(null);
-
     const trimmedName = propertyName.trim() || property.name;
     const safeRoomCount = Number.isFinite(roomCount) && roomCount > 0 ? Math.round(roomCount) : 13;
 
-    try {
+    await saveFeedback.run(async () => {
       const [propertyRes, costsRes] = await Promise.all([
         updateProperty(property.id, {
           name: trimmedName,
@@ -102,21 +194,10 @@ export default function Settings() {
         }),
         updateCosts(property.id, { roomCount: safeRoomCount }),
       ]);
-
-      if (!propertyRes.success) {
-        throw new Error(propertyRes.error || 'No se pudo guardar la propiedad');
-      }
-      if (!costsRes.success) {
-        throw new Error(costsRes.error || 'No se pudo guardar la configuración');
-      }
-
+      if (!propertyRes.success) throw new Error(propertyRes.error || 'No se pudo guardar la propiedad');
+      if (!costsRes.success) throw new Error(costsRes.error || 'No se pudo guardar la configuración');
       await refreshProperty();
-      setSaved(true);
-    } catch (error: any) {
-      setSaveError(error.message || 'No se pudo guardar la configuración');
-    } finally {
-      setSaving(false);
-    }
+    });
   };
 
   const handleLogout = async () => {
@@ -127,6 +208,7 @@ export default function Settings() {
   const tabs = [
     { id: 'plans', label: 'Planes', icon: Crown },
     { id: 'property', label: 'Propiedad', icon: Building },
+    { id: 'fiscal', label: 'Fiscal', icon: Receipt },
     { id: 'notifications', label: 'Notificaciones', icon: Bell },
     { id: 'account', label: 'Cuenta', icon: User },
   ];
@@ -224,7 +306,7 @@ export default function Settings() {
                     value={propertyName}
                     onChange={(event) => {
                       setPropertyName(event.target.value);
-                      setSaved(false);
+                      saveFeedback.reset();
                     }}
                   />
                 </div>
@@ -234,7 +316,7 @@ export default function Settings() {
                     value={currency}
                     onChange={(event) => {
                       setCurrency(event.target.value);
-                      setSaved(false);
+                      saveFeedback.reset();
                     }}
                   >
                     <option value="ARS">Peso Argentino (ARS)</option>
@@ -256,7 +338,7 @@ export default function Settings() {
                     value={roomCount}
                     onChange={(event) => {
                       setRoomCount(Number(event.target.value));
-                      setSaved(false);
+                      saveFeedback.reset();
                     }}
                   />
                 </div>
@@ -276,12 +358,145 @@ export default function Settings() {
                 <p>Estos datos se usan para calcular ocupación y proyecciones. Asegurate de que sean correctos.</p>
               </div>
 
+              {saveFeedback.error && (
+                <Alert variant="error" title="Error" dismissible onDismiss={saveFeedback.reset}>
+                  {saveFeedback.error}
+                </Alert>
+              )}
               <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'flex-end' }}>
-                <Button onClick={handleSave} disabled={saving}>
-                  {saving ? 'Guardando...' : saved ? 'Guardado' : 'Guardar Cambios'}
+                <Button onClick={handleSave} disabled={saveFeedback.loading}>
+                  {saveFeedback.loading ? 'Guardando...' : saveFeedback.success ? 'Guardado' : 'Guardar Cambios'}
                 </Button>
               </div>
-              {saveError && <p className={styles.errorText}>{saveError}</p>}
+            </div>
+          )}
+
+          {activeTab === 'fiscal' && (
+            <div className={styles.cardSection}>
+              <h3>Impuestos y Tasas</h3>
+              <p className={styles.sectionDesc}>
+                Configurá los impuestos que aplican a tu tarifa. Estos se descuentan del revenue para calcular el resultado operativo real.
+              </p>
+
+              {taxRules.length === 0 && taxRulesLoaded && (
+                <div className={styles.infoBox} style={{ marginBottom: 'var(--space-4)' }}>
+                  <Info size={18} />
+                  <p>No tenés impuestos configurados. Sin impuestos, el P&L no refleja la carga fiscal real. Agregá al menos el IVA.</p>
+                </div>
+              )}
+
+              <div className={styles.taxRulesList}>
+                {taxRules.map((rule, idx) => (
+                  <div key={rule.id} className={styles.taxRuleCard}>
+                    <div className={styles.taxRuleHeader}>
+                      <span className={styles.taxRuleNumber}>#{idx + 1}</span>
+                      <button
+                        className={styles.taxRuleRemoveBtn}
+                        onClick={() => handleRemoveTaxRule(rule.id)}
+                        title="Eliminar impuesto"
+                        type="button"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                    <div className={styles.taxRuleFields}>
+                      <div className="form-group">
+                        <label>Nombre</label>
+                        <input
+                          type="text"
+                          value={rule.name}
+                          placeholder="Ej: IVA, Tasa municipal..."
+                          onChange={(e) => handleUpdateTaxRule(rule.id, 'name', e.target.value)}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>Tipo</label>
+                        <select
+                          value={rule.type}
+                          onChange={(e) => handleUpdateTaxRule(rule.id, 'type', e.target.value)}
+                        >
+                          {Object.entries(TAX_TYPE_LABELS).map(([key, label]) => (
+                            <option key={key} value={key}>{label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label>Método</label>
+                        <select
+                          value={rule.method}
+                          onChange={(e) => handleUpdateTaxRule(rule.id, 'method', e.target.value)}
+                        >
+                          {Object.entries(TAX_METHOD_LABELS).map(([key, label]) => (
+                            <option key={key} value={key}>{label}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label>
+                          {rule.method === 'percentage' ? 'Porcentaje (%)' : `Monto (${currency})`}
+                        </label>
+                        <input
+                          type="number"
+                          min={0}
+                          step={rule.method === 'percentage' ? 0.5 : 1}
+                          value={rule.value}
+                          onChange={(e) => handleUpdateTaxRule(rule.id, 'value', parseFloat(e.target.value) || 0)}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>Aplica sobre</label>
+                        <select
+                          value={rule.appliesTo}
+                          onChange={(e) => handleUpdateTaxRule(rule.id, 'appliesTo', e.target.value)}
+                        >
+                          <option value="room_rate">Tarifa de habitación</option>
+                          <option value="total">Total facturado</option>
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label className={styles.checkboxLabel}>
+                          <input
+                            type="checkbox"
+                            checked={rule.includedInRate}
+                            onChange={(e) => handleUpdateTaxRule(rule.id, 'includedInRate', e.target.checked)}
+                          />
+                          <span>Incluido en la tarifa</span>
+                        </label>
+                        <small style={{ color: 'var(--color-text-muted)', display: 'block', marginTop: '0.25rem' }}>
+                          Si está incluido, se descuenta del revenue en el P&L
+                        </small>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                className={styles.addTaxRuleBtn}
+                onClick={handleAddTaxRule}
+              >
+                <Plus size={16} /> Agregar impuesto
+              </button>
+
+              <div className={styles.infoBox} style={{ marginTop: 'var(--space-4)' }}>
+                <Info size={18} />
+                <p>
+                  <strong>¿Incluido en tarifa?</strong> Si tu tarifa ya incluye el impuesto (ej: publicás $12,100 con IVA incluido),
+                  marcá la casilla. El sistema calculará que $2,100 son impuestos y $10,000 revenue neto.
+                </p>
+              </div>
+
+              {taxFeedback.error && (
+                <Alert variant="error" title="Error" dismissible onDismiss={taxFeedback.reset}>
+                  {taxFeedback.error}
+                </Alert>
+              )}
+              <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'flex-end' }}>
+                <Button onClick={handleSaveTaxRules} disabled={taxFeedback.loading}>
+                  {taxFeedback.loading ? 'Guardando...' : taxFeedback.success ? 'Guardado' : 'Guardar Impuestos'}
+                </Button>
+              </div>
             </div>
           )}
 

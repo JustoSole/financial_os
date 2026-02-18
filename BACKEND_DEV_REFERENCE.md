@@ -1,126 +1,103 @@
 # Financial OS - Backend Architecture & Supabase Integration Reference
 
-Este documento detalla la arquitectura del backend de Financial OS, enfocándose en la infraestructura escalable con **Supabase (PostgreSQL)** y los motores de cálculo financiero.
+Arquitectura del backend de Financial OS: infraestructura con **Supabase (PostgreSQL)** y motores de cálculo financiero.
 
 ## 1. Arquitectura General
 
-El backend utiliza un patrón de **Adaptador de Base de Datos** que permite alternar entre almacenamiento local (JSON) y almacenamiento en la nube (Supabase) mediante variables de entorno.
+Patrón de **Adaptador de Base de Datos** con Supabase como almacenamiento principal.
 
 ### Componentes Clave:
-- **Express API (`backend/src/routes/api.ts`):** Rutas REST que exponen los servicios de métricas y gestión de datos.
-- **Database Switcher (`backend/src/db/index.ts`):** Lógica que decide qué adaptador usar (`DB_TYPE=supabase`).
-- **Supabase Adapter (`backend/src/db/supabase-adapter.ts`):** Implementación de la interfaz de base de datos usando el cliente de Supabase.
-- **Calculation Engine (`backend/src/services/calculation-engine.ts`):** Clase centralizada para el procesamiento de datos financieros en memoria para un periodo dado.
-- **Command Center Service (`backend/src/services/command-center-service.ts`):** Orquestador que unifica todas las métricas estratégicas.
-- **Import Service (`backend/src/services/import-service.ts`):** Servicio unificado para procesar múltiples tipos de reportes de Cloudbeds.
+- **Express API (`backend/src/routes/api.ts`):** Rutas REST.
+- **Database Adapter (`backend/src/db/supabase-adapter.ts`):** Implementación de la interfaz de DB.
+- **Calculation Engine (`backend/src/services/calculation-engine.ts`):** Procesamiento de datos financieros en memoria.
+- **Monthly Close Service (`backend/src/services/monthly-close-service.ts`):** Cierre mensual con checklist de validación.
+- **Import Service (`backend/src/services/import-service.ts`):** Procesamiento de reportes CSV de Cloudbeds.
 
 ---
 
 ## 2. Esquema de Base de Datos (Supabase)
 
-El esquema relacional está optimizado para los reportes de Cloudbeds y el aislamiento multi-inquilino:
-
 | Tabla | Descripción |
 | :--- | :--- |
-| `properties` | Entidad principal (Hotel). Vinculada a un `user_id` de Auth. |
-| `import_files` | Registro de archivos CSV subidos para auditoría. |
-| `ledger_transactions` | Datos del *Expanded Transaction Report* (Caja y flujo). Incluye `room_type` para segmentación por tipo de habitación. |
-| `reservation_financials` | Datos del *Reservations with Financials* (P&L, cobranzas y mix de canales). |
-| `cost_settings` | Configuración de costos V4 (Flexible Categories en `JSONB`). |
+| `properties` | Hotel. Vinculada a `user_id` de Auth. |
+| `import_files` | Registro de archivos CSV subidos. |
+| `ledger_transactions` | Expanded Transaction Report (Caja y flujo). |
+| `reservation_financials` | Reservations with Financials (P&L, cobranzas, canales). |
+| `cost_settings` | Configuración legacy de costos (JSONB). |
 | `action_completions` | Tracking de pasos completados en recomendaciones. |
+| `monthly_periods` | Períodos mensuales (open/closed/closed_with_warnings). |
+| `cost_categories` | Catálogo de categorías de costos (fijos y variables). |
+| `monthly_cost_entries` | Costos cargados por mes y categoría. |
+| `monthly_cash_balances` | Saldo de caja por mes. |
+| `import_jobs` | Tracking detallado de importaciones con cobertura. |
+| `reservation_daily_snapshots` | Snapshots diarios para pacing histórico. |
+
+### Migraciones
+
+Las migraciones SQL están en `supabase/migrations/` y se aplican con Supabase MCP o `supabase db push`. Incluyen:
+- Esquema inicial (`20260123134500_initial_schema_v1.sql`)
+- Snapshots de reservas (`20260215123000_create_reservation_daily_snapshots.sql`)
+- **Monthly close y costos** (`20260218100000_monthly_close_and_costs.sql`): crea `monthly_periods`, `cost_categories` (con seed), `monthly_cost_entries`, `monthly_cash_balances`, `import_jobs`.
+
+> **Nota:** Las tablas principales (`properties`, `ledger_transactions`, etc.) tienen RLS deshabilitado. Las nuevas tablas de monthly close también tienen RLS deshabilitado para mantener consistencia (el backend usa `anon key`).
 
 ---
 
 ## 3. Motores de Cálculo (Services)
 
-### Command Center Engine
-El servicio unificado responde a las 40 preguntas clave mediante:
-- **Health Snapshot**: Estado neto, tendencias y alertas críticas.
-- **Break-even Analysis**: Cálculo dinámico del punto de equilibrio basado en costos fijos y margen de contribución.
-- **Unit Economics**: Desglose de rentabilidad por noche (ADR vs CPOR).
-- **Channel Economics**: Análisis de dependencia de OTAs y profit neto por canal.
-- **Cash Reconciliation**: Comparativa entre lo cargado en el PMS y lo efectivamente cobrado.
+### Monthly Close Service
+Gestiona el flujo de cierre mensual:
+- **Checklist de cierre**: verifica cobertura de transacciones, reservas, costos y saldo de caja.
+- **Score de confianza**: calcula un % basado en checks pasados.
+- **Guard de período cerrado**: los endpoints PUT de costos rechazan cambios en meses cerrados (409).
+
+### Calculation Engine
+Núcleo de cálculos financieros (métricas, rentabilidad, proyecciones):
+- Auto-detección de rango de datos con fallback a histórico.
+- Prorrateo de reservaciones por período.
+- Cálculo de KPIs, comparativas y agregaciones.
 
 ### Reservation Economics Service
-Genera un P&L detallado para cada reserva individual:
-- **Memoria de Cálculo**: Expone cada paso del cálculo (Revenue - Comisiones - Costos Variables - Costos Fijos).
-- **AI Insights**: Explicaciones textuales automáticas sobre la rentabilidad de la reserva.
-- **Confidence Badges**: Clasificación de datos como `Real` o `Estimado`.
-
-### Segmentación por Tipo de Habitación (Room Type)
-El sistema soporta análisis segmentado por tipo de habitación:
-- **Fuente de Datos**: `room_type` se extrae del CSV de Transactions (columna "Room Type") con alta cobertura.
-- **Normalización**: Función `normalizeRoomType()` limpia y valida valores, detectando basura y valores vacíos.
-- **Filtrado en CalculationEngine**: Las reservaciones se filtran automáticamente basándose en las transacciones del `roomType` especificado.
-- **Endpoints con Filtro**: Los endpoints de métricas aceptan parámetro opcional `?roomType=` para análisis segmentado.
-- **Compatibilidad**: Si no se especifica `roomType`, el comportamiento es idéntico al anterior (sin filtro).
-
-**Migración Requerida**: Ejecutar `backend/migrations/add_room_type_to_ledger_transactions.sql` para agregar la columna `room_type` a `ledger_transactions`.
+P&L detallado por reserva con memoria de cálculo.
 
 ---
 
-## 4. Seguridad y Aislamiento
-
-- **Supabase Auth**: Integración con JWT para autenticación de rutas.
-- **Row Level Security (RLS)**: Políticas en PostgreSQL que garantizan que un usuario solo acceda a los datos de sus propias propiedades.
-- **Data Health Score**: Algoritmo que evalúa la calidad y cobertura de los datos importados antes de generar métricas.
-
----
-
-## 5. Configuración del Entorno (`.env`)
-
-Para activar la conexión con Supabase:
-
-```bash
-DB_TYPE=supabase
-SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_ANON_KEY=your-anon-key
-```
-
-Si `DB_TYPE` no es `supabase`, el sistema vuelve automáticamente al modo **JSON Local** (`backend/data/financial_os.json`).
-
----
-
-## 6. Endpoints de la API
+## 4. Endpoints de la API (resumen)
 
 ### Gestión de Datos
-- `POST /api/import/batch`: Carga masiva de reportes.
+- `POST /api/import/batch`: Carga masiva de reportes CSV.
+- `GET /api/import/jobs/:propertyId`: Historial de importaciones con filtro por mes.
 - `GET /api/data-health/:propertyId`: Evaluación de calidad de datos.
 
-### Inteligencia de Negocio
-- `GET /api/metrics/:propertyId/command-center`: Dashboard estratégico unificado.
-- `GET /api/metrics/:propertyId/reservation-economics/:resNumber`: P&L detallado de reserva.
-- `GET /api/metrics/:propertyId/trends`: Evolución histórica de KPIs.
-- `GET /api/metrics/:propertyId/projection`: Proyección de ingresos On-the-books.
+### Monthly Close y Costos
+- `GET /api/close/:propertyId/periods`: Lista de períodos mensuales.
+- `GET /api/close/:propertyId/period/:month`: Detalle de cierre con checks.
+- `POST /api/close/:propertyId/period/:month/close`: Cerrar mes.
+- `POST /api/close/:propertyId/period/:month/reopen`: Reabrir mes.
+- `GET /api/costs/:propertyId/monthly/:month`: Costos del mes (read).
+- `PUT /api/costs/:propertyId/monthly/:month`: Guardar costos del mes.
+- `POST /api/costs/:propertyId/monthly/:month/copy-previous`: Copiar mes anterior.
+- `GET /api/costs/:propertyId/categories`: Catálogo de categorías.
 
-### Segmentación y Filtros
-- `GET /api/meta/:propertyId/room-types`: Lista de tipos de habitación disponibles con count y share.
-- `GET /api/metrics/:propertyId/structure?roomType=`: Métricas de estructura filtradas por tipo de habitación.
-- `GET /api/metrics/:propertyId/reservation-economics?roomType=`: Análisis de rentabilidad filtrado por tipo de habitación.
+> Todos los endpoints `:month` validan formato `YYYY-MM` y devuelven 400 si es inválido.
+
+### Métricas
+- `GET /api/metrics/:propertyId/command-center`: Dashboard estratégico.
+- `GET /api/metrics/:propertyId/reservation-economics`: P&L por reserva.
+- `GET /api/metrics/:propertyId/trends`: Tendencias históricas.
+- `GET /api/metrics/:propertyId/projections`: Proyecciones OTB.
+
+---
+
+## 5. Configuración del Entorno
+
+```bash
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-anon-key
+# Opcional (bypasea RLS):
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+```
 
 ---
 
-## 7. Integración de Room Type
-
-### Pipeline de Datos
-1. **Parseo CSV**: El parser extrae la columna "Room Type" del Expanded Transaction Report.
-2. **Normalización**: `normalizeRoomType()` aplica reglas de limpieza (trim, detección de basura, sanitización).
-3. **Persistencia**: Se guarda en `ledger_transactions.room_type` (TEXT NULL).
-4. **Filtrado**: `CalculationEngine` filtra transacciones y reservaciones por `roomType` cuando se especifica en opciones.
-
-### Uso en Cálculos
-Cuando se especifica `roomType` en `CalculationEngineOptions`:
-- Las transacciones se filtran directamente por `room_type` en la consulta a la base de datos.
-- Las reservaciones se filtran indirectamente: solo se incluyen aquellas cuyo `reservation_number` aparece en transacciones del `roomType` especificado.
-- Todas las métricas (Structure, Reservation Economics, etc.) se calculan sobre el conjunto filtrado.
-
-### Componentes Modificados
-- `backend/src/parsers/csv-parser.ts`: Mapeo de columnas y función de normalización.
-- `backend/src/parsers/index.ts`: Extracción de `roomType` en `parseTransactions()`.
-- `backend/src/db/supabase-adapter.ts`: Filtrado opcional en `getTransactionsByProperty()`.
-- `backend/src/services/calculation-engine.ts`: Soporte de `roomType` en opciones y filtrado de reservaciones.
-- `backend/src/routes/api.ts`: Endpoints meta y filtros opcionales.
-- `frontend/src/pages/Profitability.tsx`: Selector de roomType en la UI.
-
----
-*Documentación actualizada: 28 de Enero, 2026.*
+*Documentación actualizada: 18 de Febrero, 2026.*

@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
+import { useApiQuery, useInvalidate } from '../hooks/useApiQuery';
 import { getProjections, getBreakEven } from '../api';
 import { 
   Card, 
@@ -41,33 +41,27 @@ const GAP_ACTION_PATH: Record<GapAlert['actionType'], string> = {
 
 export default function Projections() {
   const { property, dateRange } = useApp();
+  const invalidate = useInvalidate();
   const horizon = dateRange.preset ?? dateRange.days;
-  const [data, setData] = useState<ProjectionsData | null>(null);
-  const [breakEven, setBreakEven] = useState<{ breakEvenOccupancy?: number } | null>(null);
-  const [loading, setLoading] = useState(true);
+  const enabled = !!property?.id;
 
-  useEffect(() => {
-    async function load() {
-      if (!property?.id) return;
-      setLoading(true);
-      try {
-        const [projRes, beRes] = await Promise.all([
-          getProjections(property.id, horizon),
-          getBreakEven(property.id, 30),
-        ]);
-        if (projRes.success) setData(projRes.data);
-        if (beRes.success && beRes.data) setBreakEven(beRes.data);
-      } catch (err) {
-        console.error('Error loading projections:', err);
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
-  }, [property?.id, horizon]);
+  const { data, isLoading: loading, error: loadErrorObj } = useApiQuery<ProjectionsData>(
+    ['projections', property?.id, horizon],
+    () => getProjections(property!.id, horizon),
+    { enabled }
+  );
+
+  const { data: breakEven } = useApiQuery<{ breakEvenOccupancy?: number }>(
+    ['breakeven', property?.id, '30d'],
+    () => getBreakEven(property!.id, 30),
+    { enabled }
+  );
+
+  const loadError = loadErrorObj?.message ?? null;
 
   if (loading) return <LoadingState message="Calculando proyecciones y ritmo de venta..." />;
-  if (!data) {
+
+  if (loadError) {
     return (
       <div className={styles.container}>
         <header className={styles.header}>
@@ -79,6 +73,28 @@ export default function Projections() {
         <EmptyState
           icon={<DollarSign size={48} />}
           title="No se pudieron cargar las proyecciones"
+          description={loadError}
+          action={{
+            label: 'Reintentar',
+            onClick: () => invalidate(['projections', property?.id]),
+          }}
+        />
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className={styles.container}>
+        <header className={styles.header}>
+          <div className={styles.titleSection}>
+            <h1>Proyecciones OTB</h1>
+            <p className={styles.subtitle}>Radar de ingresos y ritmo de venta (On-The-Books)</p>
+          </div>
+        </header>
+        <EmptyState
+          icon={<DollarSign size={48} />}
+          title="Sin datos de proyecciones"
           description="Importá reservas y transacciones para ver proyecciones OTB y ritmo de venta."
           action={{ label: 'Ir a Importar', to: '/importar' }}
         />
@@ -102,7 +118,7 @@ export default function Projections() {
           <div className={styles.metricHeader}>
             <DollarSign size={20} className={styles.icon} />
             <span>Revenue Asegurado (OTB)</span>
-            <HelpTooltip termKey="revenue_otb" />
+            <HelpTooltip termKey="totalOTB" />
           </div>
           <div className={styles.metricValue}>{formatCurrency(data.summary.revenueOTB)}</div>
           <div className={styles.metricSubtext}>
@@ -124,7 +140,7 @@ export default function Projections() {
           <div className={styles.metricHeader}>
             <Users size={20} className={styles.icon} />
             <span>Ocupación Confirmada</span>
-            <HelpTooltip termKey="occupancy_otb" />
+            <HelpTooltip termKey="projectedOccupancy" />
           </div>
           <div className={styles.metricValue}>{data.summary.occupancyOTB}%</div>
           <div className={styles.pacingBadge}>
@@ -145,7 +161,7 @@ export default function Projections() {
           <div className={styles.metricHeader}>
             <Clock size={20} className={styles.icon} />
             <span>Pick-up (7 días)</span>
-            <HelpTooltip termKey="pickup_7d" />
+            <HelpTooltip termKey="pickup" />
           </div>
           <div className={styles.metricValue}>+{data.summary.pickupLast7Days.reservations}</div>
           <div className={styles.metricSubtext}>
@@ -246,7 +262,7 @@ export default function Projections() {
       <section className={styles.cashFlowSection}>
         <Card>
           <CardHeader>
-            <CardTitle>Efectivo por Entrar (Próximas Semanas)</CardTitle>
+            <CardTitle>Efectivo por Entrar (Próximas Semanas) <HelpTooltip termKey="cashFlow" size="sm" /></CardTitle>
           </CardHeader>
           <div className={styles.cashFlowTable}>
             <div className={styles.tableHeader}>

@@ -1,6 +1,7 @@
 import { ReactNode } from 'react';
 import { TrendingUp, TrendingDown, Minus, HelpCircle } from 'lucide-react';
 import { formatCurrency, formatPercent } from '../utils/formatters';
+import { HelpTooltip } from './HelpTooltip';
 import styles from './HeroMetric.module.css';
 
 interface HeroMetricProps {
@@ -10,13 +11,14 @@ interface HeroMetricProps {
   trend?: {
     value: number;
     label: string;
-    context?: string; // e.g., "pero inflación fue 12%"
+    context?: string;
   };
   status?: 'positive' | 'negative' | 'neutral' | 'warning';
   subtitle?: string;
   icon?: ReactNode;
   tooltip?: string;
-  context?: string; // Additional context below the value
+  helpKey?: string;
+  context?: string;
   compact?: boolean;
 }
 
@@ -29,6 +31,7 @@ export function HeroMetric({
   subtitle,
   icon,
   tooltip,
+  helpKey,
   context,
   compact = false,
 }: HeroMetricProps) {
@@ -82,12 +85,14 @@ export function HeroMetric({
       <div className={styles.header}>
         {icon && <span className={styles.icon}>{icon}</span>}
         <span className={styles.title}>{title}</span>
-        {tooltip && (
+        {helpKey ? (
+          <HelpTooltip termKey={helpKey} size="sm" />
+        ) : tooltip ? (
           <span className={styles.tooltip}>
             <HelpCircle size={14} />
             <span className={styles.tooltipContent}>{tooltip}</span>
           </span>
-        )}
+        ) : null}
       </div>
 
       <div className={styles.body}>

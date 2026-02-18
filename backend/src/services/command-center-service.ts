@@ -2,14 +2,9 @@ import database from '../db';
 import cacheService from './cache-service';
 import { CalculationEngine } from './calculation-engine';
 import { 
-  calculateStructureMetrics, 
   calculateReconciliation, 
   getARAging, 
   getCollectionsData,
-  calculateRevenueProjection,
-  calculateMoMComparison,
-  calculateDOWPerformance,
-  calculateYoYComparison
 } from './metrics-service';
 import { 
   CommandCenterData,
@@ -29,7 +24,8 @@ import {
   DataConfidence,
   CommandCenterComparisons,
   WeeklyAction,
-  DatePeriod
+  DatePeriod,
+  computeBreakEvenOccupancyPercent,
 } from '../types';
 import { getVariableCostPerNight } from './costs-utils';
 
@@ -61,29 +57,36 @@ export async function getCommandCenterData(propertyId: string, startDateOrDays: 
     const cached = cacheService.get<CommandCenterData>(cacheKey);
     if (cached) return cached;
 
+    // Load shared data ONCE for all engines and services
+    const [allReservations, costSettings, importFiles] = await Promise.all([
+      database.getAllReservations(propertyId),
+      database.getCostSettings(propertyId),
+      database.getImportFiles(propertyId),
+    ]);
+
+    const sharedOpts = {
+      preloadedReservations: allReservations,
+      preloadedCostSettings: costSettings,
+      preloadedImportFiles: importFiles,
+    };
+
     const currentPeriod: DatePeriod = { start: startStr, end: endStr, days };
-    const engine = new CalculationEngine(propertyId, currentPeriod);
-    await engine.init();
-
     const previousPeriodRange = getPreviousPeriodRange(startStr, days);
-    const prevEngine = new CalculationEngine(propertyId, { ...previousPeriodRange, days });
-    await prevEngine.init();
 
-    // Get base data with parallel execution for speed
+    // Initialize both engines in parallel with shared data (no extra DB calls)
+    const engine = new CalculationEngine(propertyId, currentPeriod, sharedOpts);
+    const prevEngine = new CalculationEngine(propertyId, { ...previousPeriodRange, days }, { ...sharedOpts, disableFallback: true });
+    await Promise.all([engine.init(), prevEngine.init()]);
+
+    // Parallel execution for remaining queries
     const [
-      costSettings,
       arAging,
       reconciliation,
       collections,
-      comparison,
-      yoyComparison
     ] = await Promise.all([
-      database.getCostSettings(propertyId),
       getARAging(propertyId),
       calculateReconciliation(propertyId, startStr, endStr),
       getCollectionsData(propertyId),
-      calculateMoMComparison(propertyId, startStr, endStr),
-      calculateYoYComparison(propertyId, startStr, endStr)
     ]);
 
     const structure = engine.getStructureMetrics();
@@ -91,6 +94,10 @@ export async function getCommandCenterData(propertyId: string, startDateOrDays: 
     const dataHealth = engine.getDataHealth();
     const prevStructure = prevEngine.getStructureMetrics();
     const prevProfitability = prevEngine.getProfitability();
+
+    // Build MoM/YoY comparisons directly from engine data (no extra DB calls)
+    const comparison = buildMoMFromEngines(structure, profitability, prevStructure, prevProfitability, currentPeriod, previousPeriodRange, days);
+    const yoyComparison = null;
 
     // Calculate all sections using standardized builders
     const health = buildHealthSnapshot(structure, profitability, prevStructure, prevProfitability, dataHealth, collections);
@@ -278,14 +285,9 @@ function buildBreakEvenAnalysis(structure: any, profitability: any, settings: an
   
   // CONTRIBUCIÓN POR NOCHE = ADR neto (después de comisión) - costos variables
   const contribPerNight = (adr * (1 - avgCommRate)) - variablePerNight;
-  
-  // PUNTO DE EQUILIBRIO DE OCUPACIÓN
-  // Fórmula: (costosFijosDiarios / (contribuciónPorNoche × habitaciones)) × 100
-  let breakEvenOccupancy = 0;
-  if (contribPerNight > 0 && roomCount > 0) {
-    breakEvenOccupancy = (fixedPerDay / (contribPerNight * roomCount)) * 100;
-    breakEvenOccupancy = Math.min(100, breakEvenOccupancy); // Cap at 100%
-  }
+
+  // Fórmula centralizada (shared): (fixedPerDay / (contribPerNight * roomCount)) * 100
+  const breakEvenOccupancy = computeBreakEvenOccupancyPercent(fixedPerDay, contribPerNight, roomCount);
 
   // NOCHES NECESARIAS para cubrir costos fijos del período
   const nightsNeeded = contribPerNight > 0 ? periodFixed / contribPerNight : totalCapacityNights;
@@ -517,6 +519,39 @@ function buildWeeklyAction(health: any, breakeven: any, channels: any): WeeklyAc
     return { title: 'Impulsar Ocupación', impact: 'Llegar al punto de equilibrio', type: 'raise_adr', priority: 1 };
   }
   return { title: 'Optimizar Mix de Canales', impact: 'Mejorar margen neto', type: 'reduce_commission', priority: 2 };
+}
+
+/**
+ * Build MoM comparison directly from pre-computed engine data (avoids extra DB queries)
+ */
+function buildMoMFromEngines(
+  structure: any, profitability: any,
+  prevStructure: any, prevProfitability: any,
+  currentPeriod: DatePeriod, prevRange: { start: string; end: string },
+  days: number
+) {
+  const pct = (curr: number, prev: number) => prev !== 0 ? ((curr - prev) / Math.abs(prev)) * 100 : 0;
+  return {
+    current: { label: `${currentPeriod.start} → ${currentPeriod.end}` },
+    previous: { label: `${prevRange.start} → ${prevRange.end}` },
+    metrics: {
+      revenue: {
+        current: profitability.totalRevenue || 0,
+        previous: prevProfitability.totalRevenue || 0,
+        changePercent: pct(profitability.totalRevenue || 0, prevProfitability.totalRevenue || 0),
+      },
+      adr: {
+        current: structure.ADR || 0,
+        previous: prevStructure.ADR || 0,
+        changePercent: pct(structure.ADR || 0, prevStructure.ADR || 0),
+      },
+      occupancy: {
+        current: structure.occupancyRate || 0,
+        previous: prevStructure.occupancyRate || 0,
+        changePercent: pct(structure.occupancyRate || 0, prevStructure.occupancyRate || 0),
+      },
+    },
+  };
 }
 
 /**

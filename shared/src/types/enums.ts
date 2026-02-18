@@ -50,6 +50,24 @@ export type ReservationStatus =
 /** Import file status */
 export type ImportStatus = 'processed' | 'failed';
 
+/** Monthly period status */
+export type MonthlyPeriodStatus = 'open' | 'closed' | 'closed_with_warnings';
+
+/** Confidence band */
+export type ConfidenceBand = 'high' | 'medium' | 'low';
+
+/** Cost entry type */
+export type CostEntryType = 'fixed' | 'variable' | 'extraordinary';
+
+/** Cost entry source */
+export type CostEntrySource = 'manual' | 'external_costs_csv' | 'migration' | 'fallback';
+
+/** Import job type */
+export type ImportJobType = 'pms_transactions' | 'pms_reservations' | 'external_costs_csv';
+
+/** Import job status */
+export type ImportJobStatus = 'processing' | 'processed' | 'failed' | 'partial' | 'duplicated';
+
 /** Weekly action type */
 export type WeeklyActionType = 
   | 'reduce_commission' 

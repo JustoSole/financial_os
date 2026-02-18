@@ -1,5 +1,6 @@
 import { Drawer, DrawerSection, BreakdownRow, InfoGrid } from './ui';
 import { TrustBadge, ConfidenceBadge } from './ui';
+import { HelpTooltip } from './HelpTooltip';
 import { formatCurrency, formatDateShort } from '../utils/formatters';
 import styles from './ReservationDrawer.module.css';
 
@@ -93,7 +94,7 @@ export default function ReservationDrawer({
                 >
                   {formatCurrency(reservation.netProfit)}
                 </span>
-                <span className={styles.profitLabel}>Net Profit</span>
+                <span className={styles.profitLabel}>Net Profit <HelpTooltip termKey="netProfit" size="sm" /></span>
               </div>
               <div className={styles.summaryBadges}>
                 <TrustBadge trust={reservation.trust} />
@@ -103,11 +104,11 @@ export default function ReservationDrawer({
             <div className={styles.summaryKpis}>
               <div className={styles.kpi}>
                 <span className={styles.kpiValue}>{formatCurrency(reservation.profitPerNight)}</span>
-                <span className={styles.kpiLabel}>Profit/noche</span>
+                <span className={styles.kpiLabel}>Profit/noche <HelpTooltip termKey="profitPerNight" size="sm" /></span>
               </div>
               <div className={styles.kpi}>
                 <span className={styles.kpiValue}>{reservation.marginPercent.toFixed(1)}%</span>
-                <span className={styles.kpiLabel}>Margen</span>
+                <span className={styles.kpiLabel}>Margen <HelpTooltip termKey="profitMargin" size="sm" /></span>
               </div>
             </div>
           </DrawerSection>
@@ -121,20 +122,20 @@ export default function ReservationDrawer({
             </div>
             <div className="breakdown-rows">
               <BreakdownRow 
-                label="Revenue" 
+                label={<>Revenue <HelpTooltip termKey="revenue" size="sm" /></>} 
                 value={formatCurrency(reservation.revenue)} 
                 variant="positive" 
               />
               <BreakdownRow
-                label={`(-) Comisión canal (${(reservation.commissionRate * 100).toFixed(0)}%)`}
+                label={<>(-) Comisión canal ({(reservation.commissionRate * 100).toFixed(0)}%) <HelpTooltip termKey="commission" size="sm" /></>}
                 value={`-${formatCurrency(reservation.commissionAmount)}`}
               />
               <BreakdownRow
-                label="(-) Costos variables"
+                label={<>(-) Costos variables <HelpTooltip termKey="variableCosts" size="sm" /></>}
                 value={`-${formatCurrency(reservation.variableCosts)}`}
               />
               <BreakdownRow
-                label="(-) Costos fijos prorrateados"
+                label={<>(-) Costos fijos prorrateados <HelpTooltip termKey="fixedCosts" size="sm" /></>}
                 value={`-${formatCurrency(reservation.fixedCostAllocated)}`}
               />
               <div className={styles.breakdownDivider} />

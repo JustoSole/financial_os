@@ -29,16 +29,16 @@ export interface DatabaseOperations {
   getLastImportByType: (propertyId: string, reportType: ReportType) => Promise<string | null>;
   insertTransactions: (transactions: any[]) => Promise<void>;
   clearTransactionsByFile: (fileId: string) => Promise<void>;
-  getTransactionsByProperty: (propertyId: string, startDate?: string, endDate?: string, roomType?: string) => Promise<any[]>;
+  getTransactionsByProperty: (propertyId: string, startDate?: string, endDate?: string) => Promise<any[]>;
   sumCredits: (propertyId: string, startDate: string, endDate: string) => Promise<number>;
   sumDebits: (propertyId: string, startDate: string, endDate: string) => Promise<number>;
   getDailyFlow: (propertyId: string, startDate: string, endDate: string) => Promise<any[]>;
   getAlerts: (propertyId: string, startDate: string, endDate: string) => Promise<any[]>;
   insertReservations: (reservations: any[]) => Promise<void>;
   clearReservationsByFile: (fileId: string) => Promise<void>;
-  getReservationsByProperty: (propertyId: string) => Promise<any[]>;
+  getReservationsByProperty: (propertyId: string, options?: { startDate?: string; endDate?: string }) => Promise<any[]>;
   getReservationsBySourceFile: (propertyId: string, sourceFileId: string) => Promise<any[]>;
-  getAllReservations: (propertyId: string) => Promise<any[]>;
+  getAllReservations: (propertyId: string, options?: { startDate?: string; endDate?: string }) => Promise<any[]>;
   isReservationDailySnapshotsReady: () => Promise<boolean>;
   upsertReservationDailySnapshots: (rows: any[]) => Promise<void>;
   getReservationDailySnapshotMetrics: (
@@ -72,6 +72,21 @@ export interface DatabaseOperations {
   getDataHealth: (propertyId: string) => Promise<any>;
   getDataDateRange: (propertyId: string) => Promise<DataDateRange>;
   resetDatabase: (propertyId: string) => Promise<void>;
+
+  // Monthly close operations
+  countReservationsForMonth: (propertyId: string, monthStart: string, monthEnd: string) => Promise<number>;
+  getOrCreateMonthlyPeriod: (propertyId: string, month: string) => Promise<any>;
+  listMonthlyPeriods: (propertyId: string, limit?: number) => Promise<any[]>;
+  updateMonthlyPeriod: (propertyId: string, month: string, updates: any) => Promise<any>;
+  getMonthlyCosts: (propertyId: string, month: string) => Promise<any[]>;
+  upsertMonthlyCosts: (propertyId: string, month: string, entries: any[]) => Promise<any>;
+  getMonthlyCashBalance: (propertyId: string, month: string) => Promise<any>;
+  upsertMonthlyCashBalance: (propertyId: string, month: string, balance: number) => Promise<any>;
+  getCostCategories: () => Promise<any[]>;
+  insertImportJob: (job: any) => Promise<any>;
+  updateImportJob: (id: string, updates: any) => Promise<void>;
+  listImportJobs: (propertyId: string, options?: { month?: string; limit?: number }) => Promise<any[]>;
+  findImportJobByHash: (propertyId: string, jobType: string, fileHash: string) => Promise<any>;
 }
 
 // Always use Supabase as the database provider

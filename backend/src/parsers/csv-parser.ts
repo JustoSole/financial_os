@@ -257,13 +257,6 @@ const COLUMN_MAPPINGS: Record<string, string[]> = {
     'fuente de transaccion',
     'fuente transaccion'
   ],
-  'room_type': [
-    'room type', 
-    'tipo de habitacion', 
-    'roomtype',
-    'tipo habitacion'
-  ],
-  
   // === Reservations with Financials ===
   'primary_guest_full_name': [
     'primary guest full name',

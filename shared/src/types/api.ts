@@ -5,7 +5,8 @@
  * =====================================================
  */
 
-import type { ReportType, ActionType, ConfidenceLevel } from './enums';
+import type { ReportType, ActionType, ConfidenceLevel, MonthlyPeriodStatus, CostEntryType } from './enums';
+import type { MonthlyCloseCheck } from './models';
 
 // =====================================================
 // Generic API Response
@@ -128,6 +129,47 @@ export interface PMSChannel {
   reservationCount: number;
   totalRevenue: number;
   category: string | null;
+}
+
+// =====================================================
+// Monthly Close API Types
+// =====================================================
+
+export interface MonthlyPeriodSummary {
+  month: string;
+  status: MonthlyPeriodStatus;
+  confidenceScore: number;
+  confidenceBand: 'high' | 'medium' | 'low';
+  closedAt: string | null;
+}
+
+export interface MonthlyCloseDetail {
+  month: string;
+  status: MonthlyPeriodStatus;
+  confidenceScore: number;
+  confidenceBand: 'high' | 'medium' | 'low';
+  checks: MonthlyCloseCheck[];
+  costs: MonthlyCostEntrySummary[];
+  cashBalance: number | null;
+  closedAt: string | null;
+}
+
+export interface MonthlyCostEntrySummary {
+  categoryKey: string;
+  displayName: string;
+  costType: CostEntryType;
+  amount: number;
+  source: string;
+}
+
+export interface MonthlyCostUpsertRequest {
+  entries: Array<{
+    categoryKey: string;
+    costType: CostEntryType;
+    amount: number;
+    note?: string;
+  }>;
+  cashBalance?: number;
 }
 
 // =====================================================

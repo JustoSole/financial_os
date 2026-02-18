@@ -4,7 +4,7 @@ import {
   Home,
   Zap,
   Target,
-  Calculator,
+  BarChart3,
   Upload,
   Settings,
   HelpCircle,
@@ -23,9 +23,8 @@ const navItems = [
   { to: '/canales', icon: Target, label: 'Canales' },
   { to: '/rentabilidad', icon: TrendingUp, label: 'Rentabilidad' },
   { to: '/proyecciones', icon: Calendar, label: 'Proyecciones' },
-  // { to: '/caja', icon: Wallet, label: 'Caja' },
-  { to: '/costos', icon: Calculator, label: 'Costos' },
-  { to: '/importar', icon: Upload, label: 'Importar' },
+  { to: '/costos', icon: BarChart3, label: 'Control Financiero' },
+  { to: '/importar', icon: Upload, label: 'Datos' },
 ];
 
 interface SidebarContentProps {

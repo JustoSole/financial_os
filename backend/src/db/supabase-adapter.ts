@@ -65,20 +65,37 @@ export const supabaseDatabase = {
     return data;
   },
 
-  getAllReservations: async (propertyId: string) => {
-    // Supabase por defecto limita a 1000 registros. Usamos paginación para traer todos.
+  countReservationsForMonth: async (propertyId: string, monthStart: string, monthEnd: string) => {
+    const { count, error } = await getClient()
+      .from('reservation_financials')
+      .select('*', { count: 'exact', head: true })
+      .eq('property_id', propertyId)
+      .not('status', 'in', '("Cancelled","No Show")')
+      .lte('check_in', monthEnd)
+      .gte('check_out', monthStart);
+    if (error) return 0;
+    return count ?? 0;
+  },
+
+  getAllReservations: async (propertyId: string, options?: { startDate?: string; endDate?: string }) => {
+    const RESERVATION_COLS = 'property_id,reservation_number,guest_name,status,source,source_category,check_in,check_out,reservation_date,room_nights,room_revenue_total,taxes_total,paid_amount,balance_due,suggested_deposit,hotel_collect_flag,source_file_id';
     const PAGE_SIZE = 1000;
     let allData: any[] = [];
     let from = 0;
     let hasMore = true;
     
     while (hasMore) {
-      const { data, error } = await getClient()
+      let query = getClient()
         .from('reservation_financials')
-        .select('*')
+        .select(RESERVATION_COLS)
         .eq('property_id', propertyId)
         .range(from, from + PAGE_SIZE - 1)
-        .order('check_in', { ascending: false }); // Ordenar por check_in desc para priorizar recientes
+        .order('check_in', { ascending: false });
+
+      if (options?.startDate) query = query.gte('check_out', options.startDate);
+      if (options?.endDate) query = query.lte('check_in', options.endDate);
+
+      const { data, error } = await query;
       
       if (error) {
         console.error('Error fetching reservations:', error);
@@ -88,17 +105,13 @@ export const supabaseDatabase = {
       if (data && data.length > 0) {
         allData = allData.concat(data);
         from += PAGE_SIZE;
-        hasMore = data.length === PAGE_SIZE; // Si devuelve menos de PAGE_SIZE, no hay más
+        hasMore = data.length === PAGE_SIZE;
       } else {
         hasMore = false;
       }
     }
     
-    if (allData.length > 0) {
-      console.log(`[DB] Sample reservation: ${allData[0].reservation_number}, CheckIn: ${allData[0].check_in}, Status: ${allData[0].status}`);
-    }
-    
-    console.log(`[DB] Fetched ${allData.length} total reservations from DB for property ${propertyId}`);
+    console.log(`[DB] Fetched ${allData.length} reservations for property ${propertyId}${options?.startDate ? ` (${options.startDate} - ${options.endDate})` : ' (all)'}`);
     return allData;
   },
 
@@ -247,8 +260,16 @@ export const supabaseDatabase = {
   },
 
   resetDatabase: async (propertyId: string) => {
-    // Implement database reset logic here
-    // This is a placeholder for the actual implementation
+    // Child tables first (FK constraints), then existing tables
+    const { error: errMce } = await getClient().from('monthly_cost_entries').delete().eq('property_id', propertyId);
+    if (errMce) throw errMce;
+    const { error: errMcb } = await getClient().from('monthly_cash_balances').delete().eq('property_id', propertyId);
+    if (errMcb) throw errMcb;
+    const { error: errIj } = await getClient().from('import_jobs').delete().eq('property_id', propertyId);
+    if (errIj) throw errIj;
+    const { error: errMp } = await getClient().from('monthly_periods').delete().eq('property_id', propertyId);
+    if (errMp) throw errMp;
+
     const { error: error1 } = await getClient().from('ledger_transactions').delete().eq('property_id', propertyId);
     if (error1) throw error1;
     const { error: error2 } = await getClient().from('reservation_financials').delete().eq('property_id', propertyId);
@@ -429,7 +450,6 @@ export const supabaseDatabase = {
       description: t.description,
       notes: t.notes,
       txn_source: t.txnSource,
-      room_type: t.roomType,
       row_hash: t.rowHash
     }));
 
@@ -472,7 +492,6 @@ export const supabaseDatabase = {
       description: t.description,
       notes: t.notes,
       txn_source: t.txnSource,
-      room_type: t.roomType,
       row_hash: t.rowHash
     }));
 
@@ -494,8 +513,8 @@ export const supabaseDatabase = {
     }
   },
 
-  getTransactionsByProperty: async (propertyId: string, startDate?: string, endDate?: string, roomType?: string) => {
-    // Supabase por defecto limita a 1000 registros. Usamos paginación.
+  getTransactionsByProperty: async (propertyId: string, startDate?: string, endDate?: string) => {
+    const TXN_COLS = 'property_id,txn_at,reservation_number,reservation_source,txn_type,debits,credits,void_flag,refund_flag,adjustment_flag,description,notes,txn_source,source_file_id';
     const PAGE_SIZE = 1000;
     let allData: any[] = [];
     let from = 0;
@@ -504,7 +523,7 @@ export const supabaseDatabase = {
     while (hasMore) {
       let query = getClient()
         .from('ledger_transactions')
-        .select('*')
+        .select(TXN_COLS)
         .eq('property_id', propertyId)
         .range(from, from + PAGE_SIZE - 1)
         .order('txn_at', { ascending: false });
@@ -512,8 +531,6 @@ export const supabaseDatabase = {
       // Ensure we are comparing just the date part if the column is a timestamp
       if (startDate) query = query.gte('txn_at', `${startDate}T00:00:00`);
       if (endDate) query = query.lte('txn_at', `${endDate}T23:59:59`);
-      if (roomType) query = query.eq('room_type', roomType);
-      
       const { data, error } = await query;
       
       if (error) {
@@ -589,7 +606,7 @@ export const supabaseDatabase = {
   getAlerts: async (propertyId: string, startDate: string, endDate: string) => {
     const { data, error } = await getClient()
       .from('ledger_transactions')
-      .select('*')
+      .select('txn_at,credits,debits,refund_flag,adjustment_flag,description')
       .eq('property_id', propertyId)
       .gte('txn_at', `${startDate}T00:00:00`)
       .lte('txn_at', `${endDate}T23:59:59`)
@@ -704,20 +721,25 @@ export const supabaseDatabase = {
     }
   },
 
-  getReservationsByProperty: async (propertyId: string) => {
-    // Supabase por defecto limita a 1000 registros. Usamos paginación.
+  getReservationsByProperty: async (propertyId: string, options?: { startDate?: string; endDate?: string }) => {
+    const RESERVATION_COLS = 'property_id,reservation_number,guest_name,status,source,source_category,check_in,check_out,reservation_date,room_nights,room_revenue_total,taxes_total,paid_amount,balance_due,suggested_deposit,hotel_collect_flag,source_file_id';
     const PAGE_SIZE = 1000;
     let allData: any[] = [];
     let from = 0;
     let hasMore = true;
     
     while (hasMore) {
-      const { data, error } = await getClient()
+      let query = getClient()
         .from('reservation_financials')
-        .select('*')
+        .select(RESERVATION_COLS)
         .eq('property_id', propertyId)
         .range(from, from + PAGE_SIZE - 1)
         .order('check_in', { ascending: false });
+
+      if (options?.startDate) query = query.gte('check_out', options.startDate);
+      if (options?.endDate) query = query.lte('check_in', options.endDate);
+
+      const { data, error } = await query;
       
       if (error) {
         console.error('Error fetching reservations:', error);
@@ -771,7 +793,7 @@ export const supabaseDatabase = {
   getReservationsWithBalance: async (propertyId: string, minBalance: number = 0) => {
     const { data, error } = await getClient()
       .from('reservation_financials')
-      .select('*')
+      .select('reservation_number,guest_name,status,source,check_in,check_out,room_revenue_total,paid_amount,balance_due')
       .eq('property_id', propertyId)
       .gt('balance_due', minBalance)
       .order('balance_due', { ascending: false });
@@ -812,7 +834,7 @@ export const supabaseDatabase = {
   getChannelSummary: async (propertyId: string, startDate: string, endDate: string) => {
     const { data, error } = await getClient()
       .from('reservation_financials')
-      .select('*')
+      .select('source,source_category,room_nights,room_revenue_total')
       .eq('property_id', propertyId)
       .neq('status', 'Cancelled')
       .gte('check_in', startDate)
@@ -854,22 +876,26 @@ export const supabaseDatabase = {
   },
   
   upsertCostSettings: async (propertyId: string, settings: any) => {
+    const upsertData: Record<string, any> = {
+      property_id: propertyId,
+      updated_at: new Date().toISOString(),
+    };
+    const roomCount = settings.roomCount || settings.room_count;
+    if (roomCount !== undefined) upsertData.room_count = roomCount;
+    const cashBalance = settings.startingCashBalance || settings.starting_cash_balance;
+    if (cashBalance !== undefined) upsertData.starting_cash_balance = cashBalance;
+    if (settings.variable_categories !== undefined) upsertData.variable_categories = settings.variable_categories;
+    if (settings.fixed_categories !== undefined) upsertData.fixed_categories = settings.fixed_categories;
+    if (settings.extraordinary_costs !== undefined) upsertData.extraordinary_costs = settings.extraordinary_costs;
+    if (settings.variable_costs !== undefined) upsertData.variable_costs = settings.variable_costs;
+    if (settings.fixed_costs !== undefined) upsertData.fixed_costs = settings.fixed_costs;
+    if (settings.channel_commissions !== undefined) upsertData.channel_commissions = settings.channel_commissions;
+    if (settings.payment_fees !== undefined) upsertData.payment_fees = settings.payment_fees;
+    if (settings.tax_rules !== undefined) upsertData.tax_rules = settings.tax_rules;
+
     const { data, error } = await getClient()
       .from('cost_settings')
-      .upsert({
-        property_id: propertyId,
-        room_count: settings.roomCount || settings.room_count,
-        starting_cash_balance: settings.startingCashBalance || settings.starting_cash_balance,
-        variable_categories: settings.variable_categories,
-        fixed_categories: settings.fixed_categories,
-        extraordinary_costs: settings.extraordinary_costs,
-        variable_costs: settings.variable_costs,
-        fixed_costs: settings.fixed_costs,
-        channel_commissions: settings.channel_commissions,
-        payment_fees: settings.payment_fees,
-        tax_rules: settings.tax_rules,
-        updated_at: new Date().toISOString()
-      })
+      .upsert(upsertData)
       .select()
       .single();
     
@@ -887,7 +913,9 @@ export const supabaseDatabase = {
       .from('reservation_financials')
       .select('status, check_in, check_out, room_revenue_total, paid_amount, balance_due')
       .eq('property_id', propertyId)
-      .not('status', 'in', '("Cancelled","No Show")');
+      .not('status', 'in', '("Cancelled","No Show")')
+      .gte('check_out', startStr)
+      .lte('check_in', endStr);
     
     if (error) return { occupiedNights: 0, totalReservations: 0, avgNightsPerStay: 0 };
 
@@ -952,10 +980,15 @@ export const supabaseDatabase = {
   },
 
   getChannelsFromPMS: async (propertyId: string) => {
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    const cutoff = dateToIsoDay(sixMonthsAgo);
+
     const { data, error } = await getClient()
       .from('reservation_financials')
       .select('source, source_category, room_revenue_total')
-      .eq('property_id', propertyId);
+      .eq('property_id', propertyId)
+      .gte('check_in', cutoff);
     
     if (error) return [];
     
@@ -1044,6 +1077,222 @@ export const supabaseDatabase = {
   // Data Range Detection (para resolver desfase de fechas)
   // =====================================================
   
+  // =====================================================
+  // Monthly Periods
+  // =====================================================
+
+  getOrCreateMonthlyPeriod: async (propertyId: string, month: string) => {
+    const { error } = await getClient()
+      .from('monthly_periods')
+      .upsert(
+        { property_id: propertyId, month, status: 'open' },
+        { onConflict: 'property_id,month', ignoreDuplicates: true }
+      );
+    if (error) throw error;
+
+    const { data, error: fetchError } = await getClient()
+      .from('monthly_periods')
+      .select('*')
+      .eq('property_id', propertyId)
+      .eq('month', month)
+      .single();
+    if (fetchError) throw fetchError;
+    return data;
+  },
+
+  listMonthlyPeriods: async (propertyId: string, limit: number = 12) => {
+    const { data, error } = await getClient()
+      .from('monthly_periods')
+      .select('*')
+      .eq('property_id', propertyId)
+      .order('month', { ascending: false })
+      .limit(limit);
+
+    if (error) return [];
+    return data;
+  },
+
+  updateMonthlyPeriod: async (propertyId: string, month: string, updates: any) => {
+    const { data, error } = await getClient()
+      .from('monthly_periods')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('property_id', propertyId)
+      .eq('month', month)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  // =====================================================
+  // Monthly Cost Entries
+  // =====================================================
+
+  getMonthlyCosts: async (propertyId: string, month: string) => {
+    const { data, error } = await getClient()
+      .from('monthly_cost_entries')
+      .select('*, cost_categories(display_name, sort_order)')
+      .eq('property_id', propertyId)
+      .eq('month', month)
+      .order('created_at', { ascending: true });
+
+    if (error) return [];
+    return data;
+  },
+
+  upsertMonthlyCosts: async (propertyId: string, month: string, entries: Array<{
+    category_key: string;
+    cost_type: string;
+    amount: number;
+    source?: string;
+    note?: string;
+  }>) => {
+    const rows = entries.map(e => ({
+      property_id: propertyId,
+      month,
+      category_key: e.category_key,
+      cost_type: e.cost_type,
+      amount: e.amount,
+      source: e.source || 'manual',
+      note: e.note || null,
+      updated_at: new Date().toISOString(),
+    }));
+
+    const { data, error } = await getClient()
+      .from('monthly_cost_entries')
+      .upsert(rows, { onConflict: 'property_id,month,category_key,cost_type' })
+      .select();
+
+    if (error) throw error;
+    return data;
+  },
+
+  // =====================================================
+  // Monthly Cash Balances
+  // =====================================================
+
+  getMonthlyCashBalance: async (propertyId: string, month: string) => {
+    const { data, error } = await getClient()
+      .from('monthly_cash_balances')
+      .select('*')
+      .eq('property_id', propertyId)
+      .eq('month', month)
+      .maybeSingle();
+
+    if (error) return null;
+    return data;
+  },
+
+  upsertMonthlyCashBalance: async (propertyId: string, month: string, balance: number) => {
+    const { data, error } = await getClient()
+      .from('monthly_cash_balances')
+      .upsert({
+        property_id: propertyId,
+        month,
+        balance,
+        as_of_date: new Date().toISOString().substring(0, 10),
+        source: 'manual',
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'property_id,month' })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  // =====================================================
+  // Cost Categories (catalog)
+  // =====================================================
+
+  getCostCategories: async () => {
+    const { data, error } = await getClient()
+      .from('cost_categories')
+      .select('*')
+      .eq('active', true)
+      .order('sort_order', { ascending: true });
+
+    if (error) return [];
+    return data;
+  },
+
+  // =====================================================
+  // Import Jobs
+  // =====================================================
+
+  insertImportJob: async (job: any) => {
+    const { data, error } = await getClient()
+      .from('import_jobs')
+      .insert({
+        property_id: job.propertyId,
+        job_type: job.jobType,
+        source_system: job.sourceSystem || 'pms',
+        status: job.status || 'processing',
+        target_month: job.targetMonth || null,
+        coverage_start: job.coverageStart || null,
+        coverage_end: job.coverageEnd || null,
+        months_covered: job.monthsCovered || null,
+        file_name: job.fileName,
+        file_hash: job.fileHash,
+        rows_total: job.rowsTotal || 0,
+        rows_ok: job.rowsOk || 0,
+        rows_error: job.rowsError || 0,
+        error_log: job.errorLog || [],
+        import_file_id: job.importFileId || null,
+        uploaded_by: job.uploadedBy || null,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
+
+  updateImportJob: async (id: string, updates: any) => {
+    const { error } = await getClient()
+      .from('import_jobs')
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('id', id);
+
+    if (error) throw error;
+  },
+
+  listImportJobs: async (propertyId: string, options?: { month?: string; limit?: number }) => {
+    let query = getClient()
+      .from('import_jobs')
+      .select('*')
+      .eq('property_id', propertyId)
+      .order('created_at', { ascending: false })
+      .limit(options?.limit || 20);
+
+    if (options?.month) {
+      query = query.or(`target_month.eq.${options.month},months_covered.cs.{${options.month}}`);
+    }
+
+    const { data, error } = await query;
+    if (error) return [];
+    return data;
+  },
+
+  findImportJobByHash: async (propertyId: string, jobType: string, fileHash: string) => {
+    const { data, error } = await getClient()
+      .from('import_jobs')
+      .select('*')
+      .eq('property_id', propertyId)
+      .eq('job_type', jobType)
+      .eq('file_hash', fileHash)
+      .limit(1)
+      .maybeSingle();
+
+    if (error) return null;
+    return data;
+  },
+
+  // =====================================================
+  // Data Health & Diagnostics
+  // =====================================================
+
   /**
    * Obtiene información de salud de datos para determinar qué reportes faltan.
    * Usado por el servicio de acciones para sugerir mejoras en la calidad de datos.

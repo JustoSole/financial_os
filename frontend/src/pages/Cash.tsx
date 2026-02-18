@@ -19,11 +19,13 @@ import {
   PeriodSelector, 
   CashForecast,
   MiniChart,
+  HelpTooltip,
 } from '../components';
 import { Card, Button } from '../components/ui';
 import { HeroMetric, QuickStat } from '../components';
 import type { ScheduledExpense, ForecastDay } from '../components';
 import { useApp } from '../context/AppContext';
+import { useApiQuery, useInvalidate } from '../hooks/useApiQuery';
 import { getCashMetrics, getCollections, trackEvent } from '../api';
 import { formatCurrency, formatCurrencyShort, formatDateShort } from '../utils/formatters';
 import styles from './Cash.module.css';
@@ -40,50 +42,39 @@ function isPlanFeatureAvailable(plan: PlanType, feature: 'forecast' | 'exports' 
 
 export default function Cash() {
   const { property, dateRange } = useApp();
-  const [cashData, setCashData] = useState<any>(null);
-  const [collections, setCollections] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
   const [showAddExpense, setShowAddExpense] = useState(false);
 
-  // Local storage for scheduled expenses (until backend is ready)
   const [scheduledExpenses, setScheduledExpenses] = useState<ScheduledExpense[]>(() => {
     const saved = localStorage.getItem(`expenses_${property?.id}`);
     return saved ? JSON.parse(saved) : [];
   });
 
-  // Map legacy 'paid' plan to 'pro'
   const currentPlan: PlanType = property?.plan === 'paid' ? 'pro' : (property?.plan as PlanType) || 'free';
   const hasForecastAccess = isPlanFeatureAvailable(currentPlan, 'forecast');
+  const invalidate = useInvalidate();
+  const enabled = !!property?.id;
+
+  const { data: cashData, isLoading: cashLoading } = useApiQuery(
+    ['cash-metrics', property?.id, dateRange.days],
+    () => getCashMetrics(property!.id, dateRange.days),
+    { enabled }
+  );
+  const { data: collections, isLoading: collectionsLoading } = useApiQuery(
+    ['collections', property?.id],
+    () => getCollections(property!.id),
+    { enabled }
+  );
+  const loading = cashLoading || collectionsLoading;
 
   useEffect(() => {
-    if (property) {
-      loadData();
-      trackEvent(property.id, 'view_cash');
-    }
-  }, [property, dateRange]);
+    if (property?.id) trackEvent(property.id, 'view_cash');
+  }, [property?.id]);
 
   useEffect(() => {
     if (property?.id) {
       localStorage.setItem(`expenses_${property.id}`, JSON.stringify(scheduledExpenses));
     }
   }, [scheduledExpenses, property?.id]);
-
-  const loadData = async () => {
-    if (!property) return;
-    setLoading(true);
-    try {
-      const [cashRes, collectionsRes] = await Promise.all([
-        getCashMetrics(property.id, dateRange.days),
-        getCollections(property.id),
-      ]);
-      if (cashRes.success) setCashData(cashRes.data);
-      if (collectionsRes.success) setCollections(collectionsRes.data);
-    } catch (err) {
-      console.error('Error loading cash data:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
 
   // Generate forecast data
   const forecastData = useMemo((): ForecastDay[] => {
@@ -260,11 +251,11 @@ export default function Cash() {
     <div className={styles.page}>
       <div className="page-header">
         <div>
-          <h1 className="page-title">Flujo de Caja</h1>
+          <h1 className="page-title">Flujo de Caja <HelpTooltip termKey="cashFlow" size="md" /></h1>
           <p className="page-subtitle">Proyección basada en los últimos {dateRange.days} días</p>
         </div>
         <div className="page-header-actions">
-          <Button variant="secondary" onClick={loadData} disabled={loading}>
+          <Button variant="secondary" onClick={() => invalidate(['cash-metrics', property?.id])} disabled={loading}>
             <RefreshCw size={16} className={loading ? 'spin' : ''} />
             Actualizar
           </Button>
@@ -283,7 +274,7 @@ export default function Cash() {
                   status === 'danger' ? 'negative' : 'neutral'}
           subtitle={config.subtitle}
           icon={<config.icon size={20} />}
-          tooltip="Días que tu caja cubre los egresos actuales"
+          helpKey="runway"
         />
       </section>
 
@@ -303,13 +294,14 @@ export default function Cash() {
             format="currency"
             icon={cashData.runway.avgNetDaily >= 0 ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
             variant={cashData.runway.avgNetDaily >= 0 ? 'success' : 'danger'}
+            helpKey="avgNetDaily"
           />
           <QuickStat
             label="Por cobrar"
             value={collections?.totalBalanceDue || 0}
             format="currency"
             icon={<CreditCard size={16} />}
-            tooltip="Saldos pendientes de reservas futuras"
+            helpKey="pendiente"
           />
           <QuickStat
             label="Días activos"

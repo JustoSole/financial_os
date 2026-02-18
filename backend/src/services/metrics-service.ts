@@ -16,6 +16,7 @@ import {
   DOWPerformance,
   YoYComparison,
   calculateTotalFixedCosts,
+  computeBreakEvenOccupancyPercent,
 } from '../types';
 import { getVariableCostPerNight } from './costs-utils';
 import {
@@ -243,18 +244,18 @@ export async function calculateRevenueProjection(propertyId: string, weeksAhead:
   const cached = cacheService.get<RevenueProjection>(cacheKey);
   if (cached) return cached;
 
-  const reservations = await database.getReservationsByProperty(propertyId);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   
   const endDate = new Date(today.getTime() + weeksAhead * 7 * 24 * 60 * 60 * 1000);
+  const startStr = dateToIsoDay(today);
+  const endStr = dateToIsoDay(endDate);
+  
+  const reservations = await database.getReservationsByProperty(propertyId, { startDate: startStr, endDate: endStr });
   
   const futureReservations = reservations.filter((r: any) => {
     if (isExcludedReservationStatus(r.status)) return false;
-    return reservationOverlapsPeriod(r, {
-      start: dateToIsoDay(today),
-      end: dateToIsoDay(endDate),
-    });
+    return reservationOverlapsPeriod(r, { start: startStr, end: endStr });
   });
   
   const weeks: RevenueProjection['weeks'] = [];
@@ -363,9 +364,9 @@ export async function calculateMoMComparison(propertyId: string, startDateOrDays
   const prevStartStr = prevStart.toISOString().substring(0, 10);
   const prevEndStr = prevEnd.toISOString().substring(0, 10);
 
-  const getMetricsForPeriod = async (startStr: string, endStr: string) => {
-    const period = { start: startStr, end: endStr, days };
-    const reservations = (await database.getReservationsByProperty(propertyId)).filter((r: any) =>
+  const getMetricsForPeriod = async (pStart: string, pEnd: string) => {
+    const period = { start: pStart, end: pEnd, days };
+    const reservations = (await database.getReservationsByProperty(propertyId, { startDate: pStart, endDate: pEnd })).filter((r: any) =>
       reservationOverlapsPeriod(r, period)
     );
 
@@ -491,9 +492,8 @@ export async function calculateMoMComparison(propertyId: string, startDateOrDays
   };
 }
 
-export async function calculateStructureMetrics(propertyId: string, startDateOrDays: string | number = 30, endDate?: string, options?: { roomType?: string }): Promise<any> {
-  const roomType = options?.roomType;
-  const cacheKey = `structure-${propertyId}-${startDateOrDays}-${endDate || ''}-${roomType || 'all'}`;
+export async function calculateStructureMetrics(propertyId: string, startDateOrDays: string | number = 30, endDate?: string): Promise<any> {
+  const cacheKey = `structure-${propertyId}-${startDateOrDays}-${endDate || ''}`;
   const cached = cacheService.get<StructureMetrics>(cacheKey);
   if (cached) return cached;
 
@@ -515,7 +515,7 @@ export async function calculateStructureMetrics(propertyId: string, startDateOrD
     endStr = end.toISOString().substring(0, 10);
   }
 
-  const engine = new CalculationEngine(propertyId, { start: startStr, end: endStr, days }, { roomType });
+  const engine = new CalculationEngine(propertyId, { start: startStr, end: endStr, days });
   await engine.init();
   
   const structure = engine.getStructureMetrics();
@@ -667,39 +667,14 @@ export async function calculateBreakEven(propertyId: string): Promise<any> {
   
   // Contribución por noche = ADR neto (después de comisión) - costos variables
   const contribPerNight = ADR * (1 - avgComm) - totalVarPerNight;
-  
-  // CÁLCULO DEL PUNTO DE EQUILIBRIO DE OCUPACIÓN
-  // =====================================================
-  // Fórmula: breakEvenOccupancy = (costosFijosPorDía / (contribPerNight * roomCount)) * 100
-  // 
-  // Esto responde: "¿Qué porcentaje de ocupación necesito para cubrir mis gastos fijos?"
-  // 
-  // Ejemplo: Si costos fijos diarios = $3,000, contribución/noche = $500, y 10 habitaciones:
-  // breakEvenOccupancy = ($3,000 / ($500 × 10)) × 100 = 60%
-  // Necesitas vender al menos 60% de tus noches disponibles para cubrir costos fijos.
-  //
   const fixedPerDay = fixedMonthly / 30.44;
-  
-  let breakEvenOccupancy = 0;
-  let isImpossible = false;
-  
-  if (contribPerNight <= 0) {
-    // Si la contribución por noche es 0 o negativa, es imposible alcanzar el equilibrio
-    breakEvenOccupancy = 100;
-    isImpossible = true;
-  } else {
-    // Fórmula correcta: noches necesarias / capacidad total por día
-    const nightsNeededPerDay = fixedPerDay / contribPerNight;
-    breakEvenOccupancy = (nightsNeededPerDay / roomCount) * 100;
-    
-    // Si necesitas más del 100% de ocupación, es imposible
-    if (breakEvenOccupancy > 100) {
-      isImpossible = true;
-    }
-  }
+
+  // Fórmula centralizada (shared): (fixedPerDay / (contribPerNight * roomCount)) * 100
+  const breakEvenOccupancy = computeBreakEvenOccupancyPercent(fixedPerDay, contribPerNight, roomCount);
+  const isImpossible = breakEvenOccupancy >= 100;
 
   const result = {
-    breakEvenOccupancy: Math.round(Math.min(100, breakEvenOccupancy) * 10) / 10,
+    breakEvenOccupancy: Math.round(breakEvenOccupancy * 10) / 10,
     currentOccupancy: structure.occupancyRate,
     isImpossible,
     contribPerNight: Math.round(contribPerNight),
@@ -736,8 +711,7 @@ export async function getCollectionsData(propertyId: string, startDateOrDays: st
     return checkIn >= startStr && checkIn <= endStr;
   });
 
-  const allReservations = await database.getReservationsByProperty(propertyId);
-  const totalPaid = allReservations.reduce((sum: number, r: any) => sum + (r.paid_amount || 0), 0);
+  const totalPaid = reservations.reduce((sum: number, r: any) => sum + (Number(r.paid_amount) || 0), 0);
   
   return {
     totalBalanceDue,
@@ -1007,7 +981,7 @@ export async function calculateDOWPerformance(propertyId: string, startDateOrDay
   const endDateObj = new Date(endStr);
 
   const period = { start: startStr, end: endStr, days };
-  const reservations = (await database.getReservationsByProperty(propertyId)).filter((r: any) =>
+  const reservations = (await database.getReservationsByProperty(propertyId, { startDate: startStr, endDate: endStr })).filter((r: any) =>
     reservationOverlapsPeriod(r, period)
   );
 
@@ -1122,9 +1096,9 @@ export async function calculateYoYComparison(propertyId: string, startDateOrDays
   const prevStartStr = prevStart.toISOString().substring(0, 10);
   const prevEndStr = prevEnd.toISOString().substring(0, 10);
 
-  const getMetricsForPeriod = async (startStr: string, endStr: string) => {
-    const period = { start: startStr, end: endStr, days };
-    const reservations = (await database.getReservationsByProperty(propertyId)).filter((r: any) =>
+  const getMetricsForPeriod = async (pStart: string, pEnd: string) => {
+    const period = { start: pStart, end: pEnd, days };
+    const reservations = (await database.getReservationsByProperty(propertyId, { startDate: pStart, endDate: pEnd })).filter((r: any) =>
       reservationOverlapsPeriod(r, period)
     );
 

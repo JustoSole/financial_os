@@ -40,8 +40,6 @@ export function parseTransactionReport(content: string): {
   const descriptionCol = findColumn(headers, 'transaction_description');
   const notesCol = findColumn(headers, 'transaction_notes');
   const txnSourceCol = findColumn(headers, 'transaction_source');
-  const roomTypeCol = findColumn(headers, 'room_type');
-  
   // Validate required columns
   if (!txnDateCol) {
     errors.push('No se encontró columna "Transaction Date Time - Property" - requerida');
@@ -105,8 +103,6 @@ export function parseTransactionReport(content: string): {
         description: descriptionCol ? row[descriptionCol] || null : null,
         notes: notesCol ? row[notesCol] || null : null,
         txnSource: txnSourceCol ? row[txnSourceCol] || null : null,
-        roomType: roomTypeCol ? row[roomTypeCol] || null : null,
-        // Natural key for UPSERT (Issue B)
         rowHash: generateRowHash(row)
       });
     } catch (e) {

@@ -42,4 +42,19 @@ describe('EmptyState', () => {
     const btn = screen.getByRole('button', { name: /abrir docs/i });
     expect(btn).toBeInTheDocument();
   });
+
+  it('renders CTA as button when action.onClick is provided', () => {
+    const onRetry = () => {};
+    render(
+      <BrowserRouter>
+        <EmptyState
+          title="Error"
+          description="Algo falló"
+          action={{ label: 'Reintentar', onClick: onRetry }}
+        />
+      </BrowserRouter>
+    );
+    const btn = screen.getByRole('button', { name: /reintentar/i });
+    expect(btn).toBeInTheDocument();
+  });
 });

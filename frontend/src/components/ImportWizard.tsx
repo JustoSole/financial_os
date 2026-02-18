@@ -205,6 +205,7 @@ export default function ImportWizard({ onComplete, variant = 'default' }: Import
       if (anySuccess) {
         setStep('complete');
         await refreshData();
+        onComplete?.();
       } else {
         setStep('validate'); // Volver a validación para que el usuario vea los errores
       }

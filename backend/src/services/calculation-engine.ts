@@ -12,6 +12,10 @@ import {
 } from '../types';
 import { isDirectChannel } from './metrics-core';
 
+const DEFAULT_TAX_RULES = [
+  { id: 'iva', name: 'IVA', type: 'VAT', appliesTo: 'room_rate', method: 'percentage', value: 21, includedInRate: true },
+];
+
 /**
  * Single Source of Truth for Financial Calculations
  * Centralizes logic to ensure consistency across Home, CommandCenter, and Profitability views.
@@ -24,8 +28,12 @@ import { isDirectChannel } from './metrics-core';
 export interface CalculationEngineOptions {
   /** Si es true, no hace fallback a datos históricos cuando no hay datos en el período */
   disableFallback?: boolean;
-  /** Filtro opcional por roomType */
-  roomType?: string;
+  /** Pre-loaded reservations to avoid redundant DB queries */
+  preloadedReservations?: any[];
+  /** Pre-loaded cost settings */
+  preloadedCostSettings?: any;
+  /** Pre-loaded import files */
+  preloadedImportFiles?: any[];
 }
 
 export class CalculationEngine {
@@ -57,17 +65,21 @@ export class CalculationEngine {
   async init() {
     logger.debug('ENGINE', `Initializing for period: ${this.period.start} to ${this.period.end}`);
     
-    // 1. Cargar configuración y archivos de importación
-    const [settings, importFiles] = await Promise.all([
-      database.getCostSettings(this.propertyId),
-      database.getImportFiles(this.propertyId)
-    ]);
+    // 1. Use pre-loaded data if available, otherwise fetch from DB
+    if (this.options.preloadedCostSettings !== undefined && this.options.preloadedImportFiles !== undefined) {
+      this.costSettings = this.options.preloadedCostSettings;
+      this.importFiles = this.options.preloadedImportFiles || [];
+    } else {
+      const [settings, importFiles] = await Promise.all([
+        database.getCostSettings(this.propertyId),
+        database.getImportFiles(this.propertyId)
+      ]);
+      this.costSettings = settings;
+      this.importFiles = importFiles;
+    }
     
-    this.costSettings = settings;
-    this.importFiles = importFiles;
-    
-    // 2. Cargar TODAS las reservaciones para verificar disponibilidad
-    const allReservations = await database.getAllReservations(this.propertyId);
+    // 2. Use pre-loaded reservations or fetch from DB
+    const allReservations = this.options.preloadedReservations ?? await database.getAllReservations(this.propertyId);
     
     // Guardar todas las reservaciones (sin canceladas) para proyecciones futuras
     this.allReservations = allReservations.filter((r: any) => 
@@ -124,24 +136,9 @@ export class CalculationEngine {
     }
     
     // 5. Cargar transacciones del período (ya sea original o ajustado)
-    this.transactions = await database.getTransactionsByProperty(this.propertyId, this.period.start, this.period.end, this.options.roomType);
+    this.transactions = await database.getTransactionsByProperty(this.propertyId, this.period.start, this.period.end);
     
-    // 6. Si hay filtro por roomType, filtrar reservaciones basándose en las transacciones
-    if (this.options.roomType) {
-      // Obtener reservation_numbers únicos de las transacciones filtradas por roomType
-      const reservationNumbersWithRoomType = new Set(
-        this.transactions
-          .filter(t => t.reservation_number && t.room_type === this.options.roomType)
-          .map(t => t.reservation_number)
-      );
-      
-      // Filtrar reservaciones para incluir solo aquellas con transacciones del roomType especificado
-      filteredReservations = filteredReservations.filter((r: any) => 
-        reservationNumbersWithRoomType.has(r.reservation_number)
-      );
-    }
-    
-    // 7. Aplicar prorrateo a las reservaciones filtradas
+    // 6. Aplicar prorrateo a las reservaciones filtradas
     this.reservations = filteredReservations.map(r => this.prorateReservation(r));
 
     logger.info('ENGINE', `Initialized with ${this.reservations.length} reservations and ${this.transactions.length} transactions.`);
@@ -521,7 +518,7 @@ export class CalculationEngine {
     }, 0);
 
     // Calculate Taxes
-    const taxRules = this.costSettings?.tax_rules || [];
+    const taxRules = (this.costSettings?.tax_rules?.length > 0) ? this.costSettings.tax_rules : DEFAULT_TAX_RULES;
     let totalTaxes = 0;
     
     this.reservations.forEach(r => {
@@ -531,7 +528,7 @@ export class CalculationEngine {
       taxRules.forEach((rule: any) => {
         let taxAmount = 0;
         if (rule.method === 'percentage') {
-          const base = rule.appliesTo === 'room_rate' ? roomRevenue : roomRevenue; // Simplified
+          const base = rule.appliesTo === 'room_rate' ? roomRevenue : roomRevenue;
           taxAmount = base * (rule.value / 100);
         } else if (rule.method === 'fixed_per_night') {
           taxAmount = rule.value * nights;
@@ -539,9 +536,6 @@ export class CalculationEngine {
           taxAmount = rule.value;
         }
         
-        // If tax is already included in rate, it's a cost. 
-        // If it's not included, it's added to total but doesn't affect net profit (unless we consider it revenue first).
-        // Standard RM: Net Profit = Revenue (Net of included taxes) - Costs.
         if (rule.includedInRate) {
           totalTaxes += taxAmount;
         }
@@ -635,9 +629,9 @@ export class CalculationEngine {
     const fixedAllocated = (fixedPerDay / roomCount) * roomNights;
 
     // 4. Taxes
-    const taxRules = this.costSettings?.tax_rules || [];
+    const taxRulesRes = (this.costSettings?.tax_rules?.length > 0) ? this.costSettings.tax_rules : DEFAULT_TAX_RULES;
     let taxes = 0;
-    taxRules.forEach((rule: any) => {
+    taxRulesRes.forEach((rule: any) => {
       let taxAmount = 0;
       if (rule.method === 'percentage') {
         taxAmount = revenue * (rule.value / 100);
@@ -647,8 +641,6 @@ export class CalculationEngine {
         taxAmount = rule.value;
       }
       
-      // Solo sumamos si está incluido en la tarifa (es un costo para el host)
-      // O si queremos mostrarlo como deducción del ingreso bruto.
       if (rule.includedInRate) {
         taxes += taxAmount;
       }
@@ -842,9 +834,9 @@ export class CalculationEngine {
     const channelFixedCost = globalCosts.periodFixed * nightsShare;
     
     // Calculate taxes for this channel
-    const taxRules = this.costSettings?.tax_rules || [];
+    const taxRulesCh = (this.costSettings?.tax_rules?.length > 0) ? this.costSettings.tax_rules : DEFAULT_TAX_RULES;
     let channelTaxes = 0;
-    taxRules.forEach((rule: any) => {
+    taxRulesCh.forEach((rule: any) => {
       if (rule.includedInRate) {
         if (rule.method === 'percentage') {
           channelTaxes += ch.revenue * (rule.value / 100);

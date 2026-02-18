@@ -169,7 +169,7 @@ export default function Channels() {
           </div>
           <div className={styles.opportunityGrid}>
             <div className={styles.opportunityItem}>
-              <span className={styles.opportunityLabel}>Potencial de Ganancia Extra</span>
+              <span className={styles.opportunityLabel}>Potencial de Ganancia Extra <HelpTooltip termKey="ahorroPotencial" size="sm" /></span>
               <span className={styles.opportunityValue}>+{formatCurrency(channelData.savingsPotential.value)}</span>
               <p className={styles.opportunityDesc}>
                 {channelData.savingsPotential.description}. Reemplazar reservas de OTAs por directas aumenta tu margen neto inmediatamente.
@@ -226,6 +226,7 @@ export default function Channels() {
           value={fmt(avgAdr, true)}
           icon={<Target size={16} />}
           hint="Por noche, antes de comisiones"
+          helpKey="adr"
         />
         <MetricDisplay
           label="Tarifa directa"
@@ -234,6 +235,7 @@ export default function Channels() {
           hint="Tu mejor referencia (sin comisión)"
           variant="highlight"
           valueClassName="text-success"
+          helpKey="directChannel"
         />
         <MetricDisplay
           label="Total en comisiones"
@@ -241,12 +243,14 @@ export default function Channels() {
           icon={<Minus size={16} />}
           hint="Lo que pagaste a los canales"
           valueClassName="text-warning"
+          helpKey="commission"
         />
         <MetricDisplay
           label="Ingresos netos"
           value={fmt(totalRevenue - totalCommission, true)}
           icon={<TrendingUp size={16} />}
           hint="Lo que realmente te quedó"
+          helpKey="nrevpar"
         />
       </div>
 
@@ -265,10 +269,10 @@ export default function Channels() {
                 <th className="text-right">Noches</th>
                 <th className="text-right">Lead Time</th>
                 <th className="text-right">Ingresos</th>
-                <th className="text-right">Tarifa</th>
-                <th className="text-right">Comisión</th>
-                <th className="text-right">Profit/Noche</th>
-                <th className="text-right">Costo real</th>
+                <th className="text-right">Tarifa <HelpTooltip termKey="adr" size="sm" /></th>
+                <th className="text-right">Comisión <HelpTooltip termKey="effectiveCommission" size="sm" /></th>
+                <th className="text-right">Profit/Noche <HelpTooltip termKey="channelProfitPerNight" size="sm" /></th>
+                <th className="text-right">Costo real <HelpTooltip termKey="effectiveCommission" size="sm" /></th>
               </tr>
             </thead>
             <tbody>

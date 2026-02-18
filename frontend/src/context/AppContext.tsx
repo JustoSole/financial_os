@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo, ReactNode } from 'react';
 import { useLocation } from 'react-router-dom';
 import { getProperty, getMetrics, getActions, trackEvent } from '../api';
 import { setGlobalCurrency } from '../utils/formatters';
@@ -187,20 +187,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
     refreshData();
   }, [property?.id, dateRange.days, session, refreshData]);
 
+  const contextValue = useMemo(() => ({
+    property,
+    metrics,
+    actions,
+    loading,
+    error,
+    dateRange,
+    setDateRange,
+    refreshData,
+    refreshProperty,
+  }), [property, metrics, actions, loading, error, dateRange, setDateRange, refreshData, refreshProperty]);
+
   return (
-    <AppContext.Provider
-      value={{
-        property,
-        metrics,
-        actions,
-        loading,
-        error,
-        dateRange,
-        setDateRange,
-        refreshData,
-        refreshProperty,
-      }}
-    >
+    <AppContext.Provider value={contextValue}>
       {children}
     </AppContext.Provider>
   );

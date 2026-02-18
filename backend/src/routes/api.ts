@@ -33,10 +33,27 @@ import { calculateTrendMetrics } from '../services/trends-service';
 import { CalculationEngine } from '../services/calculation-engine';
 import { backfillReservationDailySnapshots } from '../services/snapshot-backfill-service';
 import { reconstructReservationSnapshotAsOf } from '../services/snapshot-reconstruction-service';
+import {
+  openMonthlyPeriod,
+  closeMonthlyPeriod,
+  reopenMonthlyPeriod,
+  getMonthlyCloseDetail,
+  calculateMonthlyChecks,
+  calculateConfidenceScore,
+} from '../services/monthly-close-service';
+import { getConfidenceBand } from '@financial-os/shared';
 
 const router = Router();
 
-// Middleware to verify Supabase JWT and set auth context for RLS
+const MONTH_REGEX = /^\d{4}-(0[1-9]|1[0-2])$/;
+function validateMonth(month: string): boolean {
+  return MONTH_REGEX.test(month);
+}
+
+// Auth cache: avoids hitting Supabase auth API on every request
+const _authCache = new Map<string, { user: any; expiresAt: number }>();
+const AUTH_CACHE_TTL = 5 * 60 * 1000; // 5 min
+
 const authenticate = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const authHeader = req.headers.authorization;
@@ -45,28 +62,32 @@ const authenticate = async (req: Request, res: Response, next: NextFunction) => 
     }
 
     const token = authHeader.split(' ')[1];
+
+    const cached = _authCache.get(token);
+    if (cached && Date.now() < cached.expiresAt) {
+      (req as any).user = cached.user;
+      (req as any).accessToken = token;
+      setAuthContext(token);
+      res.on('finish', () => clearAuthContext());
+      return next();
+    }
+
     const { data: { user }, error } = await supabase.auth.getUser(token);
 
     if (error || !user) {
-      console.error('❌ Auth error:', error?.message);
+      _authCache.delete(token);
       return res.status(401).json({ success: false, error: 'Invalid token' });
     }
 
-    // Attach user and token to request
+    _authCache.set(token, { user, expiresAt: Date.now() + AUTH_CACHE_TTL });
+
     (req as any).user = user;
     (req as any).accessToken = token;
-    
-    // Set auth context for RLS operations
     setAuthContext(token);
-    
-    // Clean up auth context when response finishes
-    res.on('finish', () => {
-      clearAuthContext();
-    });
+    res.on('finish', () => clearAuthContext());
     
     next();
   } catch (error: any) {
-    console.error('❌ Auth exception:', error.message);
     clearAuthContext();
     res.status(401).json({ success: false, error: 'Authentication failed' });
   }
@@ -327,14 +348,13 @@ router.get('/metrics/:propertyId/comparison', async (req: Request, res: Response
 
 router.get('/metrics/:propertyId/structure', async (req: Request, res: Response) => {
   try {
-    const { startDate, endDate, days, roomType } = req.query;
-    const options = roomType ? { roomType: roomType as string } : undefined;
+    const { startDate, endDate, days } = req.query;
     let data;
     if (startDate && endDate) {
-      data = await calculateStructureMetrics(req.params.propertyId, startDate as string, endDate as string, options);
+      data = await calculateStructureMetrics(req.params.propertyId, startDate as string, endDate as string);
     } else {
       const d = parseInt(days as string) || 30;
-      data = await calculateStructureMetrics(req.params.propertyId, d, undefined, options);
+      data = await calculateStructureMetrics(req.params.propertyId, d);
     }
     res.json({ success: true, data });
   } catch (error: any) {
@@ -458,14 +478,13 @@ router.get('/metrics/:propertyId/projections', async (req: Request, res: Respons
 // Reservation Economics Routes
 router.get('/metrics/:propertyId/reservation-economics', async (req: Request, res: Response) => {
   try {
-    const { startDate, endDate, days, roomType } = req.query;
-    const options = roomType ? { roomType: roomType as string } : undefined;
+    const { startDate, endDate, days } = req.query;
     let data;
     if (startDate && endDate) {
-      data = await calculateReservationEconomicsSummary(req.params.propertyId, startDate as string, endDate as string, options);
+      data = await calculateReservationEconomicsSummary(req.params.propertyId, startDate as string, endDate as string);
     } else {
       const d = parseInt(days as string) || 30;
-      data = await calculateReservationEconomicsSummary(req.params.propertyId, d, undefined, options);
+      data = await calculateReservationEconomicsSummary(req.params.propertyId, d);
     }
     res.json({ success: true, data: data });
   } catch (error: any) {
@@ -475,11 +494,10 @@ router.get('/metrics/:propertyId/reservation-economics', async (req: Request, re
 
 router.get('/metrics/:propertyId/reservation-economics/list', async (req: Request, res: Response) => {
   try {
-    const { startDate, endDate, days, source, unprofitableOnly, roomType } = req.query;
+    const { startDate, endDate, days, source, unprofitableOnly } = req.query;
     const filters: any = {};
     if (source) filters.source = source as string;
     if (unprofitableOnly === 'true') filters.unprofitableOnly = true;
-    if (roomType) filters.roomType = roomType as string;
     
     let data;
     if (startDate && endDate) {
@@ -592,61 +610,6 @@ router.post('/actions/:propertyId/status', async (req: Request, res: Response) =
 });
 
 // Meta Routes
-router.get('/meta/:propertyId/room-types', async (req: Request, res: Response) => {
-  try {
-    const { propertyId } = req.params;
-    const { startDate, endDate, days } = req.query;
-    
-    // Obtener transacciones con room_type
-    let transactions: any[];
-    if (startDate && endDate) {
-      transactions = await database.getTransactionsByProperty(propertyId, startDate as string, endDate as string);
-    } else {
-      const d = parseInt(days as string) || 90;
-      const end = new Date();
-      const start = new Date(end.getTime() - d * 24 * 60 * 60 * 1000);
-      transactions = await database.getTransactionsByProperty(
-        propertyId, 
-        start.toISOString().substring(0, 10), 
-        end.toISOString().substring(0, 10)
-      );
-    }
-    
-    // Filtrar solo transacciones con room_type y que sean room charges (debits > 0)
-    const roomCharges = transactions.filter(t => 
-      t.room_type && 
-      t.room_type.trim() !== '' && 
-      Number(t.debits) > 0
-    );
-    
-    // Agrupar por room_type
-    const roomTypeMap = new Map<string, { count: number; totalDebits: number }>();
-    for (const txn of roomCharges) {
-      const rt = txn.room_type;
-      if (!roomTypeMap.has(rt)) {
-        roomTypeMap.set(rt, { count: 0, totalDebits: 0 });
-      }
-      const entry = roomTypeMap.get(rt)!;
-      entry.count++;
-      entry.totalDebits += Number(txn.debits) || 0;
-    }
-    
-    const total = roomCharges.length;
-    const result = Array.from(roomTypeMap.entries())
-      .map(([roomType, stats]) => ({
-        roomType,
-        count: stats.count,
-        share: total > 0 ? (stats.count / total) * 100 : 0,
-        totalRevenue: stats.totalDebits
-      }))
-      .sort((a, b) => b.count - a.count);
-    
-    res.json({ success: true, data: result });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
 // Cost Settings Routes
 router.get('/costs/:propertyId/channels', async (req: Request, res: Response) => {
   try {
@@ -661,6 +624,15 @@ router.get('/costs/:propertyId', async (req: Request, res: Response) => {
   try {
     let costs = await database.getCostSettings(req.params.propertyId);
     if (!costs) costs = await database.upsertCostSettings(req.params.propertyId, {});
+
+    // Auto-seed default IVA 21% if no tax rules configured
+    if (!costs.tax_rules || costs.tax_rules.length === 0) {
+      const defaultTaxRules = [
+        { id: 'iva', name: 'IVA', type: 'VAT', appliesTo: 'room_rate', method: 'percentage', value: 21, includedInRate: true },
+      ];
+      costs = await database.upsertCostSettings(req.params.propertyId, { tax_rules: defaultTaxRules });
+    }
+
     const occupancy = await database.getOccupancyStats(req.params.propertyId, 30);
     let totalVariableMonthly = 0;
     let totalFixedMonthly = 0;
@@ -701,6 +673,7 @@ router.put('/costs/:propertyId', async (req: Request, res: Response) => {
       roomCount, startingCashBalance, cleaningPerStay,
       variableCategories, fixedCategories, extraordinaryCosts,
       variableCosts, fixedCosts, channelCommissions, paymentFees,
+      tax_rules,
     } = req.body;
     const updateData: any = {};
     if (roomCount !== undefined) updateData.room_count = roomCount;
@@ -739,9 +712,261 @@ router.put('/costs/:propertyId', async (req: Request, res: Response) => {
     if (channelCommissions) updateData.channel_commissions = { defaultRate: channelCommissions.defaultRate, byChannel: channelCommissions.byChannel };
     if (paymentFees) updateData.payment_fees = { enabled: paymentFees.enabled, defaultRate: paymentFees.defaultRate, byMethod: paymentFees.byMethod };
     if (extraordinaryCosts !== undefined) updateData.extraordinary_costs = extraordinaryCosts;
+    if (tax_rules !== undefined) updateData.tax_rules = tax_rules;
     const costs = await database.upsertCostSettings(req.params.propertyId, updateData);
     cacheService.clear();
     res.json({ success: true, data: costs });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// Monthly Close Routes
+// =====================================================
+
+router.get('/close/:propertyId/periods', async (req: Request, res: Response) => {
+  try {
+    const limit = parseInt(req.query.limit as string) || 12;
+    const periods = await database.listMonthlyPeriods(req.params.propertyId, limit);
+    const data = periods.map((p: any) => ({
+      month: p.month,
+      status: p.status,
+      confidenceScore: Number(p.confidence_score),
+      confidenceBand: getConfidenceBand(Number(p.confidence_score)),
+      closedAt: p.closed_at,
+    }));
+    res.json({ success: true, data });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.get('/close/:propertyId/period/:month', async (req: Request, res: Response) => {
+  try {
+    const { propertyId, month } = req.params;
+    if (!validateMonth(month)) return res.status(400).json({ success: false, error: 'Invalid month format (expected YYYY-MM)' });
+    const detail = await getMonthlyCloseDetail(propertyId, month);
+    res.json({ success: true, data: detail });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.get('/close/:propertyId/period/:month/checks', async (req: Request, res: Response) => {
+  try {
+    const { propertyId, month } = req.params;
+    if (!validateMonth(month)) return res.status(400).json({ success: false, error: 'Invalid month format (expected YYYY-MM)' });
+    const checks = await calculateMonthlyChecks(propertyId, month);
+    const score = calculateConfidenceScore(checks);
+    res.json({ success: true, data: { checks, score, band: getConfidenceBand(score) } });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/close/:propertyId/period/:month/open', async (req: Request, res: Response) => {
+  try {
+    const { propertyId, month } = req.params;
+    if (!validateMonth(month)) return res.status(400).json({ success: false, error: 'Invalid month format (expected YYYY-MM)' });
+    const period = await openMonthlyPeriod(propertyId, month);
+    res.json({ success: true, data: period });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/close/:propertyId/period/:month/close', async (req: Request, res: Response) => {
+  try {
+    const { propertyId, month } = req.params;
+    if (!validateMonth(month)) return res.status(400).json({ success: false, error: 'Invalid month format (expected YYYY-MM)' });
+    const user = (req as any).user;
+    const result = await closeMonthlyPeriod(propertyId, month, user?.id);
+    if (result.error) {
+      return res.status(400).json({ success: false, error: result.error, data: { checks: result.checks } });
+    }
+    cacheService.clear();
+    res.json({ success: true, data: result });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.post('/close/:propertyId/period/:month/reopen', async (req: Request, res: Response) => {
+  try {
+    const { propertyId, month } = req.params;
+    if (!validateMonth(month)) return res.status(400).json({ success: false, error: 'Invalid month format (expected YYYY-MM)' });
+    const user = (req as any).user;
+    const result = await reopenMonthlyPeriod(propertyId, month, user?.id);
+    cacheService.clear();
+    res.json({ success: true, data: result });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// Monthly Costs Routes (by month)
+// =====================================================
+
+router.get('/costs/:propertyId/categories', async (req: Request, res: Response) => {
+  try {
+    const categories = await database.getCostCategories();
+    res.json({ success: true, data: categories });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.get('/costs/:propertyId/monthly/:month', async (req: Request, res: Response) => {
+  try {
+    const { propertyId, month } = req.params;
+    if (!validateMonth(month)) return res.status(400).json({ success: false, error: 'Invalid month format (expected YYYY-MM)' });
+    const entries = await database.getMonthlyCosts(propertyId, month);
+    const cashBalance = await database.getMonthlyCashBalance(propertyId, month);
+    const categories = await database.getCostCategories();
+    
+    const costsByCategory = entries.map((e: any) => ({
+      id: e.id,
+      categoryKey: e.category_key,
+      displayName: e.cost_categories?.display_name || e.category_key,
+      costType: e.cost_type,
+      amount: Number(e.amount),
+      source: e.source,
+      note: e.note,
+    }));
+
+    res.json({
+      success: true,
+      data: {
+        month,
+        entries: costsByCategory,
+        cashBalance: cashBalance ? Number(cashBalance.balance) : null,
+        categories: categories.map((c: any) => ({
+          categoryKey: c.category_key,
+          displayName: c.display_name,
+          costTypeDefault: c.cost_type_default,
+          sortOrder: c.sort_order,
+        })),
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+router.put('/costs/:propertyId/monthly/:month', async (req: Request, res: Response) => {
+  try {
+    const { propertyId, month } = req.params;
+    if (!validateMonth(month)) return res.status(400).json({ success: false, error: 'Invalid month format (expected YYYY-MM)' });
+    const { entries, cashBalance } = req.body;
+
+    const period = await database.getOrCreateMonthlyPeriod(propertyId, month);
+    if (period.status === 'closed' || period.status === 'closed_with_warnings') {
+      return res.status(409).json({
+        success: false,
+        error: `El período ${month} está cerrado. Reabrilo antes de editar.`,
+      });
+    }
+
+    if (entries && entries.length > 0) {
+      const dbEntries = entries.map((e: any) => ({
+        category_key: e.categoryKey,
+        cost_type: e.costType,
+        amount: e.amount,
+        source: e.source || 'manual',
+        note: e.note || null,
+      }));
+      await database.upsertMonthlyCosts(propertyId, month, dbEntries);
+    }
+
+    if (cashBalance !== undefined && cashBalance !== null) {
+      await database.upsertMonthlyCashBalance(propertyId, month, cashBalance);
+    }
+
+    cacheService.clear();
+
+    const updated = await database.getMonthlyCosts(propertyId, month);
+    const updatedCash = await database.getMonthlyCashBalance(propertyId, month);
+
+    res.json({
+      success: true,
+      data: {
+        month,
+        entries: updated.map((e: any) => ({
+          categoryKey: e.category_key,
+          displayName: e.cost_categories?.display_name || e.category_key,
+          costType: e.cost_type,
+          amount: Number(e.amount),
+          source: e.source,
+        })),
+        cashBalance: updatedCash ? Number(updatedCash.balance) : null,
+      },
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Copy costs from previous month
+router.post('/costs/:propertyId/monthly/:month/copy-previous', async (req: Request, res: Response) => {
+  try {
+    const { propertyId, month } = req.params;
+    if (!validateMonth(month)) return res.status(400).json({ success: false, error: 'Invalid month format (expected YYYY-MM)' });
+    const [y, m] = month.split('-').map(Number);
+    const prevDate = new Date(y, m - 2, 1);
+    const prevMonth = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
+
+    const prevCosts = await database.getMonthlyCosts(propertyId, prevMonth);
+    if (prevCosts.length === 0) {
+      return res.status(404).json({ success: false, error: `No hay costos en ${prevMonth}` });
+    }
+
+    const period = await database.getOrCreateMonthlyPeriod(propertyId, month);
+    if (period.status === 'closed' || period.status === 'closed_with_warnings') {
+      return res.status(409).json({
+        success: false,
+        error: `El período ${month} está cerrado. Reabrilo antes de editar.`,
+      });
+    }
+
+    const entries = prevCosts.map((e: any) => ({
+      category_key: e.category_key,
+      cost_type: e.cost_type,
+      amount: Number(e.amount),
+      source: 'manual',
+      note: `Copiado de ${prevMonth}`,
+    }));
+
+    await database.upsertMonthlyCosts(propertyId, month, entries);
+    cacheService.clear();
+
+    const updated = await database.getMonthlyCosts(propertyId, month);
+    res.json({
+      success: true,
+      data: updated.map((e: any) => ({
+        categoryKey: e.category_key,
+        displayName: e.cost_categories?.display_name || e.category_key,
+        costType: e.cost_type,
+        amount: Number(e.amount),
+        source: e.source,
+      })),
+      message: `${entries.length} costos copiados de ${prevMonth}`,
+    });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Import Jobs Route
+router.get('/import/jobs/:propertyId', async (req: Request, res: Response) => {
+  try {
+    const { month } = req.query;
+    const jobs = await database.listImportJobs(req.params.propertyId, {
+      month: month as string,
+      limit: parseInt(req.query.limit as string) || 20,
+    });
+    res.json({ success: true, data: jobs });
   } catch (error: any) {
     res.status(500).json({ success: false, error: error.message });
   }

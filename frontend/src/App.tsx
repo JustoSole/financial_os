@@ -1,5 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from './lib/query-client';
 import { AppProvider } from './context/AppContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { Sidebar, MobileHeader, ConfidenceHeader } from './components';
@@ -100,14 +102,16 @@ function RootRoute() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <Suspense fallback={<RouteFallback />}>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/registro" element={<Register />} />
-          <Route path="/*" element={<RootRoute />} />
-        </Routes>
-      </Suspense>
-    </AuthProvider>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <Suspense fallback={<RouteFallback />}>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/registro" element={<Register />} />
+            <Route path="/*" element={<RootRoute />} />
+          </Routes>
+        </Suspense>
+      </AuthProvider>
+    </QueryClientProvider>
   );
 }

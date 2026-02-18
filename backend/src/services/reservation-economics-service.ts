@@ -38,12 +38,11 @@ export async function calculateReservationEconomicsSummary(
     endStr = end.toISOString().substring(0, 10);
   }
 
-  const roomTypeKey = (options as any)?.roomType ?? '';
-  const cacheKey = `res-econ-summary-${propertyId}-${startStr}-${endStr}-${roomTypeKey}`;
+  const cacheKey = `res-econ-summary-${propertyId}-${startStr}-${endStr}`;
   const cached = cacheService.get<any>(cacheKey);
   if (cached) return cached;
 
-  const engine = new CalculationEngine(propertyId, { start: startStr, end: endStr, days }, options);
+  const engine = new CalculationEngine(propertyId, { start: startStr, end: endStr, days });
   await engine.init();
   
   const summary = engine.getReservationEconomicsSummary();
@@ -77,13 +76,11 @@ export async function getReservationEconomicsList(propertyId: string, startDateO
     endStr = end.toISOString().substring(0, 10);
   }
 
-  const roomTypeKey = filters?.roomType ?? '';
-  const cacheKey = `res-econ-list-${propertyId}-${startStr}-${endStr}-${roomTypeKey}`;
+  const cacheKey = `res-econ-list-${propertyId}-${startStr}-${endStr}`;
   const cached = cacheService.get<any[]>(cacheKey);
   if (cached) return cached;
 
-  const options = filters?.roomType ? { roomType: filters.roomType } : undefined;
-  const engine = new CalculationEngine(propertyId, { start: startStr, end: endStr, days }, options);
+  const engine = new CalculationEngine(propertyId, { start: startStr, end: endStr, days });
   await engine.init();
   const list = engine.getReservationEconomicsList(filters);
   cacheService.set(cacheKey, list);

@@ -1,6 +1,7 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo, memo } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
+import { useApiQuery, useInvalidate } from '../hooks/useApiQuery';
 import {
   getReservationEconomics,
   getReservationEconomicsList,
@@ -8,7 +9,7 @@ import {
   getBreakEven,
   getMinimumPrice,
   getTrends,
-  getRoomTypes,
+  getCommandCenter,
 } from '../api';
 import {
   PeriodSelector,
@@ -80,125 +81,78 @@ type NightsBucket = '1' | '2' | '3+' | 'all';
 
 export default function Profitability() {
   const { property, dateRange } = useApp();
-  const [summary, setSummary] = useState<Summary | null>(null);
-  const [reservations, setReservations] = useState<ReservationEconomicsData[]>([]);
-  const [breakEven, setBreakEven] = useState<any>(null);
-  const [trends, setTrends] = useState<any | null>(null);
+  const invalidate = useInvalidate();
   const [selectedMetric, setSelectedMetric] = useState<'revenue' | 'adr' | 'occupancy' | 'revpar' | 'netProfit'>('revenue');
-
-  // Transform backend trends to TrendChart format
-  const formattedTrends = useMemo(() => {
-    try {
-      if (!trends || !trends.points || !Array.isArray(trends.points)) return null;
-      
-      const metrics = ['revenue', 'adr', 'occupancy', 'revpar', 'netProfit'];
-      const result: any = {};
-      
-      metrics.forEach(metric => {
-        result[metric] = trends.points.map((p: any) => {
-          if (!p || !p.date) return null;
-          
-          // Ensure date is valid for parsing
-          const dateStr = p.date.includes('-') ? p.date : `${p.date.substring(0,4)}-${p.date.substring(4,6)}`;
-          const label = new Date(dateStr + '-02').toLocaleDateString('es-AR', { month: 'short' });
-          
-          return {
-            month: p.date,
-            label: label !== 'Invalid Date' ? label : p.date,
-            value: Number(p[metric]) || 0
-          };
-        }).filter(Boolean);
-      });
-      
-      return result;
-    } catch (err) {
-      console.error('Error formatting trends:', err);
-      return null;
-    }
-  }, [trends]);
-
-  const [comparisons, setComparisons] = useState<any | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('thresholds');
-
-  // Sandbox state
   const [marginPct, setMarginPct] = useState(20);
-  const [simulation, setSimulation] = useState<any>(null);
-  const [simLoading, setSimLoading] = useState(false);
-
-  // Filters
   const [sourceFilter, setSourceFilter] = useState<string>('all');
   const [nightsFilter, setNightsFilter] = useState<NightsBucket>('all');
-  const [roomTypeFilter, setRoomTypeFilter] = useState<string>('all');
-  const [roomTypes, setRoomTypes] = useState<Array<{ roomType: string; count: number; share: number }>>([]);
-
-  // Drawer
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [selectedReservation, setSelectedReservation] =
-    useState<ReservationEconomicsData | null>(null);
+  const [selectedReservation, setSelectedReservation] = useState<ReservationEconomicsData | null>(null);
   const [drawerLoading, setDrawerLoading] = useState(false);
 
-  useEffect(() => {
-    async function load() {
-      if (!property?.id) return;
-      setLoading(true);
-      setLoadError(null);
-      try {
-        const startStr = dateRange.start.toISOString().substring(0, 10);
-        const endStr = dateRange.end.toISOString().substring(0, 10);
+  const dateStartStr = dateRange.start.toISOString().substring(0, 10);
+  const dateEndStr = dateRange.end.toISOString().substring(0, 10);
+  const enabled = !!property?.id;
 
-        const { getCommandCenter } = await import('../api');
+  const { data: summary, isLoading: summaryLoading, error: summaryError } = useApiQuery<Summary>(
+    ['reservation-economics', property?.id, dateStartStr, dateEndStr],
+    () => getReservationEconomics(property!.id, dateStartStr, dateEndStr),
+    { enabled }
+  );
 
-        const roomTypesRes = await getRoomTypes(property.id, startStr, endStr);
-        if (roomTypesRes.success && roomTypesRes.data) {
-          setRoomTypes(roomTypesRes.data);
-        }
+  const { data: reservationsRaw } = useApiQuery<ReservationEconomicsData[]>(
+    ['reservation-economics-list', property?.id, dateStartStr, dateEndStr],
+    () => getReservationEconomicsList(property!.id, dateStartStr, dateEndStr),
+    { enabled }
+  );
+  const reservations = reservationsRaw ?? [];
 
-        const roomTypeParam = roomTypeFilter !== 'all' ? roomTypeFilter : undefined;
+  const { data: breakEven } = useApiQuery(
+    ['breakeven', property?.id, dateStartStr, dateEndStr],
+    () => getBreakEven(property!.id, dateStartStr, dateEndStr),
+    { enabled }
+  );
 
-        const [summaryRes, listRes, breakEvenRes, trendsRes, commandRes] = await Promise.all([
-          getReservationEconomics(property.id, startStr, endStr, roomTypeParam),
-          getReservationEconomicsList(property.id, startStr, endStr, { roomType: roomTypeParam } as any),
-          getBreakEven(property.id, startStr, endStr),
-          getTrends(property.id, 6),
-          getCommandCenter(property.id, startStr, endStr)
-        ]);
+  const { data: trends } = useApiQuery(
+    ['trends', property?.id],
+    () => getTrends(property!.id, 6),
+    { enabled }
+  );
 
-        if (summaryRes.success) setSummary(summaryRes.data);
-        if (listRes.success) setReservations(listRes.data || []);
-        if (breakEvenRes.success) setBreakEven(breakEvenRes.data);
-        if (trendsRes.success) setTrends(trendsRes.data);
-        if (commandRes.success) setComparisons(commandRes.data.comparisons);
+  const { data: commandData } = useApiQuery(
+    ['command-center', property?.id, dateStartStr, dateEndStr],
+    () => getCommandCenter(property!.id, dateStartStr, dateEndStr),
+    { enabled }
+  );
+  const comparisons = commandData?.comparisons ?? null;
 
-        if (!summaryRes.success && !listRes.success) {
-          setLoadError(summaryRes.error || listRes.error || 'No se pudieron cargar los datos de rentabilidad.');
-        }
-      } catch (err) {
-        setLoadError('Error al conectar con el servidor. Revisá tu conexión e intentá de nuevo.');
-        setSummary(null);
-        setReservations([]);
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
-  }, [property?.id, dateRange, roomTypeFilter]);
+  const { data: simulation, isLoading: simLoading } = useApiQuery(
+    ['minimum-price', property?.id, marginPct],
+    () => getMinimumPrice(property!.id, marginPct),
+    { enabled: enabled && activeTab === 'thresholds', staleTime: 30_000 }
+  );
 
-  useEffect(() => {
-    async function runSim() {
-      if (!property?.id || activeTab !== 'thresholds') return;
-      setSimLoading(true);
-      try {
-        const res = await getMinimumPrice(property.id, marginPct);
-        if (res.success) setSimulation(res.data);
-      } finally {
-        setSimLoading(false);
-      }
-    }
-    const timer = setTimeout(runSim, 300);
-    return () => clearTimeout(timer);
-  }, [property?.id, marginPct, activeTab]);
+  const loading = summaryLoading;
+  const loadError = summaryError?.message ?? null;
+
+  const formattedTrends = useMemo(() => {
+    try {
+      if (!trends || !(trends as any).points || !Array.isArray((trends as any).points)) return null;
+      const pts = (trends as any).points;
+      const metrics = ['revenue', 'adr', 'occupancy', 'revpar', 'netProfit'];
+      const result: any = {};
+      metrics.forEach(metric => {
+        result[metric] = pts.map((p: any) => {
+          if (!p || !p.date) return null;
+          const dateStr = p.date.includes('-') ? p.date : `${p.date.substring(0,4)}-${p.date.substring(4,6)}`;
+          const label = new Date(dateStr + '-02').toLocaleDateString('es-AR', { month: 'short' });
+          return { month: p.date, label: label !== 'Invalid Date' ? label : p.date, value: Number(p[metric]) || 0 };
+        }).filter(Boolean);
+      });
+      return result;
+    } catch { return null; }
+  }, [trends]);
 
   // Get unique sources for filter
   const sources = useMemo(() => {
@@ -283,7 +237,10 @@ export default function Profitability() {
           icon={<Database size={48} />}
           title="No se pudo cargar el análisis"
           description={loadError}
-          action={{ label: 'Ir a Importar', to: '/importar' }}
+          action={{
+            label: 'Reintentar',
+            onClick: () => invalidate(['reservation-economics', property?.id]),
+          }}
         />
       </div>
     );
@@ -331,21 +288,24 @@ export default function Profitability() {
 
       {/* Summary Cards */}
       <div className={styles.summary}>
-        <SummaryMetric value={summary?.totalRoomNights || 0} label="Noches analizadas" />
+        <SummaryMetric value={summary?.totalRoomNights || 0} label="Noches analizadas" helpKey="roomNights" />
         <SummaryMetric
           value={formatCurrency(summary?.totalNetProfit || 0)}
           label="Ganancia neta total"
           variant={(summary?.totalNetProfit || 0) >= 0 ? 'positive' : 'negative'}
+          helpKey="netProfit"
         />
         <SummaryMetric
           value={`${(summary?.avgMarginPercent || 0).toFixed(1)}%`}
           label="Margen promedio"
+          helpKey="profitMargin"
         />
         {(summary?.unprofitableCount || 0) > 0 && (
           <SummaryMetric
             value={summary?.unprofitableCount || 0}
             label={`Noches con pérdida (${(summary?.unprofitableShare || 0).toFixed(1)}%)`}
             variant="danger"
+            helpKey="unprofitableReservations"
           />
         )}
         {(summary?.unprofitableLoss || 0) > 0 && (
@@ -441,20 +401,6 @@ export default function Profitability() {
               <option value="2">2 noches</option>
               <option value="3+">3+ noches</option>
             </select>
-            {roomTypes.length > 0 && (
-              <select
-                value={roomTypeFilter}
-                onChange={(e) => setRoomTypeFilter(e.target.value)}
-                className={styles.filterSelect}
-              >
-                <option value="all">Todos los tipos</option>
-                {roomTypes.slice(0, 10).map((rt) => (
-                  <option key={rt.roomType} value={rt.roomType}>
-                    {rt.roomType} ({rt.count})
-                  </option>
-                ))}
-              </select>
-            )}
           </div>
         )}
       </div>
@@ -608,7 +554,7 @@ export default function Profitability() {
 // Analysis View Component (Trends + Comparisons)
 // =====================================================
 
-function AnalysisView({ 
+const AnalysisView = memo(function AnalysisView({ 
   trends, 
   comparisons, 
   selectedMetric, 
@@ -635,7 +581,7 @@ function AnalysisView({
         <Card className={styles.analysisCard}>
           <h3 className={styles.analysisTitle}>
             <TrendingUp size={20} className="text-primary" />
-            Comparativa MoM
+            Comparativa MoM <HelpTooltip termKey="momComparison" size="sm" />
           </h3>
           {comparisons?.mom?.metrics ? (
             <ComparisonSection
@@ -676,7 +622,7 @@ function AnalysisView({
         <Card className={styles.analysisCard}>
           <h3 className={styles.analysisTitle}>
             <BarChart3 size={20} className="text-primary" />
-            Comparativa YoY
+            Comparativa YoY <HelpTooltip termKey="yoyComparison" size="sm" />
           </h3>
           {comparisons?.yoy?.metrics ? (
             <ComparisonSection
@@ -765,13 +711,13 @@ function AnalysisView({
       ) : null}
     </div>
   );
-}
+});
 
 // =====================================================
 // Thresholds View Component
 // =====================================================
 
-function ThresholdsView({
+const ThresholdsView = memo(function ThresholdsView({
   breakEven,
   summary,
   marginPct,
@@ -955,13 +901,13 @@ function ThresholdsView({
       </Card>
     </div>
   );
-}
+});
 
 // =====================================================
 // Patterns View Component
 // =====================================================
 
-function PatternsView({ patterns }: { patterns: Pattern[] }) {
+const PatternsView = memo(function PatternsView({ patterns }: { patterns: Pattern[] }) {
   const lossPatterns = patterns.filter((p) => p.isLossPattern).slice(0, 10);
   const profitPatterns = patterns.filter((p) => !p.isLossPattern).slice(0, 10);
 
@@ -998,9 +944,9 @@ function PatternsView({ patterns }: { patterns: Pattern[] }) {
       </Card>
     </div>
   );
-}
+});
 
-function PatternCard({ pattern, variant }: { pattern: Pattern; variant: 'loss' | 'profit' }) {
+const PatternCard = memo(function PatternCard({ pattern, variant }: { pattern: Pattern; variant: 'loss' | 'profit' }) {
   return (
     <div className={`pattern-card pattern-card--${variant}`}>
       <div className="pattern-header">
@@ -1036,4 +982,4 @@ function PatternCard({ pattern, variant }: { pattern: Pattern; variant: 'loss' |
       </div>
     </div>
   );
-}
+});

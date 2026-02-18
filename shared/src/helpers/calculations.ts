@@ -34,7 +34,8 @@ export function calculateVariableCostForStay(
 }
 
 /**
- * Calculates break-even occupancy percentage
+ * Calculates break-even occupancy percentage (period-based).
+ * Use when you have total fixed costs for a period and total available room-nights.
  */
 export function calculateBreakEvenOccupancy(
   fixedCostsPerPeriod: number,
@@ -44,6 +45,22 @@ export function calculateBreakEvenOccupancy(
   if (contributionPerNight <= 0 || availableNights <= 0) return 100;
   const breakEvenNights = fixedCostsPerPeriod / contributionPerNight;
   return (breakEvenNights / availableNights) * 100;
+}
+
+/**
+ * Break-even occupancy % from daily figures (single source of truth).
+ * Formula: (fixedPerDay / (contribPerNight * roomCount)) * 100
+ * - contribPerNight = ADR*(1-commission) - variableCostPerNight
+ * Returns 0–100 (capped); 100 when impossible (contribPerNight <= 0 or roomCount <= 0).
+ */
+export function computeBreakEvenOccupancyPercent(
+  fixedPerDay: number,
+  contribPerNight: number,
+  roomCount: number
+): number {
+  if (contribPerNight <= 0 || roomCount <= 0) return 100;
+  const raw = (fixedPerDay / (contribPerNight * roomCount)) * 100;
+  return Math.min(100, Math.max(0, raw));
 }
 
 /**

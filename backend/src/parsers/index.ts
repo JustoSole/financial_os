@@ -3,7 +3,7 @@ export * from './types';
 export * from './transaction-parser';
 export * from './reservation-parser';
 
-import { findColumn, normalizeDecimal, normalizeDateTime, normalizeDate, generateRowHash, normalizeRoomType } from './csv-parser';
+import { findColumn, normalizeDecimal, normalizeDateTime, normalizeDate, generateRowHash } from './csv-parser';
 
 // =====================================================
 // Wrapper functions for pre-parsed data (used by import-service)
@@ -27,8 +27,6 @@ export function parseTransactions(data: Record<string, string>[], propertyId: st
   const descriptionCol = findColumn(headers, 'transaction_description');
   const notesCol = findColumn(headers, 'transaction_notes');
   const txnSourceCol = findColumn(headers, 'transaction_source');
-  const roomTypeCol = findColumn(headers, 'room_type');
-  
   const transactions: any[] = [];
   
   for (const row of data) {
@@ -57,7 +55,6 @@ export function parseTransactions(data: Record<string, string>[], propertyId: st
       description: descriptionCol ? row[descriptionCol] || null : null,
       notes: notesCol ? row[notesCol] || null : null,
       txnSource: txnSourceCol ? row[txnSourceCol] || null : null,
-      roomType: roomTypeCol ? normalizeRoomType(row[roomTypeCol]) : null,
       rowHash: generateRowHash(row)
     });
   }

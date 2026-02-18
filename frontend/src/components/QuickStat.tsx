@@ -1,6 +1,7 @@
 import { ReactNode } from 'react';
 import { HelpCircle } from 'lucide-react';
 import { formatCurrency, formatPercent } from '../utils/formatters';
+import { HelpTooltip } from './HelpTooltip';
 import TrendIndicator from './TrendIndicator';
 import styles from './QuickStat.module.css';
 
@@ -12,6 +13,7 @@ interface QuickStatProps {
   trendLabel?: string;
   icon?: ReactNode;
   tooltip?: string;
+  helpKey?: string;
   compact?: boolean;
   variant?: 'default' | 'success' | 'warning' | 'danger';
 }
@@ -24,6 +26,7 @@ export function QuickStat({
   trendLabel,
   icon,
   tooltip,
+  helpKey,
   compact = false,
   variant = 'default',
 }: QuickStatProps) {
@@ -49,12 +52,14 @@ export function QuickStat({
       <div className={styles.header}>
         {icon && <span className={styles.icon}>{icon}</span>}
         <span className={styles.label}>{label}</span>
-        {tooltip && (
+        {helpKey ? (
+          <HelpTooltip termKey={helpKey} size="sm" />
+        ) : tooltip ? (
           <span className={styles.tooltip}>
             <HelpCircle size={12} />
             <span className={styles.tooltipContent}>{tooltip}</span>
           </span>
-        )}
+        ) : null}
       </div>
       <div className={styles.value}>{formatValue()}</div>
       {trend !== undefined && (

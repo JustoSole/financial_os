@@ -130,6 +130,29 @@ export function formatDateRange(start: string | Date, end: string | Date): strin
   return `${formatDateShort(start)} - ${formatDateShort(end)}`;
 }
 
+const MONTH_LABELS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+/**
+ * Format a month string (YYYY-MM) for display
+ */
+export function formatMonth(month: string): string {
+  const [y, mo] = month.split('-');
+  return `${MONTH_LABELS[parseInt(mo, 10) - 1]} ${y}`;
+}
+
+/**
+ * Generate month options for dropdowns (past and future months)
+ */
+export function generateMonthOptions(back = 12, forward = 1): string[] {
+  const opts: string[] = [];
+  const now = new Date();
+  for (let i = -back; i <= forward; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    opts.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+  }
+  return opts;
+}
+
 /**
  * Format a metric value based on its label/type
  */

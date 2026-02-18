@@ -9,7 +9,7 @@ type CacheEntry<T> = {
 
 class CacheService {
   private cache = new Map<string, CacheEntry<any>>();
-  private readonly DEFAULT_TTL = 5 * 60 * 1000; // 5 minutes
+  private readonly DEFAULT_TTL = 10 * 60 * 1000; // 10 minutes
 
   /**
    * Get an item from cache

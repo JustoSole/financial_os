@@ -1,52 +1,149 @@
 // =====================================================
 // API Client - Simple fetch wrapper for Financial OS MVS
+// Timeout, cancellation (AbortSignal), retry for transient errors
 // =====================================================
 import { supabase } from './lib/supabase';
 
 const API_BASE = (import.meta as any).env.VITE_API_URL || '/api';
 
+const DEFAULT_TIMEOUT_MS = 28000;
+const MAX_RETRIES = 1;
+const RETRY_BACKOFF_MS = 800;
+
+let _cachedToken: string | null = null;
+let _tokenExpiry = 0;
+
+async function getAuthToken(): Promise<string | null> {
+  if (_cachedToken && Date.now() < _tokenExpiry) return _cachedToken;
+  const { data: { session } } = await supabase.auth.getSession();
+  _cachedToken = session?.access_token ?? null;
+  _tokenExpiry = Date.now() + 4 * 60 * 1000;
+  return _cachedToken;
+}
+
+supabase.auth.onAuthStateChange(() => {
+  _cachedToken = null;
+  _tokenExpiry = 0;
+});
+
+export type ApiErrorCode = 'timeout' | 'network' | 'auth' | 'server' | 'unknown';
+
+export interface RequestResult<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  errorCode?: ApiErrorCode;
+}
+
+export interface RequestOptions extends Omit<RequestInit, 'signal'> {
+  signal?: AbortSignal;
+  timeoutMs?: number;
+  retries?: number;
+}
+
+function isRetryable(code: ApiErrorCode, status?: number): boolean {
+  if (code === 'network') return true;
+  if (code === 'server' && status != null && status >= 500) return true;
+  return false;
+}
+
 async function request<T>(
   endpoint: string,
-  options: RequestInit = {}
-): Promise<{ success: boolean; data?: T; error?: string }> {
-  try {
-    // Obtener el token de sesión de Supabase
-    const { data: { session } } = await supabase.auth.getSession();
-    const token = session?.access_token;
+  options: RequestOptions = {}
+): Promise<RequestResult<T>> {
+  const { signal: userSignal, timeoutMs = DEFAULT_TIMEOUT_MS, retries = MAX_RETRIES, ...init } = options;
+  let lastCode: ApiErrorCode = 'unknown';
+  let lastStatus: number | undefined;
+  let lastMessage = 'Error de conexión';
 
-    const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`;
-
-    const response = await fetch(url, {
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-        ...options.headers,
-      },
-      ...options,
-    });
-
-    // Be defensive: backend might return non-JSON on errors
-    const raw = await response.text();
-    let json: any;
-    try {
-      json = raw ? JSON.parse(raw) : { success: response.ok };
-    } catch {
-      json = { success: response.ok, error: raw || `HTTP ${response.status}` };
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    if (attempt > 0) {
+      await new Promise((r) => setTimeout(r, RETRY_BACKOFF_MS));
     }
 
-    // If auth failed, force local sign-out to avoid getting stuck with an invalid/stale token
-    if (response.status === 401) {
-      try {
-        await supabase.auth.signOut({ scope: 'local' });
-      } catch {
-        // Ignore sign-out failures; we still return the 401 payload
+    const timeoutController = new AbortController();
+    const timeoutId = setTimeout(() => timeoutController.abort(), timeoutMs);
+    let removeUserAbort: (() => void) | undefined;
+    if (userSignal) {
+      if (userSignal.aborted) {
+        clearTimeout(timeoutId);
+        return { success: false, error: 'Cancelado', errorCode: 'unknown' };
       }
+      const onUserAbort = () => timeoutController.abort();
+      userSignal.addEventListener('abort', onUserAbort);
+      removeUserAbort = () => userSignal.removeEventListener('abort', onUserAbort);
     }
 
-    return json;
-  } catch (error: any) {
-    return { success: false, error: error.message || 'Error de conexión' };
+    try {
+      const token = await getAuthToken();
+      const url = endpoint.startsWith('http') ? endpoint : `${API_BASE}${endpoint}`;
+
+      const response = await fetch(url, {
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          ...(init.headers ?? {}),
+        },
+        ...init,
+        signal: timeoutController.signal,
+      });
+
+      clearTimeout(timeoutId);
+      removeUserAbort?.();
+      lastStatus = response.status;
+
+      const raw = await response.text();
+      let json: RequestResult<T> & { success?: boolean };
+      try {
+        json = raw ? JSON.parse(raw) : { success: response.ok };
+      } catch {
+        json = { success: response.ok, error: raw || `HTTP ${response.status}` };
+      }
+
+      if (response.status === 401) {
+        removeUserAbort?.();
+        try {
+          await supabase.auth.signOut({ scope: 'local' });
+        } catch {
+          /* ignore */
+        }
+        return {
+          success: false,
+          error: (json as any).error || 'Sesión expirada',
+          errorCode: 'auth',
+        };
+      }
+
+      if (!response.ok) {
+        removeUserAbort?.();
+        lastCode = response.status >= 500 ? 'server' : 'unknown';
+        lastMessage = (json as any).error || raw || `HTTP ${response.status}`;
+        if (isRetryable(lastCode, response.status) && attempt < retries) continue;
+        return {
+          success: false,
+          error: lastMessage,
+          errorCode: lastCode,
+        };
+      }
+
+      removeUserAbort?.();
+      return { ...json, success: json.success !== false } as RequestResult<T>;
+    } catch (error: any) {
+      clearTimeout(timeoutId);
+      removeUserAbort?.();
+      if (error?.name === 'AbortError') {
+        lastCode = 'timeout';
+        lastMessage = 'La solicitud tardó demasiado. Reintentá.';
+      } else {
+        lastCode = 'network';
+        lastMessage = error?.message || 'Error de conexión. Revisá tu red.';
+      }
+      if (isRetryable(lastCode, lastStatus) && attempt < retries) continue;
+      return { success: false, error: lastMessage, errorCode: lastCode };
+    }
   }
+
+  return { success: false, error: lastMessage, errorCode: lastCode };
 }
 
 // =====================================================
@@ -58,18 +155,6 @@ export const updateProperty = (id: string, data: any) =>
     method: 'PUT',
     body: JSON.stringify(data),
   });
-
-// =====================================================
-// Meta Routes
-// =====================================================
-export const getRoomTypes = (propertyId: string, startDateOrDays?: string | number, endDate?: string) => {
-  const params = startDateOrDays && typeof startDateOrDays === 'string' && endDate
-    ? new URLSearchParams({ startDate: startDateOrDays, endDate })
-    : startDateOrDays && typeof startDateOrDays === 'number'
-    ? new URLSearchParams({ days: startDateOrDays.toString() })
-    : new URLSearchParams();
-  return request<any[]>(`/meta/${propertyId}/room-types?${params}`);
-};
 
 // =====================================================
 // Metrics (Section 7 PRD)
@@ -193,19 +278,18 @@ export const getProjections = (propertyId: string, horizon: number = 90) =>
 // =====================================================
 // Reservation Economics (P&L por reserva)
 // =====================================================
-export const getReservationEconomics = (propertyId: string, startDateOrDays: string | number = 30, endDate?: string, roomType?: string) => {
+export const getReservationEconomics = (propertyId: string, startDateOrDays: string | number = 30, endDate?: string) => {
   const params = typeof startDateOrDays === 'string' && endDate
     ? new URLSearchParams({ startDate: startDateOrDays, endDate })
     : new URLSearchParams({ days: startDateOrDays.toString() });
-  if (roomType) params.append('roomType', roomType);
   return request<any>(`/metrics/${propertyId}/reservation-economics?${params}`);
 };
 
 export const getReservationEconomicsList = (
   propertyId: string, 
   startDateOrDays: string | number = 30,
-  endDateOrFilters?: string | { source?: string; nightsBucket?: '1' | '2' | '3+'; unprofitableOnly?: boolean; roomType?: string },
-  filters?: { source?: string; nightsBucket?: '1' | '2' | '3+'; unprofitableOnly?: boolean; roomType?: string }
+  endDateOrFilters?: string | { source?: string; nightsBucket?: '1' | '2' | '3+'; unprofitableOnly?: boolean },
+  filters?: { source?: string; nightsBucket?: '1' | '2' | '3+'; unprofitableOnly?: boolean }
 ) => {
   let params: URLSearchParams;
   let actualFilters = filters;
@@ -220,7 +304,6 @@ export const getReservationEconomicsList = (
   if (actualFilters?.source) params.append('source', actualFilters.source);
   if (actualFilters?.nightsBucket) params.append('nightsBucket', actualFilters.nightsBucket);
   if (actualFilters?.unprofitableOnly) params.append('unprofitableOnly', 'true');
-  if (actualFilters?.roomType) params.append('roomType', actualFilters.roomType);
   return request<any[]>(`/metrics/${propertyId}/reservation-economics/list?${params}`);
 };
 
@@ -511,6 +594,108 @@ export function calculateTotalFromCategories(categories: CostCategory[]): number
 export function calculateTotalFixedCosts(costs: FixedCostsInput): number {
   return (costs.salaries || 0) + (costs.rent || 0) + (costs.utilities || 0) + (costs.other || 0);
 }
+
+// =====================================================
+// Monthly Close
+// =====================================================
+
+export interface MonthlyPeriodSummary {
+  month: string;
+  status: 'open' | 'closed' | 'closed_with_warnings';
+  confidenceScore: number;
+  confidenceBand: 'high' | 'medium' | 'low';
+  closedAt: string | null;
+}
+
+export interface MonthlyCloseCheck {
+  key: string;
+  label: string;
+  type: 'required' | 'recommended';
+  passed: boolean;
+  detail?: string;
+}
+
+export interface MonthlyCloseDetail {
+  month: string;
+  status: 'open' | 'closed' | 'closed_with_warnings';
+  confidenceScore: number;
+  confidenceBand: 'high' | 'medium' | 'low';
+  checks: MonthlyCloseCheck[];
+  costs: MonthlyCostEntry[];
+  cashBalance: number | null;
+  closedAt: string | null;
+}
+
+export interface MonthlyCostEntry {
+  categoryKey: string;
+  displayName: string;
+  costType: 'fixed' | 'variable' | 'extraordinary';
+  amount: number;
+  source: string;
+  note?: string;
+}
+
+export interface CostCategoryOption {
+  categoryKey: string;
+  displayName: string;
+  costTypeDefault: string;
+  sortOrder: number;
+}
+
+export interface MonthlyCostsResponse {
+  month: string;
+  entries: MonthlyCostEntry[];
+  cashBalance: number | null;
+  categories: CostCategoryOption[];
+}
+
+export const getMonthlyPeriods = (propertyId: string, limit: number = 12) =>
+  request<MonthlyPeriodSummary[]>(`/close/${propertyId}/periods?limit=${limit}`);
+
+export const getMonthlyCloseDetail = (propertyId: string, month: string) =>
+  request<MonthlyCloseDetail>(`/close/${propertyId}/period/${month}`);
+
+export const getMonthlyChecks = (propertyId: string, month: string) =>
+  request<{ checks: MonthlyCloseCheck[]; score: number; band: string }>(
+    `/close/${propertyId}/period/${month}/checks`
+  );
+
+export const openMonth = (propertyId: string, month: string) =>
+  request<any>(`/close/${propertyId}/period/${month}/open`, { method: 'POST' });
+
+export const closeMonth = (propertyId: string, month: string) =>
+  request<any>(`/close/${propertyId}/period/${month}/close`, { method: 'POST' });
+
+export const reopenMonth = (propertyId: string, month: string) =>
+  request<any>(`/close/${propertyId}/period/${month}/reopen`, { method: 'POST' });
+
+export const getMonthlyCosts = (propertyId: string, month: string) =>
+  request<MonthlyCostsResponse & { entries: MonthlyCostEntry[]; categories: CostCategoryOption[] }>(`/costs/${propertyId}/monthly/${month}`);
+
+export const updateMonthlyCosts = (propertyId: string, month: string, data: {
+  entries: Array<{
+    categoryKey: string;
+    costType: string;
+    amount: number;
+    note?: string;
+  }>;
+  cashBalance?: number | null;
+}) =>
+  request<any>(`/costs/${propertyId}/monthly/${month}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+
+export const copyPreviousMonthCosts = (propertyId: string, month: string) =>
+  request<any>(`/costs/${propertyId}/monthly/${month}/copy-previous`, { method: 'POST' });
+
+export const getCostCategories = (propertyId: string) =>
+  request<CostCategoryOption[]>(`/costs/${propertyId}/categories`);
+
+export const getImportJobs = (propertyId: string, month?: string) => {
+  const params = month ? new URLSearchParams({ month }) : new URLSearchParams();
+  return request<any[]>(`/import/jobs/${propertyId}?${params}`);
+};
 
 // =====================================================
 // Data Health (Section 5 PRD)

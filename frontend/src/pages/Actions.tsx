@@ -16,9 +16,10 @@ import {
   HeroMetric,
   QuickStat,
 } from '../components';
-import { Card, Button, LoadingState } from '../components/ui';
+import { Card, Button, LoadingState, Alert, ConfirmDialog } from '../components/ui';
 import type { InsightStep } from '../components';
 import { useApp } from '../context/AppContext';
+import { useApiQuery, useInvalidate } from '../hooks/useApiQuery';
 import { 
   getInsights, 
   getCollections, 
@@ -66,63 +67,39 @@ interface ActionItem {
 
 export default function Actions() {
   const { property, dateRange } = useApp();
+  const invalidate = useInvalidate();
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [insights, setInsights] = useState<any>(null);
-  const [collections, setCollections] = useState<any>(null);
-  const [economics, setEconomics] = useState<any>(null);
-  const [cash, setCash] = useState<any>(null);
-  const [backendActions, setBackendActions] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   
-  // Track completed steps and whole-action status from backend
   const [completedSteps, setCompletedSteps] = useState<Record<string, string[]>>({});
   const [actionStatuses, setActionStatuses] = useState<Record<string, { status: 'done' | 'dismissed'; completedAt: string }>>({});
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'done' | 'dismissed'>('all');
   const [settingStatusId, setSettingStatusId] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [confirmState, setConfirmState] = useState<{ actionId: string; status: 'done' | 'dismissed' } | null>(null);
 
-  // Use primitive values to prevent infinite re-renders
   const propertyId = property?.id;
   const days = dateRange.days;
+  const enabled = !!propertyId;
+
+  const { data: insights } = useApiQuery(['insights', propertyId, days], () => getInsights(propertyId!, days), { enabled });
+  const { data: collections } = useApiQuery(['collections', propertyId, days], () => getCollections(propertyId!, days), { enabled });
+  const { data: economics } = useApiQuery(['economics', propertyId, days], () => getReservationEconomics(propertyId!, days), { enabled });
+  const { data: cash } = useApiQuery(['cash-metrics', propertyId, days], () => getCashMetrics(propertyId!, days), { enabled });
+  const { data: backendActionsRaw } = useApiQuery<any[]>(['actions', propertyId, days], () => getActions(propertyId!, days), { enabled });
+  const { data: completedRes, isLoading: loading } = useApiQuery<any>(['completed-steps', propertyId], () => getCompletedSteps(propertyId!), { enabled });
+
+  const backendActions = backendActionsRaw || [];
 
   useEffect(() => {
-    if (!propertyId) return;
-    
-    let isMounted = true;
-    
-    const loadData = async () => {
-      setLoading(true);
-      
-      const [insightsRes, collectionsRes, economicsRes, cashRes, actionsRes, completedRes] = await Promise.all([
-        getInsights(propertyId, days),
-        getCollections(propertyId, days),
-        getReservationEconomics(propertyId, days),
-        getCashMetrics(propertyId, days),
-        getActions(propertyId, days),
-        getCompletedSteps(propertyId),
-      ]);
+    if (completedRes) {
+      setCompletedSteps(completedRes.byActionId || {});
+      setActionStatuses(completedRes.actionStatus || {});
+    }
+  }, [completedRes]);
 
-      if (!isMounted) return;
-
-      if (insightsRes.success) setInsights(insightsRes.data);
-      if (collectionsRes.success) setCollections(collectionsRes.data);
-      if (economicsRes.success) setEconomics(economicsRes.data);
-      if (cashRes.success) setCash(cashRes.data);
-      if (actionsRes.success) setBackendActions(actionsRes.data || []);
-      if (completedRes.success && completedRes.data) {
-        setCompletedSteps(completedRes.data.byActionId || {});
-        setActionStatuses(completedRes.data.actionStatus || {});
-      }
-
-      setLoading(false);
-    };
-
-    loadData();
-    trackEvent(propertyId, 'view_actions');
-
-    return () => {
-      isMounted = false;
-    };
-  }, [propertyId, days]); // Only depend on primitive values
+  useEffect(() => {
+    if (propertyId) trackEvent(propertyId, 'view_actions');
+  }, [propertyId]);
 
   // Generate all actions from data
   const allActions = useMemo((): ActionItem[] => {
@@ -390,9 +367,9 @@ export default function Actions() {
     try {
       await completeActionStep(property.id, actionId, stepId);
       trackEvent(property.id, 'action_step_completed', { actionId, stepId });
-    } catch (error) {
-      console.error('Error saving step completion:', error);
-      // Rollback on error
+      setActionError(null);
+    } catch (error: any) {
+      setActionError(error?.message || 'No se pudo guardar. Reintentá.');
       setCompletedSteps(prev => ({
         ...prev,
         [actionId]: (prev[actionId] || []).filter(id => id !== stepId)
@@ -406,23 +383,23 @@ export default function Actions() {
     return allActions.filter(a => a.category === cat && !isResolved(a)).length;
   };
 
-  // Set whole-action status (done | dismissed) with confirmation
   const handleSetActionStatus = async (actionId: string, status: 'done' | 'dismissed') => {
     if (!property?.id) return;
-    const message = status === 'done'
-      ? '¿Marcar esta acción como hecha?'
-      : '¿Descartar esta acción? No se mostrará como pendiente.';
-    if (!window.confirm(message)) return;
+    setConfirmState({ actionId, status });
+  };
+
+  const onConfirmStatus = async () => {
+    if (!property?.id || !confirmState) return;
+    const { actionId, status } = confirmState;
+    setConfirmState(null);
     setSettingStatusId(actionId);
+    setActionError(null);
     try {
       await setActionStatus(property.id, actionId, status);
-      const res = await getCompletedSteps(property.id);
-      if (res.success && res.data?.actionStatus) {
-        setActionStatuses(res.data.actionStatus);
-      }
+      invalidate(['completed-steps', property.id]);
       trackEvent(property.id, 'action_status_set', { actionId, status });
-    } catch (err) {
-      console.error('Error setting action status:', err);
+    } catch (err: any) {
+      setActionError(err?.message || 'No se pudo actualizar el estado. Reintentá.');
     } finally {
       setSettingStatusId(null);
     }
@@ -451,6 +428,25 @@ export default function Actions() {
         </div>
         <PeriodSelector />
       </div>
+
+      {actionError && (
+        <Alert variant="error" title="Error" dismissible onDismiss={() => setActionError(null)}>
+          {actionError}
+        </Alert>
+      )}
+
+      <ConfirmDialog
+        open={!!confirmState}
+        title={confirmState?.status === 'done' ? 'Marcar como hecha' : 'Descartar acción'}
+        message={confirmState?.status === 'done'
+          ? '¿Marcar esta acción como hecha?'
+          : '¿Descartar esta acción? No se mostrará como pendiente.'}
+        confirmLabel={confirmState?.status === 'done' ? 'Marcar hecha' : 'Descartar'}
+        cancelLabel="Cancelar"
+        variant={confirmState?.status === 'dismissed' ? 'danger' : 'primary'}
+        onConfirm={onConfirmStatus}
+        onCancel={() => setConfirmState(null)}
+      />
 
       {/* Hero Metric */}
       {totalPotentialSavings > 0 && (
