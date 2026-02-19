@@ -44,12 +44,19 @@ const TAX_METHOD_OPTIONS: { value: TaxRule['method']; label: string }[] = [
   { value: 'fixed_per_stay', label: 'Fijo por estadía' },
 ];
 
+const MONTH_REGEX = /^\d{4}-(0[1-9]|1[0-2])$/;
+function parseMonthFromSearchParams(searchParams: URLSearchParams): string {
+  const m = searchParams.get('month');
+  if (m && MONTH_REGEX.test(m)) return m;
+  return new Date().toISOString().slice(0, 7);
+}
+
 export default function Import() {
   const { property, refreshData } = useApp();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedMonth, setSelectedMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [selectedMonth, setSelectedMonth] = useState(() => parseMonthFromSearchParams(searchParams));
   const [monthlyEntries, setMonthlyEntries] = useState<MonthlyCostEntry[]>([]);
   const [monthlyCashBalance, setMonthlyCashBalance] = useState<number | null>(null);
   const [categoryOptions, setCategoryOptions] = useState<CostCategoryOption[]>([]);
@@ -57,9 +64,15 @@ export default function Import() {
   const [taxRules, setTaxRules] = useState<TaxRule[]>(DEFAULT_TAX_RULES);
   const [taxRulesLoaded, setTaxRulesLoaded] = useState(false);
   const [showTaxSection, setShowTaxSection] = useState(false);
-  const [activeTab, setActiveTab] = useState<'reportes' | 'costos'>(
-    searchParams.get('tab') === 'costos' ? 'costos' : 'reportes'
-  );
+  const tabFromUrl = searchParams.get('tab') === 'costos' ? 'costos' : 'reportes';
+  const [activeTab, setActiveTab] = useState<'reportes' | 'costos'>(tabFromUrl);
+
+  // Sync selectedMonth and activeTab from URL when navigating (e.g. from Control financiero with ?tab=costos&month=)
+  useEffect(() => {
+    const urlMonth = parseMonthFromSearchParams(searchParams);
+    setSelectedMonth(urlMonth);
+    if (searchParams.get('tab') === 'costos') setActiveTab('costos');
+  }, [searchParams.get('month'), searchParams.get('tab')]);
 
   const costsSaveFeedback = useAsyncActionFeedback({
     successMessage: 'Costos guardados',
@@ -240,7 +253,16 @@ export default function Import() {
         <select
           className={styles.closeBarSelect}
           value={selectedMonth}
-          onChange={(e) => setSelectedMonth(e.target.value)}
+          aria-label="Seleccionar mes para reportes y costos"
+          onChange={(e) => {
+            const value = e.target.value;
+            setSelectedMonth(value);
+            setSearchParams((prev) => {
+              const next = new URLSearchParams(prev);
+              next.set('month', value);
+              return next;
+            }, { replace: true });
+          }}
         >
           {monthOptions.map(m => (
             <option key={m} value={m}>{formatMonth(m)}</option>
@@ -253,14 +275,29 @@ export default function Import() {
         <button
           type="button"
           className={`${styles.dataTab} ${activeTab === 'reportes' ? styles.dataTabActive : ''}`}
-          onClick={() => setActiveTab('reportes')}
+          onClick={() => {
+            setActiveTab('reportes');
+            setSearchParams((prev) => {
+              const next = new URLSearchParams(prev);
+              next.set('tab', 'reportes');
+              return next;
+            }, { replace: true });
+          }}
         >
           <Upload size={16} /> Cargar reportes
         </button>
         <button
           type="button"
           className={`${styles.dataTab} ${activeTab === 'costos' ? styles.dataTabActive : ''}`}
-          onClick={() => setActiveTab('costos')}
+          onClick={() => {
+            setActiveTab('costos');
+            setSearchParams((prev) => {
+              const next = new URLSearchParams(prev);
+              next.set('tab', 'costos');
+              if (!next.has('month')) next.set('month', selectedMonth);
+              return next;
+            }, { replace: true });
+          }}
         >
           <Calculator size={16} /> Cargar costos
         </button>
@@ -498,9 +535,12 @@ export default function Import() {
               {costsCopyFeedback.error && <Alert variant="error" dismissible onDismiss={costsCopyFeedback.reset}>{costsCopyFeedback.error}</Alert>}
 
               <div className={styles.costosDelMesActions}>
-                <Button variant="secondary" size="sm" onClick={handleCopyCosts} loading={costsCopyFeedback.loading} icon={<Copy size={14} />}>
-                  Copiar mes anterior
-                </Button>
+                <div className={styles.costosDelMesActionsCopy}>
+                  <Button variant="secondary" size="sm" onClick={handleCopyCosts} loading={costsCopyFeedback.loading} icon={<Copy size={14} />}>
+                    Copiar mes anterior
+                  </Button>
+                  <span className={styles.costosCopyHint}>Copia los costos del mes anterior. Si ese mes no tiene datos, cargalos y guardalos primero.</span>
+                </div>
                 <Button variant="primary" size="sm" onClick={handleSaveCosts} loading={costsSaveFeedback.loading} icon={costsSaveFeedback.success ? <CheckCircle size={14} /> : <Save size={14} />}>
                   {costsSaveFeedback.success ? 'Guardado' : 'Guardar costos'}
                 </Button>

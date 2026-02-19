@@ -817,7 +817,10 @@ router.post('/costs/:propertyId/monthly/:month/copy-previous', async (req: Reque
 
     const prevCosts = await database.getMonthlyCosts(propertyId, prevMonth);
     if (prevCosts.length === 0) {
-      return res.status(404).json({ success: false, error: `No hay costos en ${prevMonth}` });
+      return res.status(404).json({
+        success: false,
+        error: `No hay costos cargados para ${prevMonth}. Cargá y guardá primero los costos de ese mes en Datos → Cargar costos.`,
+      });
     }
 
     const entries = prevCosts.map((e: any) => ({

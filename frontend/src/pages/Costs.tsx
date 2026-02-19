@@ -239,7 +239,7 @@ export default function Costs() {
           title: 'Costos fijos elevados',
           description: `Tus costos fijos representan ${fixedPct.toFixed(0)}% del revenue. Revisá si podés optimizar estructura.`,
           icon: 'fixed',
-          link: { to: '/importar?tab=costos', label: 'Editar costos' },
+          link: { to: `/importar?tab=costos&month=${selectedMonth}`, label: 'Editar costos' },
           variant: 'warning',
         });
       }
@@ -251,7 +251,7 @@ export default function Costs() {
         title: 'Sin costos variables',
         description: 'Sin costos variables configurados los márgenes pueden estar inflados. Cargá limpieza y amenities en Datos.',
         icon: 'variable',
-        link: { to: '/importar?tab=costos', label: 'Ir a Datos' },
+        link: { to: `/importar?tab=costos&month=${selectedMonth}`, label: 'Ir a Datos' },
         variant: 'info',
       });
     }
@@ -278,13 +278,14 @@ export default function Costs() {
           title: 'Costos subieron vs mes anterior',
           description: `Los costos operativos subieron ${deltaPct.toFixed(0)}% respecto al mes anterior. Revisá el detalle por categoría.`,
           icon: 'mom',
-          link: { to: '/importar?tab=costos', label: 'Ver costos' },
+          link: { to: `/importar?tab=costos&month=${selectedMonth}`, label: 'Ver costos' },
           variant: 'warning',
         });
       }
     }
     return recs.slice(0, 5);
   }, [
+    selectedMonth,
     revenue,
     commissions,
     variableCosts,
@@ -335,7 +336,7 @@ export default function Costs() {
             <DollarSign size={14} />
             <span>{currentCurrency}</span>
           </div>
-          <Link to="/importar?tab=costos" className={styles.editCostsLink}>
+          <Link to={`/importar?tab=costos&month=${selectedMonth}`} className={styles.editCostsLink}>
             <Upload size={14} /> Editar en Datos
           </Link>
         </div>
@@ -365,7 +366,7 @@ export default function Costs() {
           </div>
           <h3>No hay datos para {formatMonth(selectedMonth)}</h3>
           <p>Importá reportes de reservas y cargá costos en Datos para ver el P&L y el control financiero.</p>
-          <Link to="/importar?tab=costos" className={styles.monthlyEmptyBtn}>
+          <Link to={`/importar?tab=costos&month=${selectedMonth}`} className={styles.monthlyEmptyBtn}>
             <Upload size={16} /> Ir a Datos
           </Link>
         </div>
@@ -387,7 +388,7 @@ export default function Costs() {
                 <strong>No tenés impuestos configurados.</strong> Sin IVA (21%) el P&L no refleja la carga fiscal real y el resultado está inflado.{' '}
                 <Link to="/configuracion?tab=fiscal" style={{ fontWeight: 600 }}>Configurar en Ajustes → Fiscal</Link>{' '}
                 o en{' '}
-                <Link to="/importar?tab=costos" style={{ fontWeight: 600 }}>Datos → Costos</Link>.
+                <Link to={`/importar?tab=costos&month=${selectedMonth}`} style={{ fontWeight: 600 }}>Datos → Costos</Link>.
               </div>
             </div>
           )}
@@ -637,7 +638,7 @@ export default function Costs() {
           )}
 
           <div className={styles.editHint}>
-            <Link to="/importar?tab=costos">
+            <Link to={`/importar?tab=costos&month=${selectedMonth}`}>
               <Upload size={14} /> Editar costos en Datos
             </Link>
           </div>

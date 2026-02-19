@@ -8,8 +8,42 @@ import {
 } from '../types';
 
 /**
+ * Build cost_settings from monthly_cost_entries for the given month so P&L uses loaded costs.
+ * Aggregates fixed and variable entries only; extraordinary entries are not included in P&L totals.
+ */
+async function buildCostSettingsForMonth(propertyId: string, month: string): Promise<any | null> {
+  const entries = await database.getMonthlyCosts(propertyId, month);
+  if (!entries || entries.length === 0) return null;
+  const fixedTotal = entries
+    .filter((e: any) => e.cost_type === 'fixed')
+    .reduce((sum: number, e: any) => sum + (Number(e.amount) || 0), 0);
+  const variableTotal = entries
+    .filter((e: any) => e.cost_type === 'variable')
+    .reduce((sum: number, e: any) => sum + (Number(e.amount) || 0), 0);
+  const settings = await database.getCostSettings(propertyId);
+  if (!settings) return null;
+  return {
+    ...settings,
+    fixed_costs: {
+      salaries: 0,
+      rent: 0,
+      utilities: 0,
+      other: fixedTotal,
+    },
+    variable_categories: [{ categoryKey: 'aggregate', monthlyAmount: variableTotal }],
+    variable_costs: {
+      cleaningPerStay: settings?.variable_costs?.cleaningPerStay ?? 0,
+      laundryMonthly: variableTotal,
+      amenitiesMonthly: 0,
+    },
+  };
+}
+
+/**
  * Reservation Economics Service - Unit Economics per Reservation
  * Now uses CalculationEngine as the single source of truth.
+ * When start/end fall within a single month, uses monthly_cost_entries for that month so
+ * Control financiero P&L reflects the costs loaded in "Cargar costos".
  * 
  * NOTA: Retorna información sobre el período efectivo usado para que el frontend
  * pueda detectar si los datos corresponden al período seleccionado o a un fallback histórico.
@@ -42,7 +76,13 @@ export async function calculateReservationEconomicsSummary(
   const cached = cacheService.get<any>(cacheKey);
   if (cached) return cached;
 
-  const engine = new CalculationEngine(propertyId, { start: startStr, end: endStr, days });
+  const month = startStr.slice(0, 7);
+  const preloadedCostSettings = await buildCostSettingsForMonth(propertyId, month);
+  const engineOptions: CalculationEngineOptions = preloadedCostSettings
+    ? { ...(options ?? {}), preloadedCostSettings, preloadedImportFiles: [] }
+    : (options ?? {});
+
+  const engine = new CalculationEngine(propertyId, { start: startStr, end: endStr, days }, engineOptions);
   await engine.init();
   
   const summary = engine.getReservationEconomicsSummary();
@@ -80,7 +120,13 @@ export async function getReservationEconomicsList(propertyId: string, startDateO
   const cached = cacheService.get<any[]>(cacheKey);
   if (cached) return cached;
 
-  const engine = new CalculationEngine(propertyId, { start: startStr, end: endStr, days });
+  const month = startStr.slice(0, 7);
+  const preloadedCostSettings = await buildCostSettingsForMonth(propertyId, month);
+  const engineOptions: CalculationEngineOptions = preloadedCostSettings
+    ? { preloadedCostSettings, preloadedImportFiles: [] }
+    : ({} as CalculationEngineOptions);
+
+  const engine = new CalculationEngine(propertyId, { start: startStr, end: endStr, days }, engineOptions);
   await engine.init();
   const list = engine.getReservationEconomicsList(filters);
   cacheService.set(cacheKey, list);
