@@ -31,6 +31,7 @@ import {
 import { getCommandCenterData, getBreakEvenAnalysis } from '../services/command-center-service';
 import { calculateTrendMetrics } from '../services/trends-service';
 import { CalculationEngine } from '../services/calculation-engine';
+import { DAYS_PER_MONTH } from '../types';
 import { backfillReservationDailySnapshots } from '../services/snapshot-backfill-service';
 import { reconstructReservationSnapshotAsOf } from '../services/snapshot-reconstruction-service';
 const router = Router();
@@ -535,15 +536,22 @@ router.get('/actions/:propertyId', async (req: Request, res: Response) => {
       actions = await generateActions(req.params.propertyId, d);
     }
     const completed = await getCompletedSteps(req.params.propertyId);
-    // Apply legacy completed steps and whole-action status to backend-generated actions
     for (const action of actions) {
       const actionId = action.id || action.type;
+      // Legacy: step index completion
       if (completed.byActionType[action.type]) {
         for (let i = 0; i < (action.steps || []).length; i++) {
           if (completed.byActionType[action.type].includes(i)) action.steps[i].completed = true;
         }
       }
-      if (completed.actionStatus && completed.actionStatus[actionId]) {
+      // New: step id completion
+      if (completed.byActionId[actionId]) {
+        const completedStepIds = completed.byActionId[actionId];
+        for (const step of action.steps || []) {
+          if (step.id && completedStepIds.includes(step.id)) step.completed = true;
+        }
+      }
+      if (completed.actionStatus?.[actionId]) {
         action.status = completed.actionStatus[actionId].status;
         action.completedAt = completed.actionStatus[actionId].completedAt;
       } else {
@@ -637,7 +645,7 @@ router.get('/costs/:propertyId', async (req: Request, res: Response) => {
       totalFixedMonthly = (costs.fixed_costs.salaries || 0) + (costs.fixed_costs.rent || 0) + (costs.fixed_costs.utilities || 0) + (costs.fixed_costs.other || 0);
     }
     const variablePerNight = occupancy.occupiedNights > 0 ? totalVariableMonthly / occupancy.occupiedNights : 0;
-    const fixedPerDay = totalFixedMonthly / 30.44;
+    const fixedPerDay = totalFixedMonthly / DAYS_PER_MONTH;
     res.json({ 
       success: true, 
       data: {

@@ -50,7 +50,12 @@ export interface ValidationResult {
 // Action Types
 // =====================================================
 
+export type ActionCategory = 'collections' | 'channels' | 'pricing' | 'cash' | 'data';
+export type ActionSeverity = 'critical' | 'warning' | 'positive' | 'info';
+export type ActionStatus = 'pending' | 'done' | 'dismissed';
+
 export interface ActionStep {
+  id?: string;
   text: string;
   completed: boolean;
 }
@@ -62,20 +67,25 @@ export interface ActionEvidence {
 
 export interface RecommendedAction {
   id: string;
-  type: ActionType;
+  type: ActionType | string;
   title: string;
   description: string;
+  category: ActionCategory;
+  severity: ActionSeverity;
+  status?: ActionStatus;
+  completedAt?: string;
   impact: {
     value: number;
-    unit: '$/mes' | '$' | 'days';
+    unit: string;
     direction: 'up' | 'down';
   };
-  confidence: ConfidenceLevel;
+  confidence?: ConfidenceLevel;
   steps: ActionStep[];
   evidence: ActionEvidence[];
   priority: number;
-  isActive: boolean;
-  triggeredAt: string;
+  isActive?: boolean;
+  triggeredAt?: string;
+  href?: string;
 }
 
 // =====================================================

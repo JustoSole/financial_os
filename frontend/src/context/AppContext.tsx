@@ -3,6 +3,7 @@ import { useLocation } from 'react-router-dom';
 import { getProperty, getMetrics, getActions, trackEvent } from '../api';
 import { setGlobalCurrency } from '../utils/formatters';
 import { useAuth } from './AuthContext';
+import type { HomeMetrics } from '@financial-os/shared';
 
 interface Property {
   id: string;
@@ -26,7 +27,7 @@ interface DateRangeInput {
 
 interface AppContextType {
   property: Property | null;
-  metrics: any | null;
+  metrics: HomeMetrics | null;
   actions: any[] | null;
   loading: boolean;
   error: string | null;
@@ -42,7 +43,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const { session } = useAuth();
   const location = useLocation();
   const [property, setProperty] = useState<Property | null>(null);
-  const [metrics, setMetrics] = useState<any | null>(null);
+  const [metrics, setMetrics] = useState<HomeMetrics | null>(null);
   const [actions, setActions] = useState<any[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

@@ -1,19 +1,10 @@
-import { DatePeriod } from '../../types';
+import {
+  DatePeriod,
+  isDirectChannel as sharedIsDirectChannel,
+  isExcludedStatus,
+} from '../../types';
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const EXCLUDED_STATUSES = new Set(['cancelled', 'no show']);
-
-export const DIRECT_CHANNEL_ALIASES = new Set([
-  'direct',
-  'directo',
-  'walk-in',
-  'email',
-  'pagina web',
-  'teléfono',
-  'telefono',
-  'website',
-  'phone',
-]);
 
 export interface AggregatedPeriodMetrics {
   revenue: number;
@@ -44,16 +35,14 @@ export interface ReservationDailySnapshotRow {
 }
 
 export function isExcludedReservationStatus(status: unknown): boolean {
-  return EXCLUDED_STATUSES.has(String(status || '').trim().toLowerCase());
+  return isExcludedStatus(status);
 }
 
 export function isDirectChannel(source: unknown, sourceCategory?: unknown): boolean {
-  const normalizedSource = String(source || '').trim().toLowerCase();
-  if (DIRECT_CHANNEL_ALIASES.has(normalizedSource)) {
-    return true;
-  }
-
-  return String(sourceCategory || '').trim().toLowerCase() === 'direct';
+  return sharedIsDirectChannel(
+    String(source || '').trim(),
+    sourceCategory != null ? String(sourceCategory).trim() : undefined,
+  );
 }
 
 export function toDateOnly(value: string | Date): Date {

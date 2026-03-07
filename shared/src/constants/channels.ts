@@ -153,12 +153,16 @@ export function getChannelCommissionRate(
 }
 
 /**
- * Checks if a channel is considered "direct" (no commission)
+ * Checks if a channel is considered "direct" (no commission).
+ * Accepts an optional sourceCategory for PMS systems that provide it.
  * @param source - The channel source name
+ * @param sourceCategory - Optional category from the PMS (e.g. 'direct')
  * @returns True if the channel is direct
  */
-export function isDirectChannel(source: string): boolean {
-  return categorizeChannel(source) === 'Direct';
+export function isDirectChannel(source: string, sourceCategory?: string | null): boolean {
+  if (categorizeChannel(source) === 'Direct') return true;
+  if (sourceCategory && String(sourceCategory).trim().toLowerCase() === 'direct') return true;
+  return false;
 }
 
 /**

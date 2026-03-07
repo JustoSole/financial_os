@@ -184,8 +184,14 @@ export interface CostSettings {
 export interface ActionCompletion {
   id: string;
   propertyId: string;
-  actionType: string;
-  stepIndex: number;
+  /** Legacy: action type (e.g. profitability, ota_dependency) */
+  actionType?: string;
+  /** Legacy: step index (number) */
+  stepIndex?: number;
+  /** New format: stable action identifier (e.g. collect-RES123) */
+  actionId?: string;
+  /** New format: step identifier (e.g. collect-RES123-verify) or 'done' | 'dismissed' */
+  stepId?: string;
   completedAt: string;
 }
 

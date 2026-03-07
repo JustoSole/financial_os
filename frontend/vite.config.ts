@@ -6,6 +6,7 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
+      '@financial-os/shared': path.resolve(__dirname, '../shared/src/index.ts'),
       '@shared': path.resolve(__dirname, '../shared/src/index.ts'),
     },
   },

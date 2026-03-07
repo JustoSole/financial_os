@@ -7,30 +7,8 @@ import { useAsyncActionFeedback } from '../hooks/useAsyncActionFeedback';
 import { supabase } from '../lib/supabase';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import styles from './Settings.module.css';
-
-type PlanType = 'free' | 'pro';
-
-interface TaxRule {
-  id: string;
-  name: string;
-  type: 'VAT' | 'OCCUPANCY' | 'CITY_TAX' | 'OTHER';
-  appliesTo: 'room_rate' | 'total';
-  method: 'percentage' | 'fixed_per_night' | 'fixed_per_stay';
-  value: number;
-  includedInRate: boolean;
-}
-
-const DEFAULT_TAX_RULES: TaxRule[] = [
-  {
-    id: 'iva',
-    name: 'IVA',
-    type: 'VAT',
-    appliesTo: 'room_rate',
-    method: 'percentage',
-    value: 21,
-    includedInRate: true,
-  },
-];
+import { DEFAULT_TAX_RULES, PLAN_INFO } from '@financial-os/shared';
+import type { TaxRule, PlanType } from '@financial-os/shared';
 
 const TAX_TYPE_LABELS: Record<TaxRule['type'], string> = {
   VAT: 'IVA / VAT',
@@ -56,26 +34,22 @@ interface PlanConfig {
 
 const PLANS: Record<PlanType, PlanConfig> = {
   free: {
-    name: 'Free', price: '$0', period: '/mes',
+    name: PLAN_INFO.free.displayName,
+    price: PLAN_INFO.free.priceLabel,
+    period: '',
     description: 'Probalo gratis con lo esencial',
     features: [
-      { text: 'Carga manual de CSVs', included: true },
-      { text: 'Métricas básicas', included: true },
-      { text: 'Data Health Score', included: true },
-      { text: 'Historial limitado', included: false },
+      ...PLAN_INFO.free.features.map(f => ({ text: f, included: true })),
       { text: 'Proyección de caja', included: false },
+      { text: 'Exportes PDF/Excel', included: false },
     ],
   },
   pro: {
-    name: 'Financial OS', price: '$49', period: '/mes',
+    name: PLAN_INFO.pro.displayName,
+    price: `$${PLAN_INFO.pro.price}`,
+    period: '/mes',
     description: 'Todo el poder para tu hotel',
-    features: [
-      { text: 'Historial ilimitado', included: true },
-      { text: 'Proyección de caja', included: true },
-      { text: 'Acciones ilimitadas', included: true },
-      { text: 'Exportes PDF/Excel', included: true },
-      { text: 'Soporte prioritario', included: true },
-    ],
+    features: PLAN_INFO.pro.features.map(f => ({ text: f, included: true })),
     popular: true,
   },
 };
@@ -89,7 +63,7 @@ export default function Settings() {
   const currentPlan: PlanType = rawPlan === 'pro' ? 'pro' : 'free';
   const [propertyName, setPropertyName] = useState('');
   const [currency, setCurrency] = useState('ARS');
-  const [roomCount, setRoomCount] = useState(13);
+  const [roomCount, setRoomCount] = useState(0);
   const [taxRules, setTaxRules] = useState<TaxRule[]>(DEFAULT_TAX_RULES);
   const [taxRulesLoaded, setTaxRulesLoaded] = useState(false);
   const saveFeedback = useAsyncActionFeedback({
@@ -121,7 +95,7 @@ export default function Settings() {
       if (!active) return;
       if (res.success && res.data) {
         const currentRoomCount = res.data.room_count || 0;
-        setRoomCount(currentRoomCount > 0 ? currentRoomCount : 13);
+        setRoomCount(currentRoomCount);
         if (res.data.tax_rules && res.data.tax_rules.length > 0) {
           setTaxRules(res.data.tax_rules.map((r: any) => ({
             id: r.id || crypto.randomUUID(),
@@ -183,7 +157,7 @@ export default function Settings() {
   const handleSave = async () => {
     if (!property) return;
     const trimmedName = propertyName.trim() || property.name;
-    const safeRoomCount = Number.isFinite(roomCount) && roomCount > 0 ? Math.round(roomCount) : 13;
+    const safeRoomCount = Number.isFinite(roomCount) && roomCount > 0 ? Math.round(roomCount) : 1;
 
     await saveFeedback.run(async () => {
       const [propertyRes, costsRes] = await Promise.all([

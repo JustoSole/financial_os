@@ -17,6 +17,7 @@ import {
   YoYComparison,
   calculateTotalFixedCosts,
   computeBreakEvenOccupancyPercent,
+  DAYS_PER_MONTH,
 } from '../types';
 import { getVariableCostPerNight } from './costs-utils';
 import {
@@ -667,7 +668,7 @@ export async function calculateBreakEven(propertyId: string): Promise<any> {
   
   // Contribución por noche = ADR neto (después de comisión) - costos variables
   const contribPerNight = ADR * (1 - avgComm) - totalVarPerNight;
-  const fixedPerDay = fixedMonthly / 30.44;
+  const fixedPerDay = fixedMonthly / DAYS_PER_MONTH;
 
   // Fórmula centralizada (shared): (fixedPerDay / (contribPerNight * roomCount)) * 100
   const breakEvenOccupancy = computeBreakEvenOccupancyPercent(fixedPerDay, contribPerNight, roomCount);
@@ -832,7 +833,7 @@ export async function getMinimumPriceSimulation(propertyId: string, marginPct: n
                        (settings?.fixed_costs?.rent || 0) + 
                        (settings?.fixed_costs?.utilities || 0) + 
                        (settings?.fixed_costs?.other || 0);
-  const fixedPerDay = fixedMonthly / 30.44;
+  const fixedPerDay = fixedMonthly / DAYS_PER_MONTH;
   const periodFixed = fixedPerDay * periodDays;
   
   // Costo fijo por noche BASADO EN CAPACIDAD (no en ocupación real)
@@ -988,7 +989,7 @@ export async function calculateDOWPerformance(propertyId: string, startDateOrDay
   const costSettings = await database.getCostSettings(propertyId);
   const roomCount = costSettings?.room_count || 1;
   const fixedMonthly = await database.getTotalMonthlyFixedCosts(propertyId);
-  const fixedPerDay = fixedMonthly / 30.44;
+  const fixedPerDay = fixedMonthly / DAYS_PER_MONTH;
 
   const dowData: Record<number, { nights: number; revenue: number; resCount: number }> = {};
   for (let i = 0; i < 7; i++) {

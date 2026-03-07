@@ -7,14 +7,14 @@ import {
   ReservationEconomicsSummary,
   ChannelMetrics,
   DEFAULT_CHANNEL_COMMISSIONS,
+  DEFAULT_TAX_RULES,
+  DAYS_PER_MONTH,
+  isExcludedStatus,
+  DEFAULT_ROOM_COUNT,
   HomeMetrics,
   TrustLevel
 } from '../types';
 import { isDirectChannel } from './metrics-core';
-
-const DEFAULT_TAX_RULES = [
-  { id: 'iva', name: 'IVA', type: 'VAT', appliesTo: 'room_rate', method: 'percentage', value: 21, includedInRate: true },
-];
 
 /**
  * Single Source of Truth for Financial Calculations
@@ -81,10 +81,7 @@ export class CalculationEngine {
     // 2. Use pre-loaded reservations or fetch from DB
     const allReservations = this.options.preloadedReservations ?? await database.getAllReservations(this.propertyId);
     
-    // Guardar todas las reservaciones (sin canceladas) para proyecciones futuras
-    this.allReservations = allReservations.filter((r: any) => 
-      r.status !== 'Cancelled' && r.status !== 'No Show'
-    );
+    this.allReservations = allReservations.filter((r: any) => !isExcludedStatus(r.status));
     
     // 3. Filtrar reservaciones por período original
     let filteredReservations = this.filterReservationsByPeriod(allReservations, this.period);
@@ -153,11 +150,10 @@ export class CalculationEngine {
    */
   private filterReservationsByPeriod(reservations: any[], period: DatePeriod): any[] {
     return reservations.filter((r: any) => {
-      if (r.status === 'Cancelled' || r.status === 'No Show') return false;
+      if (isExcludedStatus(r.status)) return false;
       const checkIn = r.check_in?.substring(0, 10);
       const checkOut = r.check_out?.substring(0, 10);
       
-      // Una reserva matchea si hay solapamiento con el período
       const isMatch = checkIn <= period.end && checkOut > period.start;
       
       return isMatch;
@@ -380,7 +376,7 @@ export class CalculationEngine {
     });
 
     // 3. Ocupación proyectada
-    const roomCount = this.costSettings?.room_count || 1;
+    const roomCount = this.costSettings?.room_count || DEFAULT_ROOM_COUNT;
     const totalPossibleNights = roomCount * requestedDays;
     const projectedOccupancy = totalPossibleNights > 0 ? occupiedNights / totalPossibleNights : 0;
 
@@ -455,16 +451,21 @@ export class CalculationEngine {
     const occupancyRate = availableNights > 0 ? (totalNights / availableNights) * 100 : 0;
     const adr = totalNights > 0 ? totalRevenue / totalNights : 0;
     
-    // Consistent rounding for occupancy across all views (Issue E)
     const roundedOccupancy = Math.round(Math.min(100, occupancyRate) * 10) / 10;
+
+    const profitability = this.getProfitability();
+    const totalCommissions = profitability.totalCommissions || 0;
+    const netProfit = profitability.netProfit || 0;
+    const nRevPAR = availableNights > 0 ? Math.round((totalRevenue - totalCommissions) / availableNights) : 0;
+    const goppar = availableNights > 0 ? Math.round(netProfit / availableNights) : 0;
 
     return {
       period: effectivePeriod,
       occupancyRate: roundedOccupancy,
       ADR: Math.round(adr),
       RevPAR: availableNights > 0 ? Math.round(totalRevenue / availableNights) : 0,
-      NRevPAR: 0, // Calculated in detailed views
-      GOPPAR: 0, // Calculated in detailed views
+      NRevPAR: nRevPAR,
+      GOPPAR: goppar,
       roomCount,
       confidence: totalNights > 0 ? 'high' : 'low'
     };
@@ -479,7 +480,7 @@ export class CalculationEngine {
                          (this.costSettings?.fixed_costs?.utilities || 0) + 
                          (this.costSettings?.fixed_costs?.other || 0);
     
-    const fixedPerDay = fixedMonthly / 30.44;
+    const fixedPerDay = fixedMonthly / DAYS_PER_MONTH;
     const periodFixed = fixedPerDay * this.period.days;
     
     const { perNightTotal: variablePerNight } = getVariableCostPerNight(
@@ -589,8 +590,7 @@ export class CalculationEngine {
     // Esto asegura consistencia entre el cálculo agregado y el individual.
     // Si no hay noches vendidas, usamos capacidad mensual como fallback.
     const totalNightsSold = this.reservations.reduce((sum, res) => sum + (res.room_nights || 0), 0);
-    const DAYS_PER_MONTH = 30.44;
-    const roomCount = this.costSettings?.room_count || 1;
+    const roomCount = this.costSettings?.room_count || DEFAULT_ROOM_COUNT;
     const monthlyCapacity = roomCount * DAYS_PER_MONTH;
     
     // Usar noches vendidas si hay datos, sino usar capacidad como base estable
@@ -624,8 +624,7 @@ export class CalculationEngine {
                          (this.costSettings?.fixed_costs?.rent || 0) + 
                          (this.costSettings?.fixed_costs?.utilities || 0) + 
                          (this.costSettings?.fixed_costs?.other || 0);
-    const fixedPerDay = fixedMonthly / 30.44;
-    // roomCount ya fue declarado arriba para los costos variables
+    const fixedPerDay = fixedMonthly / DAYS_PER_MONTH;
     const fixedAllocated = (fixedPerDay / roomCount) * roomNights;
 
     // 4. Taxes
@@ -805,7 +804,7 @@ export class CalculationEngine {
     // Luego prorratear a cada canal según su proporción de noches
     const totalNightsAllChannels = Array.from(channelMap.values()).reduce((sum, ch) => sum + ch.roomNights, 0);
     const globalCosts = this.getCostBreakdown(totalNightsAllChannels);
-    const roomCount = this.costSettings?.room_count || 1;
+    const roomCount = this.costSettings?.room_count || DEFAULT_ROOM_COUNT;
     
     const channels = Array.from(channelMap.values()).map(ch => {
       const sourceLower = ch.source.toLowerCase();

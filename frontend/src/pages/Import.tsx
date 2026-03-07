@@ -16,20 +16,8 @@ import { formatMonth, generateMonthOptions } from '../utils/formatters';
 import ImportWizard from '../components/ImportWizard';
 import { Button, Alert } from '../components/ui';
 import styles from './Import.module.css';
-
-interface TaxRule {
-  id: string;
-  name: string;
-  type: 'VAT' | 'OCCUPANCY' | 'CITY_TAX' | 'OTHER';
-  appliesTo: 'room_rate' | 'total';
-  method: 'percentage' | 'fixed_per_night' | 'fixed_per_stay';
-  value: number;
-  includedInRate: boolean;
-}
-
-const DEFAULT_TAX_RULES: TaxRule[] = [
-  { id: 'iva', name: 'IVA', type: 'VAT', appliesTo: 'room_rate', method: 'percentage', value: 21, includedInRate: true },
-];
+import { DEFAULT_TAX_RULES, DEFAULT_COST_CATEGORIES } from '@financial-os/shared';
+import type { TaxRule } from '@financial-os/shared';
 
 const TAX_TYPE_OPTIONS: { value: TaxRule['type']; label: string }[] = [
   { value: 'VAT', label: 'IVA / VAT' },
@@ -183,21 +171,7 @@ export default function Import() {
   const formatInputValue = (v: number) => v === 0 ? '0' : v.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
   const parseInput = (v: string) => { const d = v.replace(/[^\d]/g, ''); return d ? Number(d) : 0; };
 
-  const DEFAULT_CATEGORIES: CostCategoryOption[] = [
-    { categoryKey: 'salaries', displayName: 'Sueldos', costTypeDefault: 'fixed', sortOrder: 10 },
-    { categoryKey: 'rent', displayName: 'Alquiler', costTypeDefault: 'fixed', sortOrder: 20 },
-    { categoryKey: 'utilities', displayName: 'Servicios (luz, gas, agua)', costTypeDefault: 'fixed', sortOrder: 30 },
-    { categoryKey: 'software', displayName: 'Software (PMS, etc)', costTypeDefault: 'fixed', sortOrder: 40 },
-    { categoryKey: 'insurance', displayName: 'Seguros', costTypeDefault: 'fixed', sortOrder: 50 },
-    { categoryKey: 'maintenance', displayName: 'Mantenimiento', costTypeDefault: 'fixed', sortOrder: 60 },
-    { categoryKey: 'laundry', displayName: 'Lavandería', costTypeDefault: 'variable', sortOrder: 70 },
-    { categoryKey: 'amenities', displayName: 'Amenities', costTypeDefault: 'variable', sortOrder: 80 },
-    { categoryKey: 'supplies', displayName: 'Insumos', costTypeDefault: 'variable', sortOrder: 90 },
-    { categoryKey: 'cleaning', displayName: 'Limpieza por estadía', costTypeDefault: 'variable', sortOrder: 95 },
-    { categoryKey: 'marketing', displayName: 'Marketing', costTypeDefault: 'fixed', sortOrder: 100 },
-  ];
-
-  const activeCats = categoryOptions.length > 0 ? categoryOptions : DEFAULT_CATEGORIES;
+  const activeCats = categoryOptions.length > 0 ? categoryOptions : DEFAULT_COST_CATEGORIES;
 
   const loadAll = useCallback(async () => {
     if (!property?.id) return;

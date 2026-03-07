@@ -8,6 +8,7 @@ import {
   DatePeriod,
   AlertSeverity,
   DecisionPlan,
+  isExcludedStatus,
   ForecastScenario,
   DecisionTopAction,
   DecisionConfidence,
@@ -60,9 +61,7 @@ export class ProjectionsService {
     const costSettings = await database.getCostSettings(this.propertyId);
     const roomCount = costSettings?.room_count || 1;
     const allReservations = await database.getAllReservations(this.propertyId);
-    const activeReservations = allReservations.filter((r: any) => 
-      r.status !== 'Cancelled' && r.status !== 'No Show'
-    );
+    const activeReservations = allReservations.filter((r: any) => !isExcludedStatus(r.status));
 
     // 2. Calculate OTB Summary
     const summary = this.calculateOTBSummary(activeReservations, today, horizonEnd, roomCount);

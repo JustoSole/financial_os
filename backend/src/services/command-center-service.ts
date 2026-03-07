@@ -5,6 +5,7 @@ import {
   calculateReconciliation, 
   getARAging, 
   getCollectionsData,
+  calculateChannelMetrics,
 } from './metrics-service';
 import { 
   CommandCenterData,
@@ -26,6 +27,8 @@ import {
   WeeklyAction,
   DatePeriod,
   computeBreakEvenOccupancyPercent,
+  DAYS_PER_MONTH,
+  DEFAULT_ROOM_COUNT,
 } from '../types';
 import { getVariableCostPerNight } from './costs-utils';
 
@@ -253,6 +256,39 @@ function buildHealthSnapshot(
 }
 
 /**
+ * Computes RevPAR decomposition: how much of RevPAR comes from occupancy vs ADR.
+ * Uses the mathematical identity: RevPAR = Occupancy × ADR
+ * The contribution is estimated from the relative magnitude of each factor.
+ */
+function computeRevparDecomposition(structure: any, _profitability: any, roomCount: number, days: number) {
+  const occupancy = (structure.occupancyRate || 0) / 100;
+  const adr = structure.ADR || 0;
+  const revpar = structure.RevPAR || 0;
+
+  if (revpar <= 0 || occupancy <= 0 || adr <= 0) {
+    return { occupancyContribution: 0.5, adrContribution: 0.5, primaryDriver: 'both' as const };
+  }
+
+  const maxOccupancy = 1.0;
+  const occHeadroom = maxOccupancy - occupancy;
+  const occPotentialGain = occHeadroom * adr;
+  const adrPotentialGain = occupancy * adr * 0.2;
+
+  const total = occPotentialGain + adrPotentialGain;
+  const occContrib = total > 0 ? occPotentialGain / total : 0.5;
+  const adrContrib = total > 0 ? adrPotentialGain / total : 0.5;
+
+  const primaryDriver: 'occupancy' | 'adr' | 'both' =
+    Math.abs(occContrib - adrContrib) < 0.1 ? 'both' : occContrib > adrContrib ? 'occupancy' : 'adr';
+
+  return {
+    occupancyContribution: Math.round(occContrib * 100) / 100,
+    adrContribution: Math.round(adrContrib * 100) / 100,
+    primaryDriver,
+  };
+}
+
+/**
  * Builder: Break-even
  * 
  * IMPORTANTE: Todos los cálculos de punto de equilibrio usan CAPACIDAD (no ocupación real)
@@ -260,9 +296,9 @@ function buildHealthSnapshot(
  */
 function buildBreakEvenAnalysis(structure: any, profitability: any, settings: any, days: number): BreakEvenAnalysis {
   const fixedMonthly = (settings?.fixed_costs?.salaries || 0) + (settings?.fixed_costs?.rent || 0) + (settings?.fixed_costs?.utilities || 0) + (settings?.fixed_costs?.other || 0);
-  const fixedPerDay = fixedMonthly / 30.44;
+  const fixedPerDay = fixedMonthly / DAYS_PER_MONTH;
   const periodFixed = fixedPerDay * days;
-  const roomCount = settings?.room_count || 1;
+  const roomCount = settings?.room_count || DEFAULT_ROOM_COUNT;
   const adr = structure.ADR || 0;
   
   // CAPACIDAD TOTAL - Base para todos los cálculos estables
@@ -318,11 +354,7 @@ function buildBreakEvenAnalysis(structure: any, profitability: any, settings: an
       inNights: Math.round(nightsSold - nightsNeeded),
       status: nightsSold >= nightsNeeded ? 'profitable' : nightsSold >= nightsNeeded * 0.8 ? 'at_risk' : 'losing'
     },
-    revparDecomposition: {
-      occupancyContribution: 0.6,
-      adrContribution: 0.4,
-      primaryDriver: 'occupancy'
-    }
+    revparDecomposition: computeRevparDecomposition(structure, profitability, roomCount, days)
   };
 }
 
@@ -335,7 +367,7 @@ function buildBreakEvenAnalysis(structure: any, profitability: any, settings: an
  * según cuánto hayas vendido.
  */
 function buildUnitEconomics(structure: any, profitability: any, settings: any, days: number): UnitEconomics {
-  const roomCount = settings?.room_count || 1;
+  const roomCount = settings?.room_count || DEFAULT_ROOM_COUNT;
   const totalNights = (structure.occupancyRate * roomCount * days) / 100;
   
   // CAPACIDAD TOTAL - Base para costos fijos (consistente con breakEvenPrice)
@@ -359,7 +391,7 @@ function buildUnitEconomics(structure: any, profitability: any, settings: any, d
                        (settings?.fixed_costs?.rent || 0) + 
                        (settings?.fixed_costs?.utilities || 0) + 
                        (settings?.fixed_costs?.other || 0);
-  const fixedPerDay = fixedMonthly / 30.44;
+  const fixedPerDay = fixedMonthly / DAYS_PER_MONTH;
   const periodFixed = fixedPerDay * days;
   
   // Costo fijo por noche basado en CAPACIDAD para consistencia con breakEvenPrice
@@ -402,17 +434,18 @@ function buildUnitEconomics(structure: any, profitability: any, settings: any, d
  */
 async function buildChannelEconomics(propertyId: string, start: string, end: string, settings: any): Promise<ChannelEconomics> {
   const channelMetrics = await calculateChannelMetrics(propertyId, start, end);
+  const totalNightsAll = (channelMetrics.channels || []).reduce((s: number, c: any) => s + (c.roomNights || 0), 0);
   const channels = (channelMetrics.channels || []).map((c: any) => ({
     name: c.source,
     category: c.sourceCategory,
     revenue: c.revenue,
     revenueShare: c.revenueShare * 100,
     nights: c.roomNights,
-    nightsShare: 0, // Calculate if needed
+    nightsShare: totalNightsAll > 0 ? (c.roomNights / totalNightsAll) * 100 : 0,
     commission: c.estimatedCommission,
     commissionRate: c.effectiveCommissionRate * 100,
     netRevenue: c.revenue - c.estimatedCommission,
-    profitPerNight: c.adrNet, // Simplified
+    profitPerNight: c.profitPerNight ?? c.adrNet,
     isTopProfitPerNight: false,
     isWorstProfitPerNight: false
   }));
@@ -576,12 +609,5 @@ export async function getBreakEvenAnalysis(propertyId: string, startDateOrDays: 
   return data.breakeven;
 }
 
-/**
- * Helper: Calculate channel metrics (internal)
- */
-async function calculateChannelMetrics(propertyId: string, start: string, end: string): Promise<any> {
-  // Use the existing one from metrics-service to avoid duplication
-  const { calculateChannelMetrics: calc } = require('./metrics-service');
-  return await calc(propertyId, start, end);
-}
+// calculateChannelMetrics is imported from './metrics-service' at the top of this file
 
