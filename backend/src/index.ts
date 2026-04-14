@@ -10,9 +10,7 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Initialize database
-console.log('🔧 Initializing database...');
 initializeDatabase();
-console.log('✅ Database initialized');
 
 async function startServer() {
   try {
@@ -46,9 +44,12 @@ async function startServer() {
 
 // Middleware
 app.use(cors({
-  origin: '*', // En producción deberías limitar esto
+  origin: process.env.NODE_ENV === 'production'
+    ? (process.env.CORS_ORIGIN || false) // false = no CORS headers; same-origin requests work fine
+    : true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
 }));
 app.use(express.json());
 app.use(compression());

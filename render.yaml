@@ -18,6 +18,10 @@ services:
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
+      - key: ADMIN_EMAILS
+        value: solenojusto1@gmail.com
+      - key: CORS_ORIGIN
+        sync: false
       # Frontend variables (Vite requires VITE_ prefix)
       - key: VITE_SUPABASE_URL
         sync: false

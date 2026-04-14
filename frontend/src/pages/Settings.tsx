@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { User, Building, Bell, Sparkles, Check, Crown, Star, Lock, Info, LogOut, Receipt, Plus, Trash2 } from 'lucide-react';
+import { User, Building, Bell, Check, Crown, Star, Lock, Info, LogOut, Receipt, Plus, Trash2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { getCosts, trackEvent, updateCosts, updateProperty } from '../api';
 import { Button, Alert } from '../components/ui';
@@ -183,7 +183,7 @@ export default function Settings() {
     { id: 'plans', label: 'Planes', icon: Crown },
     { id: 'property', label: 'Propiedad', icon: Building },
     { id: 'fiscal', label: 'Fiscal', icon: Receipt },
-    { id: 'notifications', label: 'Notificaciones', icon: Bell },
+    { id: 'notifications', label: 'Notificaciones (Pronto)', icon: Bell },
     { id: 'account', label: 'Cuenta', icon: User },
   ];
 
@@ -477,43 +477,27 @@ export default function Settings() {
           {activeTab === 'notifications' && (
             <div className={styles.cardSection}>
               <h3>Alertas y Notificaciones</h3>
-              <p className={styles.sectionDesc}>Elegí cómo y cuándo querés que te avisemos</p>
+              <p className={styles.sectionDesc}>Estamos trabajando en un sistema de alertas inteligentes. Pronto vas a poder configurar:</p>
 
               <div className={styles.notificationList}>
-                <div className={styles.notificationItem}>
+                <div className={styles.notificationItem} style={{ opacity: 0.5 }}>
                   <div>
                     <strong>Resumen Semanal</strong>
                     <span>Un reporte consolidado de tu performance los lunes</span>
                   </div>
-                  <label className={styles.toggle}>
-                    <input type="checkbox" defaultChecked />
-                    <span className={styles.slider}></span>
-                  </label>
                 </div>
 
-                <div className={styles.notificationItem}>
+                <div className={styles.notificationItem} style={{ opacity: 0.5 }}>
                   <div>
                     <strong>Alertas de Pérdida</strong>
                     <span>Avisame inmediatamente si detectás una reserva con pérdida</span>
                   </div>
-                  <label className={styles.toggle}>
-                    <input type="checkbox" defaultChecked />
-                    <span className={styles.slider}></span>
-                  </label>
                 </div>
 
-                <div className={styles.notificationItem}>
+                <div className={styles.notificationItem} style={{ opacity: 0.5 }}>
                   <div>
                     <strong>Riesgo de Liquidez</strong>
                     <span>Alerta cuando el runway proyectado sea menor a 15 días</span>
-                  </div>
-                  <div className={styles.upgradePrompt}>
-                    <Sparkles size={18} />
-                    <div>
-                      <strong>Disponible en Plan Starter</strong>
-                      <span>Pasate a un plan pago para habilitar alertas avanzadas</span>
-                    </div>
-                    <Button variant="ghost" size="sm">Ver Planes</Button>
                   </div>
                 </div>
               </div>

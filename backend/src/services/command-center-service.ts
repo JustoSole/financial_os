@@ -79,7 +79,12 @@ export async function getCommandCenterData(propertyId: string, startDateOrDays: 
     // Initialize both engines in parallel with shared data (no extra DB calls)
     const engine = new CalculationEngine(propertyId, currentPeriod, sharedOpts);
     const prevEngine = new CalculationEngine(propertyId, { ...previousPeriodRange, days }, { ...sharedOpts, disableFallback: true });
-    await Promise.all([engine.init(), prevEngine.init()]);
+    
+    // Initialize YoY engine
+    const prevYearRange = getPreviousYearRange(startStr, days);
+    const prevYearEngine = new CalculationEngine(propertyId, { ...prevYearRange, days }, { ...sharedOpts, disableFallback: true });
+
+    await Promise.all([engine.init(), prevEngine.init(), prevYearEngine.init()]);
 
     // Parallel execution for remaining queries
     const [
@@ -95,12 +100,16 @@ export async function getCommandCenterData(propertyId: string, startDateOrDays: 
     const structure = engine.getStructureMetrics();
     const profitability = engine.getProfitability();
     const dataHealth = engine.getDataHealth();
+    
     const prevStructure = prevEngine.getStructureMetrics();
     const prevProfitability = prevEngine.getProfitability();
 
+    const prevYearStructure = prevYearEngine.getStructureMetrics();
+    const prevYearProfitability = prevYearEngine.getProfitability();
+
     // Build MoM/YoY comparisons directly from engine data (no extra DB calls)
     const comparison = buildMoMFromEngines(structure, profitability, prevStructure, prevProfitability, currentPeriod, previousPeriodRange, days);
-    const yoyComparison = null;
+    const yoyComparison = buildYoYFromEngines(structure, profitability, prevYearStructure, prevYearProfitability, currentPeriod, prevYearRange);
 
     // Calculate all sections using standardized builders
     const health = buildHealthSnapshot(structure, profitability, prevStructure, prevProfitability, dataHealth, collections);
@@ -598,6 +607,63 @@ function getPreviousPeriodRange(currentStart: string, days: number): { start: st
   return {
     start: prevStart.toISOString().substring(0, 10),
     end: end.toISOString().substring(0, 10)
+  };
+}
+
+/**
+ * Helper: Get previous year range
+ */
+function getPreviousYearRange(currentStart: string, days: number): { start: string; end: string } {
+  const start = new Date(currentStart);
+  const end = new Date(start.getTime() + (days * 24 * 60 * 60 * 1000));
+  
+  const prevYearStart = new Date(start);
+  prevYearStart.setFullYear(start.getFullYear() - 1);
+  
+  const prevYearEnd = new Date(end);
+  prevYearEnd.setFullYear(end.getFullYear() - 1);
+  
+  return {
+    start: prevYearStart.toISOString().substring(0, 10),
+    end: prevYearEnd.toISOString().substring(0, 10)
+  };
+}
+
+/**
+ * Build YoY comparison directly from pre-computed engine data
+ */
+function buildYoYFromEngines(
+  structure: any, profitability: any,
+  prevStructure: any, prevProfitability: any,
+  currentPeriod: DatePeriod, prevRange: { start: string; end: string }
+): YoYComparison | null {
+  // Si no hay datos del año pasado, retornamos null
+  if (prevProfitability.totalRevenue === 0 && prevStructure.occupancyRate === 0) {
+    return null;
+  }
+
+  const pct = (curr: number, prev: number) => prev !== 0 ? ((curr - prev) / Math.abs(prev)) * 100 : 0;
+  
+  return {
+    current: {
+      label: `${currentPeriod.start} → ${currentPeriod.end}`,
+      revenue: profitability.totalRevenue || 0,
+      adr: structure.ADR || 0,
+      occupancy: structure.occupancyRate || 0,
+      nights: profitability.totalNights || 0
+    },
+    previousYear: {
+      label: `${prevRange.start} → ${prevRange.end}`,
+      revenue: prevProfitability.totalRevenue || 0,
+      adr: prevStructure.ADR || 0,
+      occupancy: prevStructure.occupancyRate || 0,
+      nights: prevProfitability.totalNights || 0
+    },
+    deltas: {
+      revenuePercent: pct(profitability.totalRevenue || 0, prevProfitability.totalRevenue || 0),
+      adrPercent: pct(structure.ADR || 0, prevStructure.ADR || 0),
+      occupancyPercent: pct(structure.occupancyRate || 0, prevStructure.occupancyRate || 0)
+    }
   };
 }
 

@@ -114,6 +114,16 @@ async function request<T>(
         };
       }
 
+      if (response.status === 403 && (json as any).error === 'subscription_expired') {
+        removeUserAbort?.();
+        window.dispatchEvent(new CustomEvent('subscription-expired'));
+        return {
+          success: false,
+          error: 'Tu acceso ha expirado',
+          errorCode: 'auth',
+        };
+      }
+
       if (!response.ok) {
         removeUserAbort?.();
         lastCode = response.status >= 500 ? 'server' : 'unknown';
@@ -664,3 +674,44 @@ export const trackEvent = (propertyId: string, eventType: string, eventData?: an
     method: 'POST',
     body: JSON.stringify({ propertyId, eventType, eventData }),
   });
+
+// =====================================================
+// Admin
+// =====================================================
+export interface AdminUser {
+  id: string;
+  email: string;
+  created_at: string;
+  propertyId: string | null;
+  propertyName: string | null;
+  expires_at: string | null;
+  is_active: boolean;
+}
+
+export const checkAdmin = () => request<{ isAdmin: boolean }>('/admin/check');
+
+export const getAdminUsers = () => request<AdminUser[]>('/admin/users');
+
+export const createAdminUser = (data: {
+  email: string;
+  password: string;
+  hotelName?: string;
+  expiresAt?: string | null;
+}) =>
+  request<{ userId: string; propertyId: string }>('/admin/users', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+
+export const updateAdminUser = (userId: string, data: {
+  expiresAt?: string | null;
+  isActive?: boolean;
+  hotelName?: string;
+}) =>
+  request<void>(`/admin/users/${userId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+
+export const deleteAdminUser = (userId: string) =>
+  request<void>(`/admin/users/${userId}`, { method: 'DELETE' });

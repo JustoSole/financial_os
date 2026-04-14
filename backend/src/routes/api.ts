@@ -32,18 +32,93 @@ import { getCommandCenterData, getBreakEvenAnalysis } from '../services/command-
 import { calculateTrendMetrics } from '../services/trends-service';
 import { CalculationEngine } from '../services/calculation-engine';
 import { DAYS_PER_MONTH } from '../types';
+import logger from '../services/logger';
+import { z } from 'zod';
+
+// --- Input validation schemas ---
+const propertyUpdateSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  currency: z.string().length(3).optional(),
+  timezone: z.string().min(1).max(50).optional(),
+}).strict();
+
+const adminCreateUserSchema = z.object({
+  email: z.string().email('Email inválido'),
+  password: z.string().min(8, 'Password debe tener al menos 8 caracteres'),
+  hotelName: z.string().max(100).optional(),
+  expiresAt: z.string().optional().nullable(),
+});
+
+const costSettingsSchema = z.object({
+  roomCount: z.number().int().min(1).max(9999).optional(),
+  startingCashBalance: z.number().min(0).optional(),
+  cleaningPerStay: z.number().min(0).optional(),
+  variableCategories: z.array(z.any()).optional(),
+  fixedCategories: z.array(z.any()).optional(),
+  extraordinaryCosts: z.array(z.any()).optional(),
+  variableCosts: z.any().optional(),
+  fixedCosts: z.any().optional(),
+  channelCommissions: z.any().optional(),
+  paymentFees: z.any().optional(),
+  tax_rules: z.array(z.any()).optional(),
+}).passthrough();
 import { backfillReservationDailySnapshots } from '../services/snapshot-backfill-service';
 import { reconstructReservationSnapshotAsOf } from '../services/snapshot-reconstruction-service';
 const router = Router();
+
+/**
+ * Route-level cache: wraps a handler so repeated identical GETs return cached JSON.
+ * Cache key = URL path + querystring, so different params are cached separately.
+ */
+function cached(handler: (req: Request, res: Response) => Promise<any>) {
+  return async (req: Request, res: Response) => {
+    const key = `route:${req.originalUrl}`;
+    const hit = cacheService.get<any>(key);
+    if (hit) {
+      res.set('X-Cache', 'HIT');
+      return res.json(hit);
+    }
+    try {
+      const result = await handler(req, res);
+      if (result && !res.headersSent) {
+        const body = { success: true, data: result };
+        cacheService.set(key, body);
+        res.set('X-Cache', 'MISS');
+        res.json(body);
+      }
+    } catch (error: any) {
+      if (!res.headersSent) {
+        res.status(500).json({ success: false, error: safeError(error) });
+      }
+    }
+  };
+}
 
 const MONTH_REGEX = /^\d{4}-(0[1-9]|1[0-2])$/;
 function validateMonth(month: string): boolean {
   return MONTH_REGEX.test(month);
 }
 
+/** Sanitize error messages before sending to client */
+function safeError(error: any): string {
+  if (process.env.NODE_ENV !== 'production') return error?.message || 'Error desconocido';
+  const msg = error?.message || '';
+  // Allow known user-facing errors through
+  if (msg.includes('propertyId') || msg.includes('CSV') || msg.includes('requerido') || msg.includes('Falta')) {
+    return msg;
+  }
+  return 'Error interno del servidor';
+}
+
 // Auth cache: avoids hitting Supabase auth API on every request
 const _authCache = new Map<string, { user: any; expiresAt: number }>();
 const AUTH_CACHE_TTL = 5 * 60 * 1000; // 5 min
+
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim().toLowerCase()).filter(Boolean);
+
+// Subscription cache: avoid checking expiry on every request
+const _subscriptionCache = new Map<string, { ok: boolean; expiresAt: number }>();
+const SUB_CACHE_TTL = 2 * 60 * 1000; // 2 min
 
 const authenticate = async (req: Request, res: Response, next: NextFunction) => {
   try {
@@ -82,6 +157,45 @@ const authenticate = async (req: Request, res: Response, next: NextFunction) => 
     clearAuthContext();
     res.status(401).json({ success: false, error: 'Authentication failed' });
   }
+};
+
+const checkSubscription = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const user = (req as any).user;
+    if (!user) return res.status(401).json({ success: false, error: 'No user' });
+
+    // Admins bypass subscription check
+    if (ADMIN_EMAILS.includes(user.email?.toLowerCase())) return next();
+
+    const cacheKey = `sub-${user.id}`;
+    const cached = _subscriptionCache.get(cacheKey);
+    if (cached && Date.now() < cached.expiresAt) {
+      if (!cached.ok) return res.status(403).json({ success: false, error: 'subscription_expired' });
+      return next();
+    }
+
+    const property = await database.getPropertyByUser(user.id);
+    if (!property) return next(); // no property yet, let them create one
+
+    const isExpired = property.expires_at && new Date(property.expires_at) < new Date();
+    const isInactive = property.is_active === false;
+    const ok = !isExpired && !isInactive;
+
+    _subscriptionCache.set(cacheKey, { ok, expiresAt: Date.now() + SUB_CACHE_TTL });
+
+    if (!ok) return res.status(403).json({ success: false, error: 'subscription_expired' });
+    next();
+  } catch {
+    next();
+  }
+};
+
+const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
+  const user = (req as any).user;
+  if (!user || !ADMIN_EMAILS.includes(user.email?.toLowerCase())) {
+    return res.status(403).json({ success: false, error: 'Admin access required' });
+  }
+  next();
 };
 
 // Configure multer for file uploads
@@ -128,7 +242,7 @@ router.post('/import/validate', upload.single('file'), async (req: Request, res:
     const result = validateCSV(content);
     res.json({ success: true, data: result });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: safeError(error) });
   }
 });
 
@@ -137,17 +251,136 @@ router.post('/import/validate', upload.single('file'), async (req: Request, res:
 // =====================================================
 router.use(authenticate);
 
+// Admin routes (before subscription check so admins can always access)
+router.get('/admin/check', requireAdmin, (req: Request, res: Response) => {
+  res.json({ success: true, data: { isAdmin: true } });
+});
+
+router.get('/admin/users', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { data, error } = await supabase.rpc('admin_list_users');
+    if (error) return res.status(500).json({ success: false, error: safeError(error) });
+
+    const users = (data || []).map((u: any) => ({
+      id: u.id,
+      email: u.email,
+      created_at: u.created_at,
+      propertyId: u.property_id,
+      propertyName: u.property_name,
+      expires_at: u.expires_at,
+      is_active: u.is_active ?? true,
+    }));
+    res.json({ success: true, data: users });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: safeError(error) });
+  }
+});
+
+router.post('/admin/users', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const parsed = adminCreateUserSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ success: false, error: parsed.error.issues[0]?.message || 'Datos inválidos' });
+    }
+    const { email, password, hotelName, expiresAt } = parsed.data;
+
+    const { data, error } = await supabase.rpc('admin_create_user', {
+      p_email: email,
+      p_password: password,
+      p_hotel_name: hotelName || 'Mi Hotel',
+      p_expires_at: expiresAt || null,
+    });
+    if (error) return res.status(400).json({ success: false, error: error.message });
+
+    res.json({ success: true, data });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: safeError(error) });
+  }
+});
+
+router.put('/admin/users/:userId', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { expiresAt, isActive, hotelName } = req.body;
+
+    const { error } = await supabase.rpc('admin_update_user', {
+      p_user_id: req.params.userId,
+      p_expires_at: expiresAt !== undefined ? expiresAt : null,
+      p_is_active: isActive !== undefined ? isActive : null,
+      p_hotel_name: hotelName !== undefined ? hotelName : null,
+    });
+    if (error) return res.status(500).json({ success: false, error: safeError(error) });
+
+    _subscriptionCache.delete(`sub-${req.params.userId}`);
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: safeError(error) });
+  }
+});
+
+router.delete('/admin/users/:userId', requireAdmin, async (req: Request, res: Response) => {
+  try {
+    const { error } = await supabase.rpc('admin_delete_user', {
+      p_user_id: req.params.userId,
+    });
+    if (error) return res.status(500).json({ success: false, error: safeError(error) });
+
+    _subscriptionCache.delete(`sub-${req.params.userId}`);
+    res.json({ success: true });
+  } catch (error: any) {
+    res.status(500).json({ success: false, error: safeError(error) });
+  }
+});
+
+// Subscription check (after admin routes, so admins bypass it)
+router.use(checkSubscription);
+
+// Property ownership cache: avoids DB lookup on every request
+const _ownershipCache = new Map<string, { valid: boolean; expiresAt: number }>();
+const OWNERSHIP_CACHE_TTL = 5 * 60 * 1000; // 5 min
+
+/**
+ * Validates that the authenticated user owns the property referenced by :propertyId.
+ * Uses router.param() so it runs automatically for ALL routes with :propertyId.
+ * Admins bypass this check.
+ */
+router.param('propertyId', async (req: Request, res: Response, next: NextFunction, propertyId: string) => {
+  try {
+    const user = (req as any).user;
+    if (!user) return res.status(401).json({ success: false, error: 'No user' });
+
+    // Admins can access any property
+    if (ADMIN_EMAILS.includes(user.email?.toLowerCase())) return next();
+
+    const cacheKey = `own-${user.id}-${propertyId}`;
+    const cached = _ownershipCache.get(cacheKey);
+    if (cached && Date.now() < cached.expiresAt) {
+      if (!cached.valid) return res.status(403).json({ success: false, error: 'No tienes acceso a esta propiedad' });
+      return next();
+    }
+
+    const property = await database.getPropertyByUser(user.id);
+    const valid = !!property && property.id === propertyId;
+
+    _ownershipCache.set(cacheKey, { valid, expiresAt: Date.now() + OWNERSHIP_CACHE_TTL });
+
+    if (!valid) return res.status(403).json({ success: false, error: 'No tienes acceso a esta propiedad' });
+    next();
+  } catch (error) {
+    // Fail CLOSED: deny access on error (never fail open on auth checks)
+    logger.error('api', 'Error validating property ownership', error);
+    return res.status(500).json({ success: false, error: 'Error verificando acceso' });
+  }
+});
+
 // Property Routes
 router.get('/property', async (req: Request, res: Response) => {
   try {
     const user = (req as any).user;
-    console.log(`📋 GET /api/property - User: ${user.email}`);
-    
+    logger.debug('api', `GET /api/property - User: ${user.email}`);
+
     let property = await database.getPropertyByUser(user.id);
-    console.log('📋 Property from DB:', property ? 'Found' : 'Not found');
-    
+
     if (!property) {
-      console.log('📋 Creating default property for user...');
       const id = uuidv4();
       property = await database.insertProperty({
         id,
@@ -159,22 +392,25 @@ router.get('/property', async (req: Request, res: Response) => {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       });
-      console.log('📋 Default property created:', id);
-      
+      logger.debug('api', `Default property created: ${id}`);
+
       await database.upsertCostSettings(id, {});
-      console.log('📋 Default cost settings created');
     }
     
     res.json({ success: true, data: property });
   } catch (error: any) {
-    console.error('❌ Error in /api/property:', error);
-    res.status(500).json({ success: false, error: error.message });
+    logger.error('api', 'Error in /api/property', error);
+    res.status(500).json({ success: false, error: safeError(error) });
   }
 });
 
 router.put('/property/:id', async (req: Request, res: Response) => {
   try {
-    const { name, currency, timezone } = req.body;
+    const parsed = propertyUpdateSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ success: false, error: parsed.error.issues[0]?.message || 'Datos inválidos' });
+    }
+    const { name, currency, timezone } = parsed.data;
     const property = await database.updateProperty(req.params.id, {
       name,
       currency,
@@ -185,7 +421,7 @@ router.put('/property/:id', async (req: Request, res: Response) => {
     cacheService.clear();
     res.json({ success: true, data: property });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: safeError(error) });
   }
 });
 
@@ -199,11 +435,19 @@ router.post('/import', upload.single('file'), async (req: Request, res: Response
     if (!propertyId) {
       return res.status(400).json({ success: false, error: 'Falta propertyId' });
     }
+    // Validate ownership for body-based propertyId
+    const user = (req as any).user;
+    if (!ADMIN_EMAILS.includes(user.email?.toLowerCase())) {
+      const prop = await database.getPropertyByUser(user.id);
+      if (!prop || prop.id !== propertyId) {
+        return res.status(403).json({ success: false, error: 'No tienes acceso a esta propiedad' });
+      }
+    }
     const content = req.file.buffer.toString('utf-8');
     const result = await importCSV(propertyId, req.file.originalname, content);
     res.json(result);
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: safeError(error) });
   }
 });
 
@@ -217,6 +461,14 @@ router.post('/import/batch', upload.array('files', 5), async (req: Request, res:
     if (!propertyId) {
       return res.status(400).json({ success: false, error: 'Falta propertyId' });
     }
+    // Validate ownership for body-based propertyId
+    const user = (req as any).user;
+    if (!ADMIN_EMAILS.includes(user.email?.toLowerCase())) {
+      const prop = await database.getPropertyByUser(user.id);
+      if (!prop || prop.id !== propertyId) {
+        return res.status(403).json({ success: false, error: 'No tienes acceso a esta propiedad' });
+      }
+    }
     const results = [];
     for (const file of files) {
       const content = file.buffer.toString('utf-8');
@@ -224,7 +476,7 @@ router.post('/import/batch', upload.array('files', 5), async (req: Request, res:
         const result = await importCSV(propertyId, file.originalname, content);
         results.push({ filename: file.originalname, ...result });
       } catch (err: any) {
-        results.push({ filename: file.originalname, success: false, error: err.message });
+        results.push({ filename: file.originalname, success: false, error: safeError(err) });
       }
     }
     const allSuccess = results.every(r => r.success);
@@ -235,8 +487,8 @@ router.post('/import/batch', upload.array('files', 5), async (req: Request, res:
       error: allSuccess ? undefined : results.find(r => !r.success)?.error
     });
   } catch (error: any) {
-    console.error('❌ Error in /api/import/batch:', error);
-    res.status(500).json({ success: false, error: error.message });
+    logger.error('api', 'Error in /api/import/batch', error);
+    res.status(500).json({ success: false, error: safeError(error) });
   }
 });
 
@@ -245,263 +497,121 @@ router.get('/import/history/:propertyId', async (req: Request, res: Response) =>
     const files = await database.getImportFilesByProperty(req.params.propertyId, 20);
     res.json({ success: true, data: files });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: safeError(error) });
   }
 });
 
-// Metrics Routes
-router.get('/metrics/:propertyId', async (req: Request, res: Response) => {
-  try {
-    const { startDate, endDate, days } = req.query;
-    const metrics = await calculateHomeMetrics(req.params.propertyId, startDate as string || (parseInt(days as string) || 30), endDate as string);
-    res.json({ success: true, data: metrics });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+// Metrics Routes (cached for performance)
+router.get('/metrics/:propertyId', cached(async (req) => {
+  const { startDate, endDate, days } = req.query;
+  return calculateHomeMetrics(req.params.propertyId, startDate as string || (parseInt(days as string) || 30), endDate as string);
+}));
 
-router.get('/metrics/:propertyId/command-center', async (req: Request, res: Response) => {
-  try {
-    const { startDate, endDate, days } = req.query;
-    let data;
-    if (startDate && endDate) {
-      data = await getCommandCenterData(req.params.propertyId, startDate as string, endDate as string);
-    } else {
-      const d = parseInt(days as string) || 30;
-      data = await getCommandCenterData(req.params.propertyId, d);
-    }
-    res.json({ success: true, data });
-  } catch (error: any) {
-    console.error('❌ Error in /metrics/:propertyId/command-center:', error);
-    res.status(500).json({ success: false, error: 'Error interno al procesar el Command Center', message: error.message });
+router.get('/metrics/:propertyId/command-center', cached(async (req) => {
+  const { startDate, endDate, days } = req.query;
+  if (startDate && endDate) {
+    return getCommandCenterData(req.params.propertyId, startDate as string, endDate as string);
   }
-});
+  return getCommandCenterData(req.params.propertyId, parseInt(days as string) || 30);
+}));
 
-router.get('/metrics/:propertyId/cash', async (req: Request, res: Response) => {
-  try {
-    const { startDate, endDate, days } = req.query;
-    const metrics = await calculateCashMetrics(req.params.propertyId, startDate as string || (parseInt(days as string) || 90), endDate as string);
-    res.json({ success: true, data: metrics });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+router.get('/metrics/:propertyId/cash', cached(async (req) => {
+  const { startDate, endDate, days } = req.query;
+  return calculateCashMetrics(req.params.propertyId, startDate as string || (parseInt(days as string) || 90), endDate as string);
+}));
 
-router.get('/metrics/:propertyId/channels', async (req: Request, res: Response) => {
-  try {
-    const { startDate, endDate, days } = req.query;
-    const metrics = await calculateChannelMetrics(req.params.propertyId, startDate as string || (parseInt(days as string) || 90), endDate as string);
-    res.json({ success: true, data: metrics });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+router.get('/metrics/:propertyId/channels', cached(async (req) => {
+  const { startDate, endDate, days } = req.query;
+  return calculateChannelMetrics(req.params.propertyId, startDate as string || (parseInt(days as string) || 90), endDate as string);
+}));
 
-router.get('/metrics/:propertyId/collections', async (req: Request, res: Response) => {
-  try {
-    const { startDate, endDate, days } = req.query;
-    const data = await getCollectionsData(req.params.propertyId, startDate as string || (parseInt(days as string) || 30), endDate as string);
-    res.json({ success: true, data });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+router.get('/metrics/:propertyId/collections', cached(async (req) => {
+  const { startDate, endDate, days } = req.query;
+  return getCollectionsData(req.params.propertyId, startDate as string || (parseInt(days as string) || 30), endDate as string);
+}));
 
-router.get('/metrics/:propertyId/daily-flow', async (req: Request, res: Response) => {
-  try {
-    const { days } = req.query;
-    const d = parseInt(days as string) || 30;
-    const data = await getDailyFlow(req.params.propertyId, d);
-    res.json({ success: true, data });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+router.get('/metrics/:propertyId/daily-flow', cached(async (req) => {
+  const d = parseInt(req.query.days as string) || 30;
+  return getDailyFlow(req.params.propertyId, d);
+}));
 
-router.get('/metrics/:propertyId/projection', async (req: Request, res: Response) => {
-  try {
-    const weeks = parseInt(req.query.weeks as string) || 4;
-    const data = await calculateRevenueProjection(req.params.propertyId, weeks);
-    res.json({ success: true, data });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+router.get('/metrics/:propertyId/projection', cached(async (req) => {
+  const weeks = parseInt(req.query.weeks as string) || 4;
+  return calculateRevenueProjection(req.params.propertyId, weeks);
+}));
 
-router.get('/metrics/:propertyId/comparison', async (req: Request, res: Response) => {
-  try {
-    const data = await calculateMoMComparison(req.params.propertyId);
-    res.json({ success: true, data });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+router.get('/metrics/:propertyId/comparison', cached(async (req) => {
+  return calculateMoMComparison(req.params.propertyId);
+}));
 
-router.get('/metrics/:propertyId/structure', async (req: Request, res: Response) => {
-  try {
-    const { startDate, endDate, days } = req.query;
-    let data;
-    if (startDate && endDate) {
-      data = await calculateStructureMetrics(req.params.propertyId, startDate as string, endDate as string);
-    } else {
-      const d = parseInt(days as string) || 30;
-      data = await calculateStructureMetrics(req.params.propertyId, d);
-    }
-    res.json({ success: true, data });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+router.get('/metrics/:propertyId/structure', cached(async (req) => {
+  const { startDate, endDate, days } = req.query;
+  if (startDate && endDate) return calculateStructureMetrics(req.params.propertyId, startDate as string, endDate as string);
+  return calculateStructureMetrics(req.params.propertyId, parseInt(days as string) || 30);
+}));
 
-router.get('/metrics/:propertyId/reconcile', async (req: Request, res: Response) => {
-  try {
-    const { startDate, endDate, days } = req.query;
-    let data;
-    if (startDate && endDate) {
-      data = await calculateReconciliation(req.params.propertyId, startDate as string, endDate as string);
-    } else {
-      const d = parseInt(days as string) || 30;
-      data = await calculateReconciliation(req.params.propertyId, d);
-    }
-    res.json({ success: true, data });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+router.get('/metrics/:propertyId/reconcile', cached(async (req) => {
+  const { startDate, endDate, days } = req.query;
+  if (startDate && endDate) return calculateReconciliation(req.params.propertyId, startDate as string, endDate as string);
+  return calculateReconciliation(req.params.propertyId, parseInt(days as string) || 30);
+}));
 
-router.get('/metrics/:propertyId/ar-aging', async (req: Request, res: Response) => {
-  try {
-    const data = await getARAging(req.params.propertyId);
-    res.json({ success: true, data });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+router.get('/metrics/:propertyId/ar-aging', cached(async (req) => {
+  return getARAging(req.params.propertyId);
+}));
 
-router.get('/metrics/:propertyId/breakeven', async (req: Request, res: Response) => {
-  try {
-    const { startDate, endDate, days } = req.query;
-    let data;
-    if (startDate && endDate) {
-      data = await getBreakEvenAnalysis(req.params.propertyId, startDate as string, endDate as string);
-    } else {
-      const d = parseInt(days as string) || 30;
-      data = await getBreakEvenAnalysis(req.params.propertyId, d);
-    }
-    res.json({ success: true, data });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+router.get('/metrics/:propertyId/breakeven', cached(async (req) => {
+  const { startDate, endDate, days } = req.query;
+  if (startDate && endDate) return getBreakEvenAnalysis(req.params.propertyId, startDate as string, endDate as string);
+  return getBreakEvenAnalysis(req.params.propertyId, parseInt(days as string) || 30);
+}));
 
-router.get('/metrics/:propertyId/minimum-price', async (req: Request, res: Response) => {
-  try {
-    const margin = parseFloat(req.query.margin as string) || 0;
-    const data = await getMinimumPriceSimulation(req.params.propertyId, margin);
-    res.json({ success: true, data });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+router.get('/metrics/:propertyId/minimum-price', cached(async (req) => {
+  const margin = parseFloat(req.query.margin as string) || 0;
+  return getMinimumPriceSimulation(req.params.propertyId, margin);
+}));
 
-router.get('/metrics/:propertyId/insights', async (req: Request, res: Response) => {
-  try {
-    const { startDate, endDate, days } = req.query;
-    let insights;
-    if (startDate && endDate) {
-      insights = await generateInsights(req.params.propertyId, startDate as string, endDate as string);
-    } else {
-      const d = parseInt(days as string) || 30;
-      insights = await generateInsights(req.params.propertyId, d);
-    }
-    res.json({ success: true, data: insights });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+router.get('/metrics/:propertyId/insights', cached(async (req) => {
+  const { startDate, endDate, days } = req.query;
+  if (startDate && endDate) return generateInsights(req.params.propertyId, startDate as string, endDate as string);
+  return generateInsights(req.params.propertyId, parseInt(days as string) || 30);
+}));
 
-router.get('/metrics/:propertyId/trends', async (req: Request, res: Response) => {
-  try {
-    const { months } = req.query;
-    const data = await calculateTrendMetrics(req.params.propertyId, parseInt(months as string) || 6);
-    res.json({ success: true, data });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+router.get('/metrics/:propertyId/trends', cached(async (req) => {
+  return calculateTrendMetrics(req.params.propertyId, parseInt(req.query.months as string) || 6);
+}));
 
-router.get('/metrics/:propertyId/dow', async (req: Request, res: Response) => {
-  try {
-    const { startDate, endDate, days } = req.query;
-    let data;
-    if (startDate && endDate) {
-      data = await calculateDOWPerformance(req.params.propertyId, startDate as string, endDate as string);
-    } else {
-      const d = parseInt(days as string) || 90;
-      data = await calculateDOWPerformance(req.params.propertyId, d);
-    }
-    res.json({ success: true, data });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+router.get('/metrics/:propertyId/dow', cached(async (req) => {
+  const { startDate, endDate, days } = req.query;
+  if (startDate && endDate) return calculateDOWPerformance(req.params.propertyId, startDate as string, endDate as string);
+  return calculateDOWPerformance(req.params.propertyId, parseInt(days as string) || 90);
+}));
 
-router.get('/metrics/:propertyId/yoy', async (req: Request, res: Response) => {
-  try {
-    const data = await calculateYoYComparison(req.params.propertyId);
-    res.json({ success: true, data });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+router.get('/metrics/:propertyId/yoy', cached(async (req) => {
+  return calculateYoYComparison(req.params.propertyId);
+}));
 
-router.get('/metrics/:propertyId/projections', async (req: Request, res: Response) => {
-  try {
-    const horizon = parseInt(req.query.horizon as string) || 90;
-    const service = new ProjectionsService(req.params.propertyId, horizon);
-    const data = await service.getProjections();
-    res.json({ success: true, data });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+router.get('/metrics/:propertyId/projections', cached(async (req) => {
+  const horizon = parseInt(req.query.horizon as string) || 90;
+  const service = new ProjectionsService(req.params.propertyId, horizon);
+  return service.getProjections();
+}));
 
 // Reservation Economics Routes
-router.get('/metrics/:propertyId/reservation-economics', async (req: Request, res: Response) => {
-  try {
-    const { startDate, endDate, days } = req.query;
-    let data;
-    if (startDate && endDate) {
-      data = await calculateReservationEconomicsSummary(req.params.propertyId, startDate as string, endDate as string);
-    } else {
-      const d = parseInt(days as string) || 30;
-      data = await calculateReservationEconomicsSummary(req.params.propertyId, d);
-    }
-    res.json({ success: true, data: data });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+router.get('/metrics/:propertyId/reservation-economics', cached(async (req) => {
+  const { startDate, endDate, days } = req.query;
+  if (startDate && endDate) return calculateReservationEconomicsSummary(req.params.propertyId, startDate as string, endDate as string);
+  return calculateReservationEconomicsSummary(req.params.propertyId, parseInt(days as string) || 30);
+}));
 
-router.get('/metrics/:propertyId/reservation-economics/list', async (req: Request, res: Response) => {
-  try {
-    const { startDate, endDate, days, source, unprofitableOnly } = req.query;
-    const filters: any = {};
-    if (source) filters.source = source as string;
-    if (unprofitableOnly === 'true') filters.unprofitableOnly = true;
-    
-    let data;
-    if (startDate && endDate) {
-      data = await getReservationEconomicsList(req.params.propertyId, startDate as string, endDate as string, filters);
-    } else {
-      const d = parseInt(days as string) || 30;
-      data = await getReservationEconomicsList(req.params.propertyId, d, filters);
-    }
-    res.json({ success: true, data: data });
-  } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
+router.get('/metrics/:propertyId/reservation-economics/list', cached(async (req) => {
+  const { startDate, endDate, days, source, unprofitableOnly } = req.query;
+  const filters: any = {};
+  if (source) filters.source = source as string;
+  if (unprofitableOnly === 'true') filters.unprofitableOnly = true;
+  if (startDate && endDate) return getReservationEconomicsList(req.params.propertyId, startDate as string, endDate as string, filters);
+  return getReservationEconomicsList(req.params.propertyId, parseInt(days as string) || 30, filters);
+}));
 
 router.get('/metrics/:propertyId/reservation-economics/:reservationNumber', async (req: Request, res: Response) => {
   try {
@@ -509,7 +619,7 @@ router.get('/metrics/:propertyId/reservation-economics/:reservationNumber', asyn
     if (!data) return res.status(404).json({ success: false, error: 'Reserva no encontrada' });
     res.json({ success: true, data: data });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: safeError(error) });
   }
 });
 
@@ -520,7 +630,7 @@ router.get('/metrics/:propertyId/unprofitable', async (req: Request, res: Respon
     const data = await getReservationEconomicsList(req.params.propertyId, d, { unprofitableOnly: true } as any);
     res.json({ success: true, data: data });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: safeError(error) });
   }
 });
 
@@ -560,7 +670,7 @@ router.get('/actions/:propertyId', async (req: Request, res: Response) => {
     }
     res.json({ success: true, data: actions });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: safeError(error) });
   }
 });
 
@@ -572,7 +682,7 @@ router.get('/actions/:propertyId/completed', async (req: Request, res: Response)
     const completed = await getCompletedSteps(req.params.propertyId, days);
     res.json({ success: true, data: completed });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: safeError(error) });
   }
 });
 
@@ -589,7 +699,7 @@ router.post('/actions/:propertyId/step', async (req: Request, res: Response) => 
     }
     res.json({ success: true });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: safeError(error) });
   }
 });
 
@@ -603,7 +713,7 @@ router.post('/actions/:propertyId/status', async (req: Request, res: Response) =
     await completeActionStep(req.params.propertyId, actionId, status);
     res.json({ success: true });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: safeError(error) });
   }
 });
 
@@ -614,7 +724,7 @@ router.get('/costs/:propertyId/channels', async (req: Request, res: Response) =>
     const channels = await database.getChannelsFromPMS(req.params.propertyId);
     res.json({ success: true, data: channels });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: safeError(error) });
   }
 });
 
@@ -661,18 +771,22 @@ router.get('/costs/:propertyId', async (req: Request, res: Response) => {
       },
     });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: safeError(error) });
   }
 });
 
 router.put('/costs/:propertyId', async (req: Request, res: Response) => {
   try {
+    const parsed = costSettingsSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ success: false, error: parsed.error.issues[0]?.message || 'Datos inválidos' });
+    }
     const {
       roomCount, startingCashBalance, cleaningPerStay,
       variableCategories, fixedCategories, extraordinaryCosts,
       variableCosts, fixedCosts, channelCommissions, paymentFees,
       tax_rules,
-    } = req.body;
+    } = parsed.data;
     const updateData: any = {};
     if (roomCount !== undefined) updateData.room_count = roomCount;
     if (startingCashBalance !== undefined) updateData.starting_cash_balance = startingCashBalance;
@@ -715,7 +829,7 @@ router.put('/costs/:propertyId', async (req: Request, res: Response) => {
     cacheService.clear();
     res.json({ success: true, data: costs });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: safeError(error) });
   }
 });
 
@@ -728,7 +842,7 @@ router.get('/costs/:propertyId/categories', async (req: Request, res: Response) 
     const categories = await database.getCostCategories();
     res.json({ success: true, data: categories });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: safeError(error) });
   }
 });
 
@@ -765,7 +879,7 @@ router.get('/costs/:propertyId/monthly/:month', async (req: Request, res: Respon
       },
     });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: safeError(error) });
   }
 });
 
@@ -810,7 +924,7 @@ router.put('/costs/:propertyId/monthly/:month', async (req: Request, res: Respon
       },
     });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: safeError(error) });
   }
 });
 
@@ -855,7 +969,7 @@ router.post('/costs/:propertyId/monthly/:month/copy-previous', async (req: Reque
       message: `${entries.length} costos copiados de ${prevMonth}`,
     });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: safeError(error) });
   }
 });
 
@@ -869,7 +983,7 @@ router.get('/import/jobs/:propertyId', async (req: Request, res: Response) => {
     });
     res.json({ success: true, data: jobs });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: safeError(error) });
   }
 });
 
@@ -885,7 +999,7 @@ router.get('/data-health/:propertyId', async (req: Request, res: Response) => {
     const health = engine.getDataHealth();
     res.json({ success: true, data: health });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: safeError(error) });
   }
 });
 
@@ -906,7 +1020,7 @@ router.post('/telemetry', async (req: Request, res: Response) => {
     }
     res.json({ success: true });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: safeError(error) });
   }
 });
 
@@ -921,7 +1035,7 @@ router.post('/property/:propertyId/reset', async (req: Request, res: Response) =
     cacheService.clear();
     res.json({ success: true, message: 'Database reset successfully' });
   } catch (error: any) {
-    res.status(500).json({ success: false, error: error.message });
+    res.status(500).json({ success: false, error: safeError(error) });
   }
 });
 
@@ -942,7 +1056,7 @@ router.post('/admin/:propertyId/backfill-snapshots', async (req: Request, res: R
     cacheService.clear();
     return res.json({ success: true, data: result });
   } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: safeError(error) });
   }
 });
 
@@ -967,7 +1081,7 @@ router.post('/admin/:propertyId/reconstruct-snapshot-asof', async (req: Request,
     cacheService.clear();
     return res.json({ success: true, data: result });
   } catch (error: any) {
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false, error: safeError(error) });
   }
 });
 

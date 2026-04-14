@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
   Home,
@@ -12,8 +12,10 @@ import {
   Calendar,
   BookOpen,
   ExternalLink,
+  Shield,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { checkAdmin } from '../api';
 import GlossaryDrawer from './GlossaryDrawer';
 import styles from './Sidebar.module.css';
 
@@ -34,6 +36,11 @@ interface SidebarContentProps {
 export default function SidebarContent({ onItemClick }: SidebarContentProps) {
   const { property, actions } = useApp();
   const [glossaryOpen, setGlossaryOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    checkAdmin().then(res => setIsAdmin(res.success && !!res.data?.isAdmin));
+  }, []);
 
   // Count pending high priority actions
   const urgentActions =
@@ -104,6 +111,12 @@ export default function SidebarContent({ onItemClick }: SidebarContentProps) {
           <Settings size={18} />
           <span>Configuración</span>
         </NavLink>
+        {isAdmin && (
+          <NavLink to="/admin" className={`${styles.navItem} ${styles.footerItem}`} onClick={handleNavClick}>
+            <Shield size={18} />
+            <span>Admin</span>
+          </NavLink>
+        )}
         <a
           href="https://myfrontdesk.cloudbeds.com/hc"
           target="_blank"

@@ -59,7 +59,7 @@ function getSupabaseClient(): SupabaseClient {
     }
     
     _supabaseClient = createClient(config.url, config.key);
-    console.log('✅ Supabase client initialized (frontend)');
+    if ((import.meta as any).env?.DEV) console.log('Supabase client initialized');
   }
   
   return _supabaseClient;

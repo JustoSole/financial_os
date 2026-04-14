@@ -22,8 +22,7 @@ CREATE INDEX IF NOT EXISTS idx_res_fin_property_source
 CREATE INDEX IF NOT EXISTS idx_ledger_property_txn_at
   ON ledger_transactions(property_id, txn_at DESC);
 
-CREATE INDEX IF NOT EXISTS idx_ledger_property_hash
-  ON ledger_transactions(property_id, row_hash);
+-- idx_ledger_property_hash: moved to 20260413000001 (row_hash column created there)
 
 -- import_files: queried on every engine init
 CREATE INDEX IF NOT EXISTS idx_import_files_property_status
